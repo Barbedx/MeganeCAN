@@ -1,0 +1,687 @@
+------------------------
+    MrDIY CAN SHIELD v0.1
+------------------------
+ CAN...............INIT
+TWAI Driver installed
+Creating queues
+Starting can handler task
+TWAI Driver started
+ CAN............500Kbps
+Loop, current status:1
+CAN MSG: 0x3AF [8] <7A:1:0:0:0:0:0:0>
+final answer sended
+ID: 0x7AF DLC: 8 Data: 74 0 0 0 0 0 0 0 
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+Loop, current status:0
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+2
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <69:A3:A3:A3:A3:A3:A3:A3>
+Got sync packet
+status:
+3
+Loop, current status:3
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+2
+Loop, current status:0
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
+Loop, current status:1
+CAN MSG: 0x3CF [8] <61:11:A3:A3:A3:A3:A3:A3>
+Got sync packet
+sync answer sended
+status:
+0
+ping timeout!
+
