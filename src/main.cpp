@@ -1,7 +1,8 @@
 #include <Arduino.h>
 
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
-
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
 #include <SerialCommand.h>
 #include <affa3.h>
 
@@ -198,12 +199,91 @@ void onPressCommand(){
   else if (strcmp(arg, "src_left") == 0) emulateKey(AFFA2_KEY_SRC_LEFT);
   else if (strcmp(arg, "src_right") == 0) emulateKey(AFFA2_KEY_SRC_RIGHT);
   else if (strcmp(arg, "load_hold") == 0) emulateKey(AFFA2_KEY_LOAD,true);
-  else if (strcmp(arg, "pass") == 0) sendPasswordSequence();
+  else if (strcmp(arg, "pass") == 0) sendPasswordSequence(); 
+  else if (strcmp(arg, "showtext") == 0) {
+    char *text = sCmd.next();  // Get the text argument
+    if (text) {
+      show_text(text);  // Display the text on the screen
+    } else {
+      Serial.println("No text specified");
+    }
+  }
   else Serial.println("Unknown key name");
 }
+
 void testDisp(){
-  show_text("meganeUA     ");
+  show_text("Bulldozz");
+  delay(300);
+  show_text("ulldozze");
+  delay(300);
+  show_text("lldozzer");
+  delay(300);
+  show_text("Bulldozz");
+  delay(300);
+  show_text("ulldozze");
+  delay(300);
+  show_text("lldozzer");
+  delay(300);
 }
+
+void show_text(const char* text) {
+  String textStr = String(text);
+  textStr.replace("_", " "); // Replace underscores with spaces
+  int textLength = textStr.length();
+  int displayLength = 14; // Display width in characters (adjust if necessary)
+  
+  // Make sure the text is at least 14 characters long for the display
+  while (textStr.length() < displayLength) {
+    textStr += ' '; // Pad with spaces to match the display size
+  }
+
+  CAN_FRAME answer;
+
+  // Frame 1: Control frame to set up display parameters
+  answer.id = 0x151;  // Example CAN ID
+  answer.length = 8;  // 8 bytes of data
+
+  answer.data.uint8[0] = 0x10;  // Control byte for setup
+  answer.data.uint8[1] = 0x0E;  // Control byte for setup
+  answer.data.uint8[2] = 0x01;  // Example window size control
+  answer.data.uint8[3] = 0x45;  // Other control bytes
+  answer.data.uint8[4] = 0x55;  // Other control bytes
+  answer.data.uint8[5] = 0x01;  // Other control bytes
+  answer.data.uint8[6] = 0x01;  // Other control bytes
+  answer.data.uint8[7] = 0x01;  // Other constant control byte
+
+  CAN0.sendFrame(answer);  // Send control frame
+  delay(5);  // Small delay
+
+  // Loop through the text and send it in chunks of 8 characters, shifting each time
+  for (int start = 0; start < textLength + displayLength; start++) {
+    // Frame 2: Send the first 7 characters
+    answer.data.uint8[0] = 0x21;  // Control byte indicating the first part of text
+    for (int i = 0; i < 7; i++) {
+      int index = (start + i) % textLength;  // Wrap text around if it exceeds length
+      answer.data.uint8[i + 1] = textStr[index];  // Copy character from the text
+    }
+
+    CAN0.sendFrame(answer);  // Send frame 2
+    delay(5);  // Small delay between frames
+
+    // Frame 3: Send the next 7 characters
+    answer.data.uint8[0] = 0x22;  // Control byte indicating the second part of text
+    for (int i = 0; i < 7; i++) {
+      int index = (start + 7 + i) % textLength;  // Wrap text around if it exceeds length
+      answer.data.uint8[i + 1] = textStr[index];  // Copy character from the text
+    }
+
+    CAN0.sendFrame(answer);  // Send frame 3
+    delay(5);  // Small delay between frames
+
+    // You can add a delay or check to control the scrolling speed
+    delay(200);  // Delay to make scrolling visible (adjust this for speed)
+  }
+
+  Serial.println("Sent all scrolling CAN frames.");
+}
+
 #pragma endregion
 
 void printFrame(CAN_FRAME *frame, int mailbox = -1){
@@ -438,26 +518,10 @@ void setTime() {
 }
 
 
-void sendCAN() {
-  char* b3Str = sCmd.next();
-  char* b4Str = sCmd.next();
-  char* b5Str = sCmd.next();
-  char* b6Str = sCmd.next();
-  char* b7Str = sCmd.next();
-  char* b8Str = sCmd.next();
-  char* text = sCmd.next();
-
-  if (!b6Str || !b7Str || !text) {
-    Serial.println("Usage: sendCAN <byte6> <byte7> <text>");
-    return;
-  }
-
-  uint8_t byte3 = strtol(b3Str, nullptr, 16);
-  uint8_t byte4 = strtol(b4Str, nullptr, 16);
-  uint8_t byte5 = strtol(b5Str, nullptr, 16);
-  uint8_t byte6 = strtol(b6Str, nullptr, 16);
-  uint8_t byte7 = strtol(b7Str, nullptr, 16);
-  uint8_t byte8 = strtol(b8Str, nullptr, 16);
+void sendText_internal(uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte6, uint8_t byte7, uint8_t byte8, const char* text) {
+  // Ensure text is 14 characters long (pad with spaces if necessary)
+ 
+  
 
   String textStr = String(text);
   textStr.replace("_", " "); // use underscores for spaces
@@ -502,6 +566,126 @@ void sendCAN() {
   Serial.println("Sent all 3 CAN frames:");
   printFrame(&answer);
 }
+
+void sendCAN()
+{
+//sendCAN 74 55 55 FD 60 1 BULLDOZZER 
+    char* b3Str = sCmd.next();
+    char* b4Str = sCmd.next();
+    char* b5Str = sCmd.next();
+    char* b6Str = sCmd.next();
+    char* b7Str = sCmd.next();
+    char* b8Str = sCmd.next();
+    char* text += sCmd.next();  // Keep appending the text
+    
+    //Serial.print("Full Text: ");
+    //Serial.println(text); 
+    
+    
+    if (!b6Str || !b7Str || !text) {
+      Serial.println("Usage: sendCAN <byte6> <byte7> <text>");
+      return;
+    }
+    Serial.println("Got mesage:");  // Print current segment for debugging
+    Serial.println(text);  // Print current segment for debugging
+
+
+    uint8_t byte3 = strtol(b3Str, nullptr, 16);
+    uint8_t byte4 = strtol(b4Str, nullptr, 16);
+    uint8_t byte5 = strtol(b5Str, nullptr, 16);
+    uint8_t byte6 = strtol(b6Str, nullptr, 16);
+    uint8_t byte7 = strtol(b7Str, nullptr, 16);
+    uint8_t byte8 = strtol(b8Str, nullptr, 16); 
+
+
+
+  // Ensure the text is at least 14 characters long (pad with spaces if necessary)
+  String textStr = String(text);
+  while (textStr.length() < 14) {
+    textStr += ' ';
+  }
+  // Repeat the display cycle for the long text
+ 
+int textLength = textStr.length();
+int currentPos = 0;
+int i;
+while (i++<4) {
+    // Get the next 8-character segment, starting from currentPos
+    String currentTextSegment = textStr.substring(currentPos, currentPos + 8);
+    
+    // If the segment is less than 8 characters, wrap around to the start of the string
+    if (currentTextSegment.length() < 8) {
+        currentTextSegment += textStr.substring(0, 8 - currentTextSegment.length());
+    }
+
+    Serial.println(currentTextSegment);  // Print current segment for debugging
+
+    // Send the text in parts (8-character chunks)
+    sendText_internal(byte3, byte4, byte5, byte6, byte7, byte8, currentTextSegment.c_str());
+
+    // Increment position by 1 for a smooth scroll effect
+    currentPos++;
+
+    // If we've reached the end of the text, start over from the beginning
+    if (currentPos >= textLength) {
+        currentPos = 0;
+    }
+
+    delay(700);  // Wait for a second before cycling again (adjust as needed)
+}
+
+
+
+}
+
+// void sendText_internal(uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte6, uint8_t byte7, uint8_t byte8, const char* text) {
+//   // Ensure text is 14 characters long (pad with spaces if necessary)
+ 
+  
+
+//   String textStr = String(text);
+//   textStr.replace("_", " "); // use underscores for spaces
+//   while (textStr.length() < 14) textStr += ' ';
+
+//   CAN_FRAME answer;
+
+//   // Frame 1
+//   answer.id = 0x151;
+//   answer.length = AFFA3_PACKET_LEN; 
+
+//   answer.data.uint8[0] = 0x10;
+//   answer.data.uint8[1] = 0x0E;
+//   //10 69 21 05 FF 00 00 49  -long text setted
+//   answer.data.uint8[2] = byte3;// 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.               //sc 151 2 54 3 0 0 0 0 0  to close full window
+//   answer.data.uint8[3] = byte4;//45= AF-RDS 55-none
+//   answer.data.uint8[4] = byte5; //???55 ALSWAYS
+//   answer.data.uint8[5] = byte6;// ADD df-MANU / FF - NOTHING  FD -PRESET ??- LIST
+//   answer.data.uint8[6] = byte7;//20 mid point, , 31-39 -5sym+ point +2sym+  UPPERSAD, 60-plain 8 sym, 70-79 8 sym +uppersad
+//   answer.data.uint8[7] = byte8;//always 1
+//   //sc 151  04 25 00 03 00 00 00 00  - shows "CD" ico (BOOL? MOD/2?)
+//   //sc 151  04 25 00 00 00 00 00 00  - shows "CD" ico nothing ico
+//   CAN0.sendFrame(answer);
+//   delay(5);
+
+//   // Frame 2
+//   answer.data.uint8[0] = 0x21;
+//   for (int i = 0; i < 7; i++) {
+//     answer.data.uint8[i + 1] = textStr[i];
+//   }
+
+//   CAN0.sendFrame(answer);
+//   delay(5);
+
+//   // Frame 3
+//   answer.data.uint8[0] = 0x22;
+//   for (int i = 0; i < 7; i++) {
+//     answer.data.uint8[i + 1] = textStr[i + 7];
+//   }
+
+//   CAN0.sendFrame(answer);
+//   Serial.println("Sent all 3 CAN frames:");
+//   printFrame(&answer);
+// }
 void sendGenericCAN() {
   char* idStr = sCmd.next();
   if (!idStr) {
@@ -595,62 +779,7 @@ void setup()
  
 #define SYNC_INTERVAL_MS 500
 static uint32_t last_sync = 0;
-
-void affa3_tick2(void) {
-	struct CAN_FRAME packet;
-	static int8_t timeout = AFFA3_PING_TIMEOUT;
-	
-	/* Wysyłamy pakiet informujący o tym że żyjemy */
-	packet.id = AFFA3_PACKET_ID_SYNC;
-	packet.length = AFFA3_PACKET_LEN;
-	packet.data.uint8[0] = 0x79;
-	packet.data.uint8[1] = 0x00; /* Tutaj czasem pojawia się 0x01, czemu? */
-	packet.data.uint8[2] = AFFA3_PACKET_FILLER;
-	packet.data.uint8[3] = AFFA3_PACKET_FILLER;
-	packet.data.uint8[4] = AFFA3_PACKET_FILLER;
-	packet.data.uint8[5] = AFFA3_PACKET_FILLER;
-	packet.data.uint8[6] = AFFA3_PACKET_FILLER;
-	packet.data.uint8[7] = AFFA3_PACKET_FILLER;
-	CAN0.sendFrame(packet);
-	if ((_sync_status & AFFA3_SYNC_STAT_FAILED) || (_sync_status & AFFA3_SYNC_STAT_START)) { /* Błąd synchronizacji */
-		/* Wysyłamy pakiet z żądaniem synchronizacji */
-		packet.id = AFFA3_PACKET_ID_SYNC;
-		packet.length = AFFA3_PACKET_LEN;
-		packet.data.uint8[0] = 0x7A;
-		packet.data.uint8[1] = 0x01;
-		packet.data.uint8[2] = AFFA3_PACKET_FILLER;
-		packet.data.uint8[3] = AFFA3_PACKET_FILLER;
-		packet.data.uint8[4] = AFFA3_PACKET_FILLER;
-		packet.data.uint8[5] = AFFA3_PACKET_FILLER;
-		packet.data.uint8[6] = AFFA3_PACKET_FILLER;
-		packet.data.uint8[7] = AFFA3_PACKET_FILLER;
-    CAN0.sendFrame(packet);
-		
-		_sync_status &= ~AFFA3_SYNC_STAT_START;
-		delay(100);
-	}
-	else {
-		if (_sync_status & AFFA3_SYNC_STAT_PEER_ALIVE) {
-			timeout = AFFA3_PING_TIMEOUT;
-			_sync_status &= ~AFFA3_SYNC_STAT_PEER_ALIVE;
-		}
-		else {
-			timeout--;
-			if (timeout <= 0) { /* Nic nie odpowiada, wymuszamy resynchronizację */
-				_sync_status = AFFA3_SYNC_STAT_FAILED;
-				/* Wszystkie funkcje tracą rejestracje */
-				_sync_status &= ~AFFA3_SYNC_STAT_FUNCSREG;
-				
-				Serial.println("ping timeout!\n");
-			}
-		}
-	}
-	
-	
-}
-
-
-
+ 
 void loop()
 { 
   sCmd.readSerial(); 
