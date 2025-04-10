@@ -1,9 +1,12 @@
+#include <Arduino.h>
+#include <esp32_can.h> /* https://github.com/collin80/esp32_can */
+#ifndef __AFFA3_H
 #define __AFFA3_H 
 
 #define AFFA3_PING_TIMEOUT           5
 
 #define AFFA3_PACKET_LEN             0x08
-#define AFFA3_PACKET_FILLER          0x00//0x81
+#define AFFA3_PACKET_FILLER  0x81//        0x00//0x81 ???? AFFA3 NAV?
 
 #define AFFA3_PACKET_REPLY_FLAG      0x400 /* Bit oznaczajązy że jest to odpowiedź */
 
@@ -31,10 +34,8 @@
 #define AFFA3_SYNC_STAT_PEER_ALIVE   0x02
 #define AFFA3_SYNC_STAT_START        0x04
 #define AFFA3_SYNC_STAT_FUNCSREG     0x08 
-
-extern int8_t mcp2515_send(struct can_packet * packet);
-#define AFFA3_PRINT(fmt, ...)        printf_P(PSTR(fmt), ##__VA_ARGS__)
-#define AFFA3_SEND(p)                mcp2515_send(p)
+ 
+#define AFFA3_PRINT(fmt, ...)        printf_P(PSTR(fmt), ##__VA_ARGS__) 
 
 #define AFFA3_FUNC_STAT_IDLE         0x00 
 #define AFFA3_FUNC_STAT_WAIT         0x01 /* Czekamy na odpowiedź */
@@ -88,7 +89,8 @@ void affa3_tick(void); /* Funkcja wywoływana z przerwania zegarowego */
 void affa3_recv(struct can_packet * packet); /* Funkcja wywoływana przy nowych danych przychodzących */
 
 uint8_t affa3_sync_status(void);
-int8_t affa3_send(uint16_t id, uint8_t * data, uint8_t len) ;
+int8_t affa3_send2(uint16_t id, uint8_t * data, uint8_t len) ;
+int8_t AFFA3_SEND(CAN_FRAME packet) ;
 int8_t affa3_display_ctrl(uint8_t state);
 
 int8_t affa3_display_full_screen(char * str); /* Wyświetla tekst na pełnym ekranie */
@@ -97,4 +99,4 @@ int8_t affa3_menu_begin(uint8_t max_items); /* Rozpoczyna sekcję menu */
 int8_t affa3_menu_set_item(uint8_t idx, uint8_t is_selected, char * entry, char * oldentry); /* Dodaje do menu pową pozycje */
 
 uint16_t affa3_get_key(void); /* Sprawdza czy naciśnięty został jakiś klaiwsz i zwraca jego kod, 0xFFFF gdy brak */
-  
+#endif /* __AFFA3_H */
