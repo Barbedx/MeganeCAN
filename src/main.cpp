@@ -19,6 +19,19 @@
 //AsyncWebServer server(80);
 
 
+//for menu navigation
+// sc 151 7 29 1 7F 80 0 0 0
+// sc 151 7 29 1 7E 80 0 0 0
+
+
+
+
+
+
+
+
+
+
 void sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
   uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7) {
 CAN_FRAME frame;
@@ -50,6 +63,108 @@ BleKeyboard bleKeyboard("Bluetooth Device Name", "Bluetooth Device Manufacturer"
 bool current_in_AUX_mode = false; // Global variable for AUX mode tracking
 void unrecognized(const char *command); 
 
+void showMenu(const char* header, const char* item1, const char* item2) {
+  Serial.println("[showMenu] --- Building Menu ---");
+
+  // Debug output
+  Serial.print("[Header] "); Serial.println(header);
+  Serial.print("[Item1] "); Serial.println(item1);
+  Serial.print("[Item2] "); Serial.println(item2);
+
+  uint8_t payload[96] = {0};
+  int idx = 0;
+
+  // Initial protocol fields
+  payload[idx++] = 0x21;  // Frame start identifier
+  payload[idx++] = 0x01;
+  payload[idx++] = 0x7E;
+  payload[idx++] = 0x80;
+  payload[idx++] = 0x00;
+  payload[idx++] = 0x00;
+
+  // Send the first CAN frame (Header)
+  sendCan(0x151, 0x10, 0x5A, payload[0], payload[1], payload[2], payload[3], payload[4], payload[5]);
+
+  // Add header content to the payload
+  payload[idx++] = 0x82;  // Some kind of identifier for header
+  payload[idx++] = 0xFF;
+  payload[idx++] = 0x0B;  // Scroll lock indicator placeholder
+
+  int maxHeaderLen = 26;
+  int h = 0;
+  while (header && header[h] && h < maxHeaderLen && idx < 96) {
+    Serial.print("Header["); Serial.print(h); Serial.print("] = ");
+    Serial.print(header[h]); Serial.print(" | idx = "); Serial.println(idx);
+    payload[idx++] = header[h++];
+  }
+
+  Serial.print("[Header copy done] Final idx = "); Serial.println(idx);
+  
+
+// Serial.print("[Header copy done] Final idx = "); Serial.println(idx);
+
+
+
+  // Padding to reach Frame 24 (ensure padding reaches frame 24 correctly)
+  while (idx < 35) payload[idx++] = 0x00;
+
+  // Frame 25 starts here: Start of Item 1 
+  payload[idx++] = 0x00;  // Selection state
+  payload[idx++] = 0x7E;  // Start marker
+
+  // Item 1 payload (string with padding to make sure it fits)
+  for (int i = 0; i < 4; i++) {
+    payload[idx++] = (i < strlen(item1)) ? item1[i] : ' ';
+  }
+
+  // Padding to index 56
+  while (idx < 62) payload[idx++] = 0x00;
+
+  // Frame 26 (Item 2) - Unselected item 
+  payload[idx++] = 0x01;
+  payload[idx++] = 0x7F;  // End marker for item 2
+
+  // Item 2 payload (string with padding to make sure it fits)
+  while (*item2 && idx < 96) payload[idx++] = *item2++;
+
+  while (idx < 96) payload[idx++] = 0x00;
+  // Debug output
+  Serial.print("[PayloadLength] "); Serial.println(idx);
+
+  // Debug CAN frame sending
+  Serial.print("[CAN] Sending Frame: 0x151 ");
+  Serial.print("0x"); Serial.print(0x10, HEX); Serial.print(" ");
+  Serial.print("0x"); Serial.print(0x5A, HEX); Serial.print(" ");
+  for (int i = 0; i < 6; i++) {
+    Serial.print("0x"); Serial.print(payload[i], HEX); Serial.print(" ");
+  }
+  Serial.println();
+
+  // Send consecutive frames
+  uint8_t seq = 1;
+  for (int i = 6; i < idx; i += 7) {
+    uint8_t d[8];
+    d[0] = 0x20 | (seq++ & 0x0F);  // Sequence number
+    for (int j = 0; j < 7; j++) {
+      d[j + 1] = (i + j < idx) ? payload[i + j] : 0x00;
+    }
+
+    // Debug output for each frame
+    Serial.print("[CAN] Frame "); Serial.print(seq - 1); Serial.print(": ");
+    for (int b = 0; b < 8; b++) {
+      Serial.print(d[b], HEX); Serial.print(" ");
+    }
+    Serial.println();
+
+    sendCan(0x151, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
+    delay(5);
+  }
+
+  Serial.println("[showMenu] --- Done ---");
+}
+
+
+
 
 void printFrame_inline(CAN_FRAME &frame)
 {
@@ -58,7 +173,7 @@ void printFrame_inline(CAN_FRAME &frame)
 	Serial.print(frame.id,HEX);
 	Serial.print("Ext: ");
 	if(frame.extended) {
-		Serial.print("Y");
+		Serial.print("Y"); 
 	} else {
 		Serial.print("N");
 	}
@@ -480,7 +595,7 @@ void scrollTextRightToLeft(
   }
 
   // Add extra safety padding to prevent out-of-bounds
-  fullText += padding;
+  fullText += padding; //TODO: Fix that
 
   int totalLength = fullText.length() - 7; // Scroll window of 8 chars
 
@@ -514,8 +629,56 @@ void scrollTextRightToLeft(
 
   Serial.println("---- scrollTextRightToLeft done ----");
 }
+void testShowMenuLimits() {
+  Serial.println("=== Testing Menu Limits ===");
 
+  const char* testHeaders[] = {
+    "Short",
+    "12345678901234567890",         // 20 chars
+    "123456789012345678901",        // 21
+    "1234567890123456789012",       // 22
+    "123456789012345678901234",     // 24
+    "12345678901234567890123456",   // 26
+    "1234567890123456789012345678", // 28
+    nullptr
+  };
 
+  const char* testItems[] = {
+    "One",
+    "1234567890",
+    "ABCDEFGHIJKL",
+    "This is a really long item string for testing truncation",
+    nullptr
+  };
+
+  for (int h = 0; testHeaders[h] != nullptr; h++) {
+    for (int i1 = 0; testItems[i1] != nullptr; i1++) {
+      for (int i2 = 0; testItems[i2] != nullptr; i2++) {
+        Serial.println("-----");
+        Serial.print("Header: "); Serial.println(testHeaders[h]);
+        Serial.print("Item1: ");  Serial.println(testItems[i1]);
+        Serial.print("Item2: ");  Serial.println(testItems[i2]);
+        showMenu(testHeaders[h], testItems[i1], testItems[i2]);
+        delay(500);
+      }
+    }
+  }
+
+  Serial.println("=== Test Complete ===");
+}
+
+void handleMenuCmd(){
+ // char* selectedCmd = sCmd.next(); 
+  
+  char* header      = sCmd.next();  // optional
+  char* item1      = sCmd.next();  // optional
+  char* item2    = sCmd.next();  // optional
+
+  // int selected = 0;
+  // if (selectedCmd) selected = atoi(selectedCmd);
+  showMenu(header,item1,item2);
+
+}
 
 void handleTextCmd(){
   char* textStr       = sCmd.next();  // the actual text
@@ -732,6 +895,8 @@ void setup()
   sCmd.addCommand("sc", sendGenericCAN);
   sCmd.addCommand("scroll", handleScrollCmd);
   sCmd.addCommand("text", handleTextCmd);
+  sCmd.addCommand("menu", handleMenuCmd);
+  sCmd.addCommand("menut", testShowMenuLimits);
 
   sCmd.addCommand("setTime", setTime);
   // sCmd.addCommand("ss", startSync);       // 

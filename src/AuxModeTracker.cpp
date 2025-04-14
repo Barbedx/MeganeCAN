@@ -27,6 +27,7 @@ void AuxModeTracker::onCanMessage(const CAN_FRAME& frame) {
     }
   }
 }
+
 bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
     // Debug: print header bytes
     Serial.print("isAux: Header bytes: ");
@@ -41,9 +42,7 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
     // Debug: print text frame bytes (as characters and as hex)
     Serial.print("isAux: Text bytes: ");
     for (int i = 0; i < 8; i++) {
-      Serial.print("'");
-      Serial.print((char)text[i]);
-      Serial.print("' ");
+      Serial.print("'"); Serial.print((char)text[i]); Serial.print("' ");
     }
     Serial.println();
     Serial.print("isAux: Text bytes in HEX: ");
@@ -55,89 +54,63 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
     }
     Serial.println();
   
-    // Check the text frame bytes exactly.
-    // If bytes at indexes 1-3 form "AUX", then we are sure it's AUX.
-    if (text[1] == 'A' && text[2] == 'U' && text[3] == 'X')
-    {
-        Serial.println("Definettely AUX");
-
+    // Check if the text clearly indicates AUX
+    if (text[1] == 'A' && text[2] == 'U' && text[3] == 'X'
+    && text[4] == ' '
+    && text[5] == ' '
+    && text[6] == ' '
+    && text[7] == ' ' 
+    
+    ) {
+        Serial.println("Definitely AUX");
         return true;
     }
- 
-    
 
-    if (text[1] == 'T' && 
-        text[2] == 'R' && 
-        text[3] == ' ' && 
-        (text[4]== ' '  || isDigit(text[4]) ) && 
-        isDigit(text[5]) && 
-        text[6] == ' ' && 
-        text[7] == 'C'         
-    )
-    {
-        Serial.println("Definettely CD mode");
-
+    // Check for CD mode (TR [0-9] CD [0-9])
+    if (text[1] == 'T' && text[2] == 'R' && text[3] == ' ' &&
+        (text[4] == ' ' || isDigit(text[4])) && 
+        isDigit(text[5]) && text[6] == ' ' && text[7] == 'C') {
+        Serial.println("Definitely CD mode");
         return false;
     }
-    
-    if (text[1] == '>' && 
-        text[2] == ' ' && 
-        text[3] != ' '  //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        && head[6] >=0x59 
-    )
-    {
-        Serial.println("Definettely radio short mode");
 
+    // Check for radio mode (starting with '> ' and header byte 7 >= 0x59)
+    if (text[1] == '>' && text[2] == ' ' && text[3] != ' ' &&
+        head[6] >= 0x59) {
+        Serial.println("Definitely Radio mode (short)");
         return false;
     }
-    
-    if (text[1] == 'M' && 
-        text[2] == ' ' && 
-        (text[3]== ' '  || isDigit(text[3]) ) && 
-        isDigit(text[4]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[5]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[6]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        text[7] == ' '  //for radio station? meaybe check also 22 frame(itwill contains"<")        
-    )
-    {
-        Serial.println("Definettely radio M mode");
 
+    // Check for radio mode with 'M' (and digits after it)
+    if (text[1] == 'M' && text[2] == ' ' &&
+        (text[3] == ' ' || isDigit(text[3])) &&
+        isDigit(text[4]) && isDigit(text[5]) &&
+        isDigit(text[6]) && text[7] == ' ') {
+        Serial.println("Definitely Radio M mode");
         return false;
     }
-    if (text[1] == ' ' && 
-        text[2] == ' ' && 
-        text[3]== ' '  &&
 
-        isDigit(text[4]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[5]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[6]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[6]) 
-        && head[6]<0x59
-        //for radio station? meaybe check also 22 frame(itwill contains"<")        
-    )
-    {
-        Serial.println("Definettely radio M mode");
-
+    // Check for radio mode with 'L' (and digits after it)
+    if (text[1] == 'L' && text[2] == ' ' &&
+        text[3] == ' ' && isDigit(text[4]) &&
+        isDigit(text[5]) && isDigit(text[6]) &&
+        text[7] == ' ') {
+        Serial.println("Definitely Radio L mode");
         return false;
     }
-    
-    if (text[1] == 'L' && 
-        text[2] == ' ' && 
-        text[3]== ' '  && 
-        isDigit(text[4]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[5]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        isDigit(text[6]) &&   //for radio station? meaybe check also 22 frame(itwill contains"<")        
-        text[7] == ' '  //for radio station? meaybe check also 22 frame(itwill contains"<")        
-    )
-    {
-        Serial.println("Definettely radio L mode");
 
+    // Check for a pattern indicating Radio mode 1: "   1056" (spaces and digits)
+    if (text[1] == ' ' && text[2] == ' ' && text[3] == ' ' &&
+        isDigit(text[4]) && isDigit(text[5]) &&
+        isDigit(text[6]) && isDigit(text[7]) && head[6] < 0x59) {
+        Serial.println("Definitely Radio Mode 1");
         return false;
     }
-    
-     return auxActive;
-  }
-  
+
+    // If no clear mode, retain the last known state
+    Serial.println("Undetermined mode - retaining last state.");
+    return auxActive;
+}
 
 bool AuxModeTracker::isInAuxMode() const {
   return auxActive;
