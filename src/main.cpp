@@ -44,7 +44,7 @@ AuxModeTracker tracker;
 
 
  
-BleKeyboard bleKeyboard;
+BleKeyboard bleKeyboard("MeganeCAN","gycer",100);
 
  
 void unrecognized(const char *command); 
@@ -358,43 +358,6 @@ void setTime() {
 #define CAN_DELAY_MS 5
 
 
-void testShowMenuLimits() {
-  Serial.println("=== Testing Menu Limits ===");
-
-  const char* testHeaders[] = {
-    "Short",
-    "12345678901234567890",         // 20 chars
-    "123456789012345678901",        // 21
-    "1234567890123456789012",       // 22
-    "123456789012345678901234",     // 24
-    "12345678901234567890123456",   // 26
-    "1234567890123456789012345678", // 28
-    nullptr
-  };
-
-  const char* testItems[] = {
-    "One",
-    "1234567890",
-    "ABCDEFGHIJKL",
-    "This is a really long item string for testing truncation",
-    nullptr
-  };
-
-  for (int h = 0; testHeaders[h] != nullptr; h++) {
-    for (int i1 = 0; testItems[i1] != nullptr; i1++) {
-      for (int i2 = 0; testItems[i2] != nullptr; i2++) {
-        Serial.println("-----");
-        Serial.print("Header: "); Serial.println(testHeaders[h]);
-        Serial.print("Item1: ");  Serial.println(testItems[i1]);
-        Serial.print("Item2: ");  Serial.println(testItems[i2]);
-        Affa3Display::showMenu(testHeaders[h], testItems[i1], testItems[i2]);
-        delay(500);
-      }
-    }
-  }
-
-  Serial.println("=== Test Complete ===");
-}
 
 void handleMenuCmd(){
  // char* selectedCmd = sCmd.next(); 
@@ -756,7 +719,7 @@ void setup()
   sCmd.addCommand("text", handleTextCmd);
   sCmd.addCommand("menu", handleMenuCmd);
   sCmd.addCommand("menuit", testShowInfoMenu);
-  sCmd.addCommand("menut", testShowMenuLimits);
+  //sCmd.addCommand("menut", testShowMenuLimits);
   sCmd.addCommand("menut2", handleSerialMenuCommand);
   sCmd.addCommand("selectItem", handleSelectMenuItem);
   sCmd.addCommand("cb", testConfirmBoxCmd);
