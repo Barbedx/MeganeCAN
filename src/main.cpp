@@ -63,10 +63,17 @@ BleKeyboard bleKeyboard("Bluetooth Device Name", "Bluetooth Device Manufacturer"
 bool current_in_AUX_mode = false; // Global variable for AUX mode tracking
 void unrecognized(const char *command); 
 
-void showMenu(const char* header, const char* item1, const char* item2) {
+void showMenu(
+  const char* header, 
+  const char* item1, 
+  const char* item2, 
+  uint8_t firstFrameSize = 0x5A, 
+  uint8_t scrollLockIndicator = 0x0B,
+  uint8_t selectionItem1 = 0x00, 
+  uint8_t selectionItem2 = 0x01
+) {
   Serial.println("[showMenu] --- Building Menu ---");
 
-  // Debug output
   Serial.print("[Header] "); Serial.println(header);
   Serial.print("[Item1] "); Serial.println(item1);
   Serial.print("[Item2] "); Serial.println(item2);
@@ -75,20 +82,26 @@ void showMenu(const char* header, const char* item1, const char* item2) {
   int idx = 0;
 
   // Initial protocol fields
-  payload[idx++] = 0x21;  // Frame start identifier
+  payload[idx++] = 0x21;
   payload[idx++] = 0x01;
   payload[idx++] = 0x7E;
   payload[idx++] = 0x80;
   payload[idx++] = 0x00;
   payload[idx++] = 0x00;
+// Send First Frame
+Serial.print("[CAN] Sending First Frame: ID=0x151 Data= ");
+Serial.printf("10 %02X ", firstFrameSize);
+for (int i = 0; i < 6; i++) {
+  Serial.printf("%02X ", payload[i]);
+}
+Serial.println();
 
-  // Send the first CAN frame (Header)
-  sendCan(0x151, 0x10, 0x5A, payload[0], payload[1], payload[2], payload[3], payload[4], payload[5]);
+sendCan(0x151, 0x10, firstFrameSize, payload[0], payload[1], payload[2], payload[3], payload[4], payload[5]);
 
-  // Add header content to the payload
-  payload[idx++] = 0x82;  // Some kind of identifier for header
+  // Header
+  payload[idx++] = 0x82;
   payload[idx++] = 0xFF;
-  payload[idx++] = 0x0B;  // Scroll lock indicator placeholder
+  payload[idx++] = scrollLockIndicator;//0B to bottom 07 to up
 
   int maxHeaderLen = 26;
   int h = 0;
@@ -99,57 +112,34 @@ void showMenu(const char* header, const char* item1, const char* item2) {
   }
 
   Serial.print("[Header copy done] Final idx = "); Serial.println(idx);
-  
 
-// Serial.print("[Header copy done] Final idx = "); Serial.println(idx);
-
-
-
-  // Padding to reach Frame 24 (ensure padding reaches frame 24 correctly)
   while (idx < 35) payload[idx++] = 0x00;
 
-  // Frame 25 starts here: Start of Item 1 
-  payload[idx++] = 0x00;  // Selection state
-  payload[idx++] = 0x7E;  // Start marker
-
-  // Item 1 payload (string with padding to make sure it fits)
+  // Item 1
+  payload[idx++] = selectionItem1;
+  payload[idx++] = 0x7E;
   for (int i = 0; i < 4; i++) {
     payload[idx++] = (i < strlen(item1)) ? item1[i] : ' ';
   }
 
-  // Padding to index 56
   while (idx < 62) payload[idx++] = 0x00;
 
-  // Frame 26 (Item 2) - Unselected item 
-  payload[idx++] = 0x01;
-  payload[idx++] = 0x7F;  // End marker for item 2
-
-  // Item 2 payload (string with padding to make sure it fits)
+  // Item 2
+  payload[idx++] = selectionItem2;
+  payload[idx++] = 0x7F;
   while (*item2 && idx < 96) payload[idx++] = *item2++;
-
   while (idx < 96) payload[idx++] = 0x00;
-  // Debug output
+
   Serial.print("[PayloadLength] "); Serial.println(idx);
 
-  // Debug CAN frame sending
-  Serial.print("[CAN] Sending Frame: 0x151 ");
-  Serial.print("0x"); Serial.print(0x10, HEX); Serial.print(" ");
-  Serial.print("0x"); Serial.print(0x5A, HEX); Serial.print(" ");
-  for (int i = 0; i < 6; i++) {
-    Serial.print("0x"); Serial.print(payload[i], HEX); Serial.print(" ");
-  }
-  Serial.println();
-
-  // Send consecutive frames
   uint8_t seq = 1;
   for (int i = 6; i < idx; i += 7) {
     uint8_t d[8];
-    d[0] = 0x20 | (seq++ & 0x0F);  // Sequence number
+    d[0] = 0x20 | (seq++ & 0x0F);
     for (int j = 0; j < 7; j++) {
       d[j + 1] = (i + j < idx) ? payload[i + j] : 0x00;
     }
 
-    // Debug output for each frame
     Serial.print("[CAN] Frame "); Serial.print(seq - 1); Serial.print(": ");
     for (int b = 0; b < 8; b++) {
       Serial.print(d[b], HEX); Serial.print(" ");
@@ -163,7 +153,44 @@ void showMenu(const char* header, const char* item1, const char* item2) {
   Serial.println("[showMenu] --- Done ---");
 }
 
+void showInfoMenu(
+  const char* item1 = "AUX   AUTO",
+  const char* item2 = "AF ON",
+  const char* item3 = "SPEED 0",
+  uint8_t offset1 = 0x41,
+  uint8_t offset2 = 0x44,
+  uint8_t offset3 = 0x48, 
+  uint8_t infoPrefix = 0x60
+) {
+  Serial.println("[showInfoMenu] --- Sending Info Menu ---");
 
+  auto sendMenuItem = [&](uint8_t offset, const char* text, const char* label) {
+    char padded[8] = { ' ' };
+    strncpy(padded, text, 8); // Max 8 characters for display
+
+    Serial.print("[MenuItem] "); Serial.print(label);
+    Serial.print(" | Offset: 0x"); Serial.print(offset, HEX);
+    Serial.print(" | Text: \""); Serial.print(padded); Serial.println("\"");
+
+    // Frame 1
+    sendCan(0x151, 0x10, 0x0B, 0x76, infoPrefix, offset, padded[0], padded[1], padded[2]);
+    Serial.printf("  [CAN] %03X -> 10 0B %02X %02X %02X %02X %02X\n",
+      0x151, 0x76, infoPrefix, offset, padded[0], padded[1], padded[2]);
+    delay(5);
+
+    // Frame 2
+    sendCan(0x151, 0x21, padded[3], padded[4], padded[5], padded[6], padded[7], 0x00, 0x00);
+    Serial.printf("  [CAN] %03X -> 21 %02X %02X %02X %02X %02X 00 00\n",
+      0x151, padded[3], padded[4], padded[5], padded[6], padded[7]);
+    delay(5);
+  };
+
+  sendMenuItem(offset1, item1, "Item1");
+  sendMenuItem(offset2, item2, "Item2");
+  sendMenuItem(offset3, item3, "Item3");
+
+  Serial.println("[showInfoMenu] --- Done ---");
+}
 
 
 void printFrame_inline(CAN_FRAME &frame)
@@ -192,7 +219,39 @@ void printFrame_inline(CAN_FRAME &frame)
 SerialCommand sCmd; // The SerialCommand object
 // put function declarations here:
 // int myFunction(int, int);
- 
+void testShowInfoMenu() {
+  char* offset1str = sCmd.next();
+  char* offset2str = sCmd.next();
+  char* offset3str = sCmd.next();
+  char* infoPrefixstr = sCmd.next();
+
+  char* item1 = sCmd.next();
+  char* item2 = sCmd.next();
+  char* item3 = sCmd.next();
+
+  if (!offset1str || !offset2str || !offset3str || !infoPrefixstr) {
+    Serial.println("[testShowInfoMenu] Error: Missing offset/prefix args.");
+    Serial.println("Usage: menuit <offset1> <offset2> <offset3> <prefix> <item1> <item2> <item3>");
+    return;
+  }
+
+  uint8_t offset1 = strtol(offset1str, nullptr, 16);  
+  uint8_t offset2 = strtol(offset2str, nullptr, 16);  
+  uint8_t offset3 = strtol(offset3str, nullptr, 16);  
+  uint8_t infoPrefix = strtol(infoPrefixstr, nullptr, 16);  
+
+  // fallback text if missing
+  const char* def1 = "AUX AUTO";
+  const char* def2 = "AF ON";
+  const char* def3 = "SPEED 0";
+
+  showInfoMenu(
+    item1 ? item1 : def1,
+    item2 ? item2 : def2,
+    item3 ? item3 : def3,
+    offset1, offset2, offset3, infoPrefix
+  );
+}
 // This gets set as the default handler, and gets called when no other command matches.
 void unrecognized(const char *command)
 {
@@ -306,7 +365,6 @@ void printFrame(CAN_FRAME *frame, int mailbox = -1){
   }
   Serial.println(">");
 }
-
 
 
 #define AFFA3_KEY_LOAD               0x0000 /* Ten na dole pilota ;) */
@@ -770,6 +828,90 @@ void sendText_internal(uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte
   printFrame(&answer);
 }
 
+
+void showConfirmBoxWithOffsets(
+  const char* caption,
+  const char* row1,
+  const char* row2,
+  const char* row3 
+) {
+  Serial.println("[showConfirmBoxWithOffsets] --- Sending Custom Confirm Box ---");
+
+  // ISO-TP total payload: 112 bytes (16 frames × 7 bytes)
+  uint8_t payload[112] = {0};  // Initialize all bytes to 0
+  uint8_t currentFillEnd = 0;  // Tracks where the last write ended
+
+  // Insert button caption at offset 0x1A (max 7 characters)
+  for (uint8_t i = 0; i < 7 && caption[i]; i++) {
+    payload[0x1A + i] = caption[i];
+  }
+
+
+  // Insert rows with 0x20 between them, starting at 0x20
+  uint8_t offset = 0x20;
+
+  auto insertRow = [&](const char* text) {
+    while (*text && offset < 0x36) {
+      payload[offset++] = *text++;
+    }
+    // Add 0x20 to separate rows (unless last one)
+    if (offset < 0x36) {
+      payload[offset++] = 0xD;
+    }
+  };
+  insertRow(row1); 
+  insertRow(row2); 
+  insertRow(row3);
+
+ 
+
+  // Now send CAN frames
+  // First frame (0x10): initialize ISO-TP with first data byte (0x6F)
+  sendCan(0x151, 0x10, 0x6F, 0x21, 0x05, 0x00, 0x00, 0x01, 0x49);
+
+  uint8_t payloadIndex =0;
+
+  // Now send 15 more frames: 0x21 to 0x2F
+  for (uint8_t i = 0; i < 15; i++) {
+    uint8_t pci = 0x21 + i;  // Frame identifier
+    uint8_t data[8] = {0};    // Data array to store 8 bytes
+
+    data[0] = pci;  // First byte is the frame identifier
+    // Fill the remaining 7 bytes with payload data, from the correct offset
+    for (uint8_t j = 0; j < 7; j++) {
+      
+      data[j + 1] = payload[payloadIndex++]; 
+    }
+
+    // Send the CAN frame with the correct data
+    sendCan(0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+
+    // Debugging: Print the CAN message sent
+    Serial.printf("  [CAN] %03X -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
+      0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+
+    delay(5);  // Small delay between frames
+  }
+
+  Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
+}
+
+void testConfirmBoxCmd() {
+  const char* l1 = sCmd.next();
+  const char* l2 = sCmd.next();
+  const char* footer = sCmd.next();
+  const char* l4 = sCmd.next();
+
+  if (!l1) l1 = "Occupied: 3";
+  if (!l2) l2 = "Avail.: 47";
+  if (!footer) footer = "Confirm?";
+ 
+
+  showConfirmBoxWithOffsets(l1,l2,footer,l4);
+}
+
+
+
 void sendCAN()
 {
 //sendCAN 77 55 55 FD 60 1 BULLDOZZER 
@@ -813,6 +955,52 @@ void sendCAN()
     // Send the text in parts (8-character chunks)
     sendText_internal(byte3, byte4, byte5, byte6, byte7, byte8, textStr.c_str()); 
 
+}
+
+void handleSerialMenuCommand() {
+ 
+
+  // Parse parameters
+  const char* header = "Dest. memory";// sCmd.next();
+  const char* item1 = "FFFF";// sCmd.next();
+  const char* item2 = "GROSS-ZIMMERN";// sCmd.next();
+
+  uint8_t frameSize     =  0x5A;
+  uint8_t scrollLock    =  strtoul(sCmd.next(), NULL, 16); //: 0x0B - bottom;//0B to bottom 07 to up
+  uint8_t selItem1      =  strtoul(sCmd.next(), NULL, 16); //: 0x00;
+  uint8_t selItem2      =  strtoul(sCmd.next(), NULL, 16); //: 0x01;
+
+  Serial.println("[SerialCmd] Parsed Menu Command:");
+  Serial.println("Header: " + String(header));
+  Serial.println("Item1: " + String(item1));
+  Serial.println("Item2: " + String(item2));
+  Serial.print("FrameSize: 0x"); Serial.println(frameSize, HEX);
+  Serial.print("ScrollLock: 0x"); Serial.println(scrollLock, HEX);
+  Serial.print("SelItem1: 0x"); Serial.println(selItem1, HEX);
+  Serial.print("SelItem2: 0x"); Serial.println(selItem2, HEX);
+  //so i have look at log and i think that we need just send new sygnal 07 29 01 7E 80 00 00 00  or 07 29 01 7F 80 00 00 00  to set selected item
+
+  showMenu(header, item1, item2, frameSize, scrollLock, selItem1, selItem2);
+}
+
+void handleSelectMenuItem() {
+  const char* indexStr = sCmd.next(); // e.g., "01"
+  const char* flagStr = sCmd.next();  // e.g., "7E" or "7F"
+
+  if (!indexStr || !flagStr) {
+    Serial.println("Usage: selectItem <index_hex> <flag_hex>");
+    return;
+  }
+
+  uint8_t index = strtol(indexStr, NULL, 16);
+  uint8_t flag = strtol(flagStr, NULL, 16);
+
+  // ID 0x151, data: 07 29 <index> <flag> 80 00 00 00
+  sendCan(0x151, 0x07, 0x29, index, flag, 0x80, 0x00, 0x00, 0x00);
+  Serial.print("Sent selection update: index=0x");
+  Serial.print(index, HEX);
+  Serial.print(" flag=0x");
+  Serial.println(flag, HEX);
 }
 
 void sendGenericCAN() {
@@ -896,8 +1084,11 @@ void setup()
   sCmd.addCommand("scroll", handleScrollCmd);
   sCmd.addCommand("text", handleTextCmd);
   sCmd.addCommand("menu", handleMenuCmd);
+  sCmd.addCommand("menuit", testShowInfoMenu);
   sCmd.addCommand("menut", testShowMenuLimits);
-
+  sCmd.addCommand("menut2", handleSerialMenuCommand);
+  sCmd.addCommand("selectItem", handleSelectMenuItem);
+  sCmd.addCommand("cb", testConfirmBoxCmd);
   sCmd.addCommand("setTime", setTime);
   // sCmd.addCommand("ss", startSync);       // 
   // sCmd.addCommand("sd", syncDisp);        //
