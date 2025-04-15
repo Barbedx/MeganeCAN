@@ -18,6 +18,11 @@
 namespace Affa3Display {
 
     
+void showConfirmBoxWithOffsets(
+    const char* caption,
+    const char* row1,
+    const char* row2
+  ) ;
 
 
 // Forward declaration of sendCan

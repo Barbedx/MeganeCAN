@@ -6,6 +6,71 @@ namespace Affa3Display {
 
 
 
+  void showConfirmBoxWithOffsets(
+    const char* caption,
+    const char* row1,
+    const char* row2
+  ) {
+    Serial.println("[showConfirmBoxWithOffsets] --- Sending Custom Confirm Box ---");
+  
+    // ISO-TP total payload: 112 bytes (16 frames × 7 bytes)
+    uint8_t payload[112] = {0};  // Initialize all bytes to 0
+    uint8_t currentFillEnd = 0;  // Tracks where the last write ended
+  
+    // Insert button caption at offset 0x1A (max 7 characters)
+    for (uint8_t i = 0; i < 7 && caption[i]; i++) {
+      payload[0x1A + i] = caption[i];
+    }
+  
+  
+    // Insert rows with 0x20 between them, starting at 0x20
+    uint8_t offset = 0x20;
+  
+    auto insertRow = [&](const char* text) {
+      while (*text && offset < 0x36) {
+        payload[offset++] = *text++;
+      }
+      // Add 0x20 to separate rows (unless last one)
+      if (offset < 0x36) {
+        payload[offset++] = 0xD;
+      }
+    };
+    insertRow(row1); 
+    insertRow(row2);
+  
+   
+  
+    // Now send CAN frames
+    // First frame (0x10): initialize ISO-TP with first data byte (0x6F)
+    sendCan(0x151, 0x10, 0x6F, 0x21, 0x05, 0x00, 0x00, 0x01, 0x49);
+  
+    uint8_t payloadIndex =0;
+  
+    // Now send 15 more frames: 0x21 to 0x2F
+    for (uint8_t i = 0; i < 15; i++) {
+      uint8_t pci = 0x21 + i;  // Frame identifier
+      uint8_t data[8] = {0};    // Data array to store 8 bytes
+  
+      data[0] = pci;  // First byte is the frame identifier
+      // Fill the remaining 7 bytes with payload data, from the correct offset
+      for (uint8_t j = 0; j < 7; j++) {
+        
+        data[j + 1] = payload[payloadIndex++]; 
+      }
+  
+      // Send the CAN frame with the correct data
+       sendCan(0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+  
+      // Debugging: Print the CAN message sent
+      Serial.printf("  [CAN] %03X -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
+        0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+  
+      delay(5);  // Small delay between frames
+    }
+  
+    Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
+  }
+  
 
     void sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
         uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7) {
@@ -95,9 +160,11 @@ void showMenu(
   
     while (idx < 35) payload[idx++] = 0x00;
   
-    payload[idx++] = selectionItem1;
+    payload[idx++] = selectionItem1;//not selection tbh
     payload[idx++] = 0x7E;
-    for (int i = 0; i < 4; i++) payload[idx++] = (i < strlen(item1)) ? item1[i] : ' ';
+    
+    while (*item1 && idx < 62) payload[idx++] = *item1++;
+
     while (idx < 62) payload[idx++] = 0x00;
   
     payload[idx++] = selectionItem2;

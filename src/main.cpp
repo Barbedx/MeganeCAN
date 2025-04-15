@@ -178,34 +178,22 @@ void onPressCommand(){
 
 
 #pragma endregion
-
-void printFrame(CAN_FRAME *frame, int mailbox = -1){
-  Serial.print("got message in mailbox []");
-  Serial.println(mailbox);
-  
-  Serial.print("CAN MSG: 0x");
-  Serial.print(frame->id, HEX);
-  Serial.print(" [");
-  Serial.print(frame->length, DEC);
-  Serial.print("] <");
-  for (int i = 0; i < frame->length; i++)
-  {
-    if (i != 0)
-      Serial.print(":");
-    Serial.print(frame->data.byte[i], HEX);
-  }
-  Serial.println(">");
-}
-
+ 
 
 float getVoltage() {
   return 13.5; // Stub for now
 }
 
+void ShowMyInfoMenu(){
+  float voltage = getVoltage();
+  char voltageStr[16];
+  snprintf(voltageStr, sizeof(voltageStr), "Voltage: %.1fV", voltage);
+  Affa3Display::showMenu("MeganeCAN", voltageStr, "Color: ORANGE");
+}
 // Callback function for frame with ID 0x1C1
 void gotFrame_0x1C1(CAN_FRAME *packet) 
 {
-  printFrame(packet, 0);
+  printFrame_inline(*packet);
   if (1==1/*without radio*/);
   {
     Affa3Display::sendCan(0x5C1,0x74,0,0,0,0,0,0,0);
@@ -221,13 +209,13 @@ void gotFrame_0x1C1(CAN_FRAME *packet)
       
        
       // Extract full key
-uint16_t rawKey = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
+      uint16_t rawKey = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
 
-// Mask out hold bits for key comparison
-uint16_t key = rawKey & ~AFFA3_KEY_HOLD_MASK;
+      // Mask out hold bits for key comparison
+      uint16_t key = rawKey & ~AFFA3_KEY_HOLD_MASK;
 
-// Detect hold status
-bool isHold = (rawKey & AFFA3_KEY_HOLD_MASK) != 0;
+      // Detect hold status
+      bool isHold = (rawKey & AFFA3_KEY_HOLD_MASK) != 0;
 
       // Handle key actions
       switch (key) 
@@ -250,10 +238,7 @@ bool isHold = (rawKey & AFFA3_KEY_HOLD_MASK) != 0;
       case AFFA3_KEY_LOAD: // load
         if (isHold)
         {
-          float voltage = getVoltage();
-          char voltageStr[16];
-          snprintf(voltageStr, sizeof(voltageStr), "Voltage: %.1fV", voltage);
-          Affa3Display::showMenu("MeganeCAN", voltageStr, "Color: ORANGE");
+          ShowMyInfoMenu();
         }
       
       Serial.println("loading some text"); 
@@ -459,95 +444,28 @@ void sendText_internal(uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte
 
   CAN0.sendFrame(answer);
   Serial.println("Sent all 3 CAN frames:");
-  printFrame(&answer);
+  printFrame_inline(answer);
 }
 
-
-void showConfirmBoxWithOffsets(
-  const char* caption,
-  const char* row1,
-  const char* row2,
-  const char* row3 
-) {
-  Serial.println("[showConfirmBoxWithOffsets] --- Sending Custom Confirm Box ---");
-
-  // ISO-TP total payload: 112 bytes (16 frames × 7 bytes)
-  uint8_t payload[112] = {0};  // Initialize all bytes to 0
-  uint8_t currentFillEnd = 0;  // Tracks where the last write ended
-
-  // Insert button caption at offset 0x1A (max 7 characters)
-  for (uint8_t i = 0; i < 7 && caption[i]; i++) {
-    payload[0x1A + i] = caption[i];
-  }
-
-
-  // Insert rows with 0x20 between them, starting at 0x20
-  uint8_t offset = 0x20;
-
-  auto insertRow = [&](const char* text) {
-    while (*text && offset < 0x36) {
-      payload[offset++] = *text++;
-    }
-    // Add 0x20 to separate rows (unless last one)
-    if (offset < 0x36) {
-      payload[offset++] = 0xD;
-    }
-  };
-  insertRow(row1); 
-  insertRow(row2); 
-  insertRow(row3);
-
- 
-
-  // Now send CAN frames
-  // First frame (0x10): initialize ISO-TP with first data byte (0x6F)
-  Affa3Display::sendCan(0x151, 0x10, 0x6F, 0x21, 0x05, 0x00, 0x00, 0x01, 0x49);
-
-  uint8_t payloadIndex =0;
-
-  // Now send 15 more frames: 0x21 to 0x2F
-  for (uint8_t i = 0; i < 15; i++) {
-    uint8_t pci = 0x21 + i;  // Frame identifier
-    uint8_t data[8] = {0};    // Data array to store 8 bytes
-
-    data[0] = pci;  // First byte is the frame identifier
-    // Fill the remaining 7 bytes with payload data, from the correct offset
-    for (uint8_t j = 0; j < 7; j++) {
-      
-      data[j + 1] = payload[payloadIndex++]; 
-    }
-
-    // Send the CAN frame with the correct data
-    Affa3Display:: sendCan(0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-
-    // Debugging: Print the CAN message sent
-    Serial.printf("  [CAN] %03X -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
-      0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-
-    delay(5);  // Small delay between frames
-  }
-
-  Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
-}
 
 void testConfirmBoxCmd() {
   const char* l1 = sCmd.next();
   const char* l2 = sCmd.next();
   const char* footer = sCmd.next();
-  const char* l4 = sCmd.next();
 
   if (!l1) l1 = "Occupied: 3";
   if (!l2) l2 = "Avail.: 47";
   if (!footer) footer = "Confirm?";
  
 
-  showConfirmBoxWithOffsets(l1,l2,footer,l4);
+ Affa3Display::showConfirmBoxWithOffsets(l1,l2,footer);
 }
 
 
 
 void sendCAN()
 {
+  //Custom method, with my diffrent annotation,didt throw away
 //sendCAN 77 55 55 FD 60 1 BULLDOZZER 
     char* b3Str = sCmd.next();
     char* b4Str = sCmd.next();
@@ -724,6 +642,7 @@ void setup()
   sCmd.addCommand("selectItem", handleSelectMenuItem);
   sCmd.addCommand("cb", testConfirmBoxCmd);
   sCmd.addCommand("setTime", setTime);
+  sCmd.addCommand("my", ShowMyInfoMenu);
   // sCmd.addCommand("ss", startSync);       // 
   // sCmd.addCommand("sd", syncDisp);        //
   // sCmd.addCommand("r", registerDisplay);  //
