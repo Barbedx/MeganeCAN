@@ -25,6 +25,18 @@
 
 
 
+#define AFFA3_PACKET_LEN 0x08
+#define AFFA3_KEY_LOAD 0x0000 /* This at the bottom of the remote;) */
+#define AFFA3_KEY_SRC_RIGHT 0x0001
+#define AFFA3_KEY_SRC_LEFT 0x0002
+#define AFFA3_KEY_VOLUME_UP 0x0003
+#define AFFA3_KEY_VOLUME_DOWN 0x0004
+#define AFFA3_KEY_PAUSE 0x0005
+#define AFFA3_KEY_ROLL_UP 0x0101
+#define AFFA3_KEY_ROLL_DOWN 0x0141
+#define AFFA3_KEY_HOLD_MASK (0x80 | 0x40)
+
+
 
 
 
@@ -48,16 +60,9 @@ frame.data.uint8[7] = d7;
 
 CAN0.sendFrame(frame);
 }
-#define AFFA3_PACKET_LEN 0x08
-#define AFFA2_KEY_LOAD 0x0000 /* This at the bottom of the remote;) */
-#define AFFA2_KEY_SRC_RIGHT 0x0001
-#define AFFA2_KEY_SRC_LEFT 0x0002
-#define AFFA2_KEY_VOLUME_UP 0x0003
-#define AFFA2_KEY_VOLUME_DOWN 0x0004
-#define AFFA2_KEY_PAUSE 0x0005
-#define AFFA2_KEY_ROLL_UP 0x0101
-#define AFFA2_KEY_ROLL_DOWN 0x0141
-#define AFFA2_KEY_HOLD_MASK (0x80 | 0x40)
+
+
+
 BleKeyboard bleKeyboard("Bluetooth Device Name", "Bluetooth Device Manufacturer", 100);
 
 bool current_in_AUX_mode = false; // Global variable for AUX mode tracking
@@ -280,7 +285,7 @@ void emulateKey(uint16_t key, bool hold = false ) {
   frame.data.uint8[7] = 0;
 
   if (hold) {
-    frame.data.uint8[3] |= AFFA2_KEY_HOLD_MASK;
+    frame.data.uint8[3] |= AFFA3_KEY_HOLD_MASK;
   }
   
   CAN0.sendFrame(frame);
@@ -292,35 +297,35 @@ void emulateKey(uint16_t key, bool hold = false ) {
 void sendPasswordSequence() {
   // 5
   for (int i = 0; i < 5; i++) {
-    emulateKey(AFFA2_KEY_ROLL_UP);
+    emulateKey(AFFA3_KEY_ROLL_UP);
     delay(100);
   }
-  emulateKey(AFFA2_KEY_LOAD);
+  emulateKey(AFFA3_KEY_LOAD);
   delay(200);
 
   // 3
   for (int i = 0; i < 3; i++) {
-    emulateKey(AFFA2_KEY_ROLL_UP);
+    emulateKey(AFFA3_KEY_ROLL_UP);
     delay(100);
   }
-  emulateKey(AFFA2_KEY_LOAD);
+  emulateKey(AFFA3_KEY_LOAD);
   delay(200);
 
   // 2
   for (int i = 0; i < 2; i++) {
-    emulateKey(AFFA2_KEY_ROLL_UP);
+    emulateKey(AFFA3_KEY_ROLL_UP);
     delay(100);
   }
-  emulateKey(AFFA2_KEY_LOAD);
+  emulateKey(AFFA3_KEY_LOAD);
   delay(200);
 
   // 1 
   for (int i = 0; i < 1; i++) {
-    emulateKey(AFFA2_KEY_ROLL_UP);
+    emulateKey(AFFA3_KEY_ROLL_UP);
     delay(100);
   }
 
-  emulateKey(AFFA2_KEY_LOAD, true);  // <-- hold
+  emulateKey(AFFA3_KEY_LOAD, true);  // <-- hold
 }
 
 void onPressCommand(){
@@ -330,15 +335,15 @@ void onPressCommand(){
     return;
   }
 
-  if (strcmp(arg, "pause") == 0) emulateKey(AFFA2_KEY_PAUSE);
-  else if (strcmp(arg, "next") == 0) emulateKey(AFFA2_KEY_ROLL_UP);
-  else if (strcmp(arg, "prev") == 0) emulateKey(AFFA2_KEY_ROLL_DOWN);
-  else if (strcmp(arg, "volup") == 0) emulateKey(AFFA2_KEY_VOLUME_UP);
-  else if (strcmp(arg, "voldown") == 0) emulateKey(AFFA2_KEY_VOLUME_DOWN);
-  else if (strcmp(arg, "load") == 0) emulateKey(AFFA2_KEY_LOAD);
-  else if (strcmp(arg, "src_left") == 0) emulateKey(AFFA2_KEY_SRC_LEFT);
-  else if (strcmp(arg, "src_right") == 0) emulateKey(AFFA2_KEY_SRC_RIGHT);
-  else if (strcmp(arg, "load_hold") == 0) emulateKey(AFFA2_KEY_LOAD,true);
+  if (strcmp(arg, "pause") == 0) emulateKey(AFFA3_KEY_PAUSE);
+  else if (strcmp(arg, "next") == 0) emulateKey(AFFA3_KEY_ROLL_UP);
+  else if (strcmp(arg, "prev") == 0) emulateKey(AFFA3_KEY_ROLL_DOWN);
+  else if (strcmp(arg, "volup") == 0) emulateKey(AFFA3_KEY_VOLUME_UP);
+  else if (strcmp(arg, "voldown") == 0) emulateKey(AFFA3_KEY_VOLUME_DOWN);
+  else if (strcmp(arg, "load") == 0) emulateKey(AFFA3_KEY_LOAD);
+  else if (strcmp(arg, "src_left") == 0) emulateKey(AFFA3_KEY_SRC_LEFT);
+  else if (strcmp(arg, "src_right") == 0) emulateKey(AFFA3_KEY_SRC_RIGHT);
+  else if (strcmp(arg, "load_hold") == 0) emulateKey(AFFA3_KEY_LOAD,true);
   else if (strcmp(arg, "pass") == 0) sendPasswordSequence(); 
  
   else Serial.println("Unknown key name");
@@ -366,17 +371,6 @@ void printFrame(CAN_FRAME *frame, int mailbox = -1){
   Serial.println(">");
 }
 
-
-#define AFFA3_KEY_LOAD               0x0000 /* Ten na dole pilota ;) */
-#define AFFA3_KEY_SRC_RIGHT          0x0001
-#define AFFA3_KEY_SRC_LEFT           0x0002
-#define AFFA3_KEY_VOLUME_UP          0x0003
-#define AFFA3_KEY_VOLUME_DOWN        0x0004
-#define AFFA3_KEY_PAUSE              0x0005
-#define AFFA3_KEY_ROLL_UP            0x0101
-#define AFFA3_KEY_ROLL_DOWN          0x0141
-
-#define AFFA3_KEY_HOLD_MASK          (0x80 | 0x40)
 
 // Callback function for frame with ID 0x1C1
 void gotFrame_0x1C1(CAN_FRAME *packet) 
