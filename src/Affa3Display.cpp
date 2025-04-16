@@ -3,8 +3,7 @@
 
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 namespace Affa3Display {
-
-
+ 
 
   void showConfirmBoxWithOffsets(
     const char* caption,
@@ -220,7 +219,7 @@ void showMenu(
   }
 
   
-void setTime(char* clock) { 
+void setTime(const char* clock) { 
     CAN_FRAME answer;
     answer.id = 0x151;
     answer.length = 8;
@@ -257,13 +256,28 @@ void sendDisplayFrame(uint8_t frameIndex, const char* textSegment) {
   
 void display_Control( int8_t state){
 
-    if(state == 1 )
-    sendCan(151,3,	52,		9,0,	0	,0,	0,	0);//sc 151 3 52 9 0 0 0 0 0
-    
-    else   
-    sendCan(151,3,	52,		0,0,	0	,0,	0,	0);//sc 151 3 52 9 0 0 0 0 0
+    if(state == 1 ){
+      sendCan(151,3,	52,		9,0,	0	,0,	0,	0);//sc 151 3 52 9 0 0 0 0 0 
+      isDisplayEnabled = true;
+    }
+    else{
+      sendCan(151,3,	52,		0,0,	0	,0,	0,	0);//sc 151 3 52 9 0 0 0 0 0
+      isDisplayEnabled = false;
+
+    }   
     
   }
+
+  void updateDisplayStateFromCan(const CAN_FRAME& frame) {
+    if (frame.data.uint8[0] == 3 && frame.data.uint8[1] == 0x34) {
+        if (frame.data.uint8[2] == 9) {
+            isDisplayEnabled = true;
+        } else if (frame.data.uint8[2] == 0) {
+            isDisplayEnabled = false;
+        }
+    }
+}
+
   
   void sendDisplayHeader(
     uint8_t mode,            // byte3 - 74: full, 77: partial
@@ -338,15 +352,21 @@ void display_Control( int8_t state){
     sendDisplayFrame(1, text.c_str()+7);  //  0x22 (send next frame wit [7..16])
   }
   void scrollTextRightToLeft(
-    uint8_t mode,
-    uint8_t rdsIcon,
-    uint8_t sourceIcon,
-    uint8_t channel,
+    
     const char* rawText,
     int speed ,
     int count ,
     const char* padding  // 8 spaces
   ) {
+
+
+
+    uint8_t mode       = 0x77; // strtol(modeStr,       nullptr, 16);
+    uint8_t rdsIcon    = 0x55; //strtol(rdsIconStr,    nullptr, 16);
+    uint8_t sourceIcon = 0xFF; // strtol(sourceIconStr, nullptr, 16);
+    uint8_t textFormat = 0x60; // strtol(textFormatStr, nullptr, 16);
+
+
     // Step 1: Clean input
     String cleanedText = String(rawText);
     cleanedText.replace("_", " "); // Replace underscores with spaces
@@ -387,7 +407,7 @@ void display_Control( int8_t state){
       Serial.print("]: ");
       Serial.println(segment);
   
-      sendTextToDisplay(mode, rdsIcon, sourceIcon, channel, segment.c_str());
+      sendTextToDisplay(mode, rdsIcon, sourceIcon, textFormat, segment.c_str());
       delay(speed);
     }
   

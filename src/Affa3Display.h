@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+#include <esp32_can.h> /* https://github.com/collin80/esp32_can */
+
 #define AFFA3_PACKET_LEN 0x08
 #define AFFA3_KEY_LOAD 0x0000 /* This at the bottom of the remote;) */
 #define AFFA3_KEY_SRC_RIGHT 0x0001
@@ -15,9 +17,19 @@
 #define AFFA3_KEY_HOLD_MASK (0x80 | 0x40) 
 #define AFFA3_PING_TIMEOUT 5000 // 5 seconds, or adjust as needed
 
+
+ 
+
+
+
 namespace Affa3Display {
 
-    
+    static bool isDisplayEnabled;
+
+
+    void updateDisplayStateFromCan(const CAN_FRAME& frame);
+
+
 void showConfirmBoxWithOffsets(
     const char* caption,
     const char* row1,
@@ -52,7 +64,7 @@ void showConfirmBoxWithOffsets(
     void emulateKey(uint16_t key, bool hold = false );
 
     void display_Control( int8_t state);
-    void setTime(char* clock);
+    void setTime(const char* clock);
     void sendTextToDisplay(
         uint8_t mode,
         uint8_t rdsIcon,
@@ -73,10 +85,7 @@ void showConfirmBoxWithOffsets(
     
     void sendDisplayFrame(uint8_t frameIndex, const char* textSegment);
     void scrollTextRightToLeft(
-        uint8_t mode,
-        uint8_t rdsIcon,
-        uint8_t sourceIcon,
-        uint8_t channel,
+
         const char* rawText,
         int speed = 300,
         int count = 1,

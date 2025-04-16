@@ -2,53 +2,136 @@
 
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 #include "AuxModeTracker.h"
-  
-
+ //#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+// Must be before #include <ESP_WiFiManager_Lite.h> 
 #include <SerialCommand.h> // Assuming this is already included in your project
 
  
 #include <BleKeyboard.h>
 #include "Affa3Display.h"
-// Replace with your network credentials 
+// Replace with your network credentials  
+#include <WiFi.h>
+#include <Preferences.h>
+#include <PsychicHttp.h>
 
+Preferences preferences;
+#define WIFI_SSID "Yozhik"
+#define WIFI_PASS "blzo2694"
 
-AuxModeTracker tracker;
-// Web server running in AP mode 
+const char* ap_ssid = "ESP32_MaganeCan_AP";
+const char* ap_password = "Megane2004";
 
+#ifndef WIFI_SSID
+  #error "You need to enter your wifi credentials. Rename secret.h to _secret.h and enter your credentials there."
+#endif
 
-// Create an AsyncWebServer object on port 80
-//AsyncWebServer server(80);
+//Enter your WIFI credentials in secret.h
+const char *ssid = WIFI_SSID;
+const char *password = WIFI_PASS;
+
+PsychicHttpServer server;
+
+// PsychicEventSource eventSource;
+
+// #include "defines.h"
+// #include "Credentials.h"
+// #include "dynamicParams.h"
+
+AuxModeTracker tracker; 
 
 
 //for menu navigation
 // sc 151 7 29 1 7F 80 0 0 0
 // sc 151 7 29 1 7E 80 0 0 0
 
-
-
-#define AFFA3_PACKET_LEN 0x08
-#define AFFA3_KEY_LOAD 0x0000 /* This at the bottom of the remote;) */
-#define AFFA3_KEY_SRC_RIGHT 0x0001
-#define AFFA3_KEY_SRC_LEFT 0x0002
-#define AFFA3_KEY_VOLUME_UP 0x0003
-#define AFFA3_KEY_VOLUME_DOWN 0x0004
-#define AFFA3_KEY_PAUSE 0x0005
-#define AFFA3_KEY_ROLL_UP 0x0101
-#define AFFA3_KEY_ROLL_DOWN 0x0141
-#define AFFA3_KEY_HOLD_MASK (0x80 | 0x40)
-
-
-
-
-
-
+//#define USE_DYNAMIC_PARAMETERS      false
 
  
 BleKeyboard bleKeyboard("MeganeCAN","gycer",100);
 
  
+bool connectToWifi()
+{
+  //dual client and AP mode
+  WiFi.mode(WIFI_AP_STA);
+
+  // Configure SoftAP
+  WiFi.softAPConfig(softap_ip, softap_ip, IPAddress(255, 255, 255, 0)); // subnet FF FF FF 00
+  WiFi.softAP(softap_ssid, softap_password);
+  IPAddress myIP = WiFi.softAPIP();
+  Serial.print("SoftAP IP Address: ");
+  Serial.println(myIP);
+
+  Serial.println();
+  Serial.print("[WiFi] Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+  // Auto reconnect is set true as default
+  // To set auto connect off, use the following function
+  // WiFi.setAutoReconnect(false);
+
+  // Will try for about 10 seconds (20x 500ms)
+  int tryDelay = 500;
+  int numberOfTries = 20;
+
+  // Wait for the WiFi event
+  while (true)
+  {
+    switch (WiFi.status())
+    {
+      case WL_NO_SSID_AVAIL:
+        Serial.println("[WiFi] SSID not found");
+        break;
+      case WL_CONNECT_FAILED:
+        Serial.print("[WiFi] Failed - WiFi not connected! Reason: ");
+        return false;
+        break;
+      case WL_CONNECTION_LOST:
+        Serial.println("[WiFi] Connection was lost");
+        break;
+      case WL_SCAN_COMPLETED:
+        Serial.println("[WiFi] Scan is completed");
+        break;
+      case WL_DISCONNECTED:
+        Serial.println("[WiFi] WiFi is disconnected");
+        break;
+      case WL_CONNECTED:
+        Serial.println("[WiFi] WiFi is connected!");
+        Serial.print("[WiFi] IP address: ");
+        Serial.println(WiFi.localIP());
+        return true;
+        break;
+      default:
+        Serial.print("[WiFi] WiFi Status: ");
+        Serial.println(WiFi.status());
+        break;
+    }
+    delay(tryDelay);
+
+    if (numberOfTries <= 0)
+    {
+      Serial.print("[WiFi] Failed to connect to WiFi!");
+      // Use disconnect function to force stop trying to connect
+      WiFi.disconnect();
+      return false;
+    }
+    else
+    {
+      numberOfTries--;
+    }
+  }
+
+  return false;
+}
+
+
+
 void unrecognized(const char *command); 
- 
+ // Must be before #include <ESPAsync_WiFiManager_Lite.h>
+// #include <ESPAsync_WiFiManager_Lite.h>
+
+// ESPAsync_WiFiManager_Lite* ESPAsync_WiFiManager;
 
 void printFrame_inline(CAN_FRAME &frame)
 {
@@ -101,6 +184,7 @@ void testShowInfoMenu() {
   const char* def1 = "AUX AUTO";
   const char* def2 = "AF ON";
   const char* def3 = "SPEED 0";
+  Affa3Display::display_Control(1);
 
   Affa3Display::showInfoMenu(
     item1 ? item1 : def1,
@@ -183,23 +267,31 @@ void onPressCommand(){
 #define VOLTAGE_PIN 32  // Use A0 / GPIO36
 
 float getVoltage() {
-  int raw = analogRead(VOLTAGE_PIN); // 0–4095
-  float vRef = 3.3;                  // ESP32 reference voltage
-  float voltageIn = (raw / 4095.0) * vRef;
-
-  // Compensate for the divider (47k / 10k)
-  float realVoltage = voltageIn * 1.21277;
-  return realVoltage;
+  int adcValue = analogRead(VOLTAGE_PIN); // 0–4095
+  float r1 = 47000.0f; // R1 in ohm, 50K
+  float r2 = 10000.0f; // R2 in ohm, 10k potentiometer
+  float Vbatt = 0.0f; 
+  float vRefScale = (3.3f / 4096.0f) * ((r1 + r2) / r2); 
+   
+  Vbatt =  adcValue * vRefScale;//add some multiplereading cycle ? filter?
+   Serial.print("Voltage: ");
+   Serial.print(Vbatt);
+   return Vbatt;
 }
 
 
 
 void ShowMyInfoMenu(){
+
   float voltage = getVoltage();
   char voltageStr[16];
   snprintf(voltageStr, sizeof(voltageStr), "Voltage: %.1fV", voltage);
+  
   Affa3Display::showMenu("MeganeCAN", voltageStr, "Color: ORANGE");
+
 }
+ 
+
 // Callback function for frame with ID 0x1C1
 void gotFrame_0x1C1(CAN_FRAME *packet) 
 {
@@ -209,15 +301,13 @@ void gotFrame_0x1C1(CAN_FRAME *packet)
     Affa3Display::sendCan(0x5C1,0x74,0,0,0,0,0,0,0);
   }
   
-    if( tracker.isInAuxMode() ){
-
+  
       if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] != 0x89)) /* Błędny pakiet */
       {
         Serial.println("bledny packet");
         return;
       }
       
-       
       // Extract full key
       uint16_t rawKey = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
 
@@ -227,6 +317,8 @@ void gotFrame_0x1C1(CAN_FRAME *packet)
       // Detect hold status
       bool isHold = (rawKey & AFFA3_KEY_HOLD_MASK) != 0;
 
+
+    if( tracker.isInAuxMode() ){ 
       // Handle key actions
       switch (key) 
     {
@@ -260,25 +352,37 @@ void gotFrame_0x1C1(CAN_FRAME *packet)
       break;
     }
     
+  }else{
+    if(!Affa3Display::isDisplayEnabled){
+      switch (key) 
+      {
+        case AFFA3_KEY_LOAD: // load
+        if (isHold)
+        {
+          Affa3Display::display_Control(1);
+          delay(50); 
+          ShowMyInfoMenu();
+        } 
+    }
   }
 } 
+}
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
  
 
   // Callback function for frame with ID 0x151
-  void gotFrame_0x3AF(CAN_FRAME *packet) {}
+  // void gotFrame_0x3AF(CAN_FRAME *packet) {}
 
 // You can also declare your ping timeout threshold if needed
-  static int8_t timeout = AFFA3_PING_TIMEOUT;
+  static unsigned long timeout = AFFA3_PING_TIMEOUT;
 
   // Callback function for frame with ID 0x151
   void gotFrame_0x3CF(CAN_FRAME *packet) 
   {
     //printFrame(packet,-2);
     struct CAN_FRAME answer;
-    
-	  static int8_t timeout = AFFA3_PING_TIMEOUT;
+     
     // IF("AFFA3"){
 
     if (packet->data.uint8[0] == 0x61 && packet->data.uint8[1] == 0x11) {
@@ -313,7 +417,7 @@ unsigned long lastPingTime = 0;
     //   sendCan(0x551,0x74,)
     // }
     tracker.onCanMessage(*packet);
-  
+    Affa3Display::updateDisplayStateFromCan(*packet);
     // Extract key text from CAN message
     if (packet->data.uint8[0] == 0x21) // Start of the text payload
     {
@@ -333,11 +437,11 @@ unsigned long lastPingTime = 0;
     }
 }
 
-// General callback function for frames that don't match the specific IDs
-void gotFrame(CAN_FRAME *frame) 
-{
-  //printFrame(frame, -1);
-}
+// // General callback function for frames that don't match the specific IDs
+// void gotFrame(CAN_FRAME *frame) 
+// {
+//   //printFrame(frame, -1);
+// }
 void setTime() {
 
    char* yearStr = sCmd.next();
@@ -374,6 +478,7 @@ void handleTextCmd(){
   uint8_t rdsIcon    = 0x55; //strtol(rdsIconStr,    nullptr, 16);
   uint8_t sourceIcon = 0xFF; // strtol(sourceIconStr, nullptr, 16);
   uint8_t textFormat = 0x60; // strtol(textFormatStr, nullptr, 16);
+  Affa3Display::display_Control(1);
 
   Affa3Display:: sendTextToDisplay(mode, rdsIcon, sourceIcon, textFormat, textStr);
 }
@@ -401,8 +506,9 @@ void handleScrollCmd() {
 
   const char* padding = "       ";
   if (paddingStr) padding = paddingStr;
+  Affa3Display::display_Control(1);
 
-  Affa3Display::scrollTextRightToLeft(mode, rdsIcon, sourceIcon, textFormat, textStr, speed, count, padding);
+  Affa3Display::scrollTextRightToLeft( textStr, speed, count, padding);
 }
 
 void sendText_internal(uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte6, uint8_t byte7, uint8_t byte8, const char* text) {
@@ -467,6 +573,7 @@ void testConfirmBoxCmd() {
   if (!l2) l2 = "Avail.: 47";
   if (!footer) footer = "Confirm?";
  
+  Affa3Display::display_Control(1);
 
  Affa3Display::showConfirmBoxWithOffsets(l1,l2,footer);
 }
@@ -507,6 +614,7 @@ void sendCAN()
     // its also shows somechannel symbol based on asccii code, for example to show 9 you need send 39 or 79, for show # - 23 or 63 
     uint8_t byte8 = strtol(b8Str, nullptr, 16); //always 1
 
+    Affa3Display::display_Control(1);
 
 
   // Ensure the text is at least 14 characters long (pad with spaces if necessary)
@@ -541,7 +649,8 @@ void handleSerialMenuCommand() {
   Serial.print("SelItem1: 0x"); Serial.println(selItem1, HEX);
   Serial.print("SelItem2: 0x"); Serial.println(selItem2, HEX);
   //so i have look at log and i think that we need just send new sygnal 07 29 01 7E 80 00 00 00  or 07 29 01 7F 80 00 00 00  to set selected item
-
+  
+  Affa3Display::display_Control(1);
   Affa3Display::showMenu(header, item1, item2, frameSize, scrollLock, selItem1, selItem2);
 }
 
@@ -573,6 +682,7 @@ void sendGenericCAN() {
   }
 
   uint32_t msgID = (uint32_t) strtol(idStr, NULL, 16);
+  Affa3Display::display_Control(1);
 
   CAN_FRAME frame;
   frame.id = msgID;
@@ -605,6 +715,7 @@ void setup()
   Serial.begin(115200);
   bleKeyboard.begin();
 
+
   Serial.println("------------------------");
   Serial.println("    MrDIY CAN SHIELD v0.1");
   Serial.println("------------------------");
@@ -619,26 +730,55 @@ void setup()
     CAN0.setRXFilter(1, 0x151, 0x7FF, false);  // Catch frames with ID 0x151
     if(1==1/*syncronization????*/){
       CAN0.setRXFilter(2, 0x3CF, 0x7FF, false);  // Catch frames with ID 0x3cF 
-      CAN0.setCallback(2, gotFrame_0x3CF);  // Frame with ID 0x151 will trigger this callback
+      CAN0.setCallback(2, gotFrame_0x3CF);  
     }
     CAN0.setRXFilter(3, 0x3AF, 0x7FF, false);  // Catch frames with ID 0x1C1
   
   // // Register callback functions for specific IDs
   CAN0.setCallback(0, gotFrame_0x1C1);  // Frame with ID 0x1C1 will trigger this callback
   CAN0.setCallback(1, gotFrame_0x151);  // Frame with ID 0x151 will trigger this callback
-  CAN0.setCallback(3, gotFrame_0x3AF);  // Frame with ID 0x151 will trigger this callback
+
   
   // // General callback function for any other frame that doesn't match the above filters
   CAN0.watchFor();
-  CAN0.setGeneralCallback(gotFrame);
- 
-
-
-
+  // CAN0.setGeneralCallback(gotFrame);
 
   Serial.println(" CAN............500Kbps");
    
-  // // Setup callbacks for SerialCommand commands
+
+
+  
+//   if (!LittleFS.begin(true)) {  // true = format if mount fails
+//     Serial.println("LittleFS Mount Failed");
+//     return;
+//   }
+//   Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+
+  
+//   Serial.println("LittleFS............Ok");
+//   delay(200);
+
+//   Serial.print(F("\nStarting ESPAsync_WiFi using ")); Serial.print(FS_Name);
+//   Serial.print(F(" on ")); Serial.println(ARDUINO_BOARD);
+//   Serial.println(ESP_ASYNC_WIFI_MANAGER_LITE_VERSION);
+
+// #if USING_MRD  
+//   Serial.println(ESP_MULTI_RESET_DETECTOR_VERSION);
+// #else
+//   Serial.println(ESP_DOUBLE_RESET_DETECTOR_VERSION);
+// #endif
+
+
+ 
+//    ESPAsync_WiFiManager = new ESPAsync_WiFiManager_Lite();
+//    String AP_SSID = "AutoConnectAP";
+//    String AP_PWD  = "Megane2004";
+    
+//     // Set customized AP SSID and PWD
+//     ESPAsync_WiFiManager->setConfigPortal(AP_SSID, AP_PWD);
+ 
+//   ESPAsync_WiFiManager->begin("MeganeCAN_host"); 
+//   // // Setup callbacks for SerialCommand commands
  // sCmd.addCommand("t", testDisp);         // print test message on display
   sCmd.addCommand("p", onPressCommand);
   sCmd.addCommand("sendCAN", sendCAN);
@@ -663,7 +803,8 @@ void setup()
   // sCmd.addCommand("d", displaySong);      //
   sCmd.setDefaultHandler(unrecognized);   // Handler for command that isn't matched  (says "What?")
  
- 
+  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+
 } 
  
  
@@ -671,9 +812,10 @@ void setup()
 static uint32_t last_sync = 0;
  
 void loop()
-{ 
+{  
   sCmd.readSerial(); 
  
+  ESPAsync_WiFiManager->run();
     uint32_t now = millis(); // Or your system time function
 
     if (now - last_sync > SYNC_INTERVAL_MS) { 
