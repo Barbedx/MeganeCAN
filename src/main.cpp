@@ -15,8 +15,6 @@
 #include <PsychicHttp.h>
 
 Preferences preferences;
-#define WIFI_SSID "Yozhik"
-#define WIFI_PASS "blzo2694"
 
 const char* ap_ssid = "ESP32_MaganeCan_AP";
 const char* ap_password = "Megane2004";
