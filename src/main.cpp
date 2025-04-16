@@ -180,9 +180,19 @@ void onPressCommand(){
 #pragma endregion
  
 
+#define VOLTAGE_PIN 32  // Use A0 / GPIO36
+
 float getVoltage() {
-  return 13.5; // Stub for now
+  int raw = analogRead(VOLTAGE_PIN); // 0–4095
+  float vRef = 3.3;                  // ESP32 reference voltage
+  float voltageIn = (raw / 4095.0) * vRef;
+
+  // Compensate for the divider (47k / 10k)
+  float realVoltage = voltageIn * 1.21277;
+  return realVoltage;
 }
+
+
 
 void ShowMyInfoMenu(){
   float voltage = getVoltage();
