@@ -29,7 +29,6 @@ namespace Affa3Display {
 
     void updateDisplayStateFromCan(const CAN_FRAME& frame);
 
-
 void showConfirmBoxWithOffsets(
     const char* caption,
     const char* row1,

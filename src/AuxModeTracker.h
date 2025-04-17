@@ -14,6 +14,7 @@ public:
 
   // Check if AUX mode is active
   bool isInAuxMode() const;
+  void SetAuxMode(bool value);
 
 private:
   bool auxActive;

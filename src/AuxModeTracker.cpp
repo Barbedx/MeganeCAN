@@ -115,3 +115,8 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
 bool AuxModeTracker::isInAuxMode() const {
   return auxActive;
 }
+
+void AuxModeTracker::SetAuxMode(bool value) 
+{
+  auxActive =   value;
+}
