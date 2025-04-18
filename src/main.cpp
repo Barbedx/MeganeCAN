@@ -324,18 +324,17 @@ void gotFrame_0x1C1(CAN_FRAME *packet)
   else
   {
     Serial.print("Current not in aux");
-    if (!Affa3Display::isDisplayEnabled)
+    switch (key)
     {
-      switch (key)
-      {
       case AFFA3_KEY_LOAD: // load
-        if (isHold)
-        {
-          Affa3Display::display_Control(1);
-          tracker.SetAuxMode(true);
-          delay(50);
-          ShowMyInfoMenu();
-        }
+      if (isHold)
+      { 
+          
+            Affa3Display::display_Control(1);
+            tracker.SetAuxMode(true);
+            delay(50);
+            ShowMyInfoMenu();
+        
       }
     }
   }
