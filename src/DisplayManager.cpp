@@ -80,28 +80,4 @@ void DisplayManager::messageTest2() {
 bool DisplayManager::isSessionStarted() const {
     return sessionStarted;
 }
-
-void DisplayManager::handleFrame_0x3CF(const CAN_FRAME* frame) {
-    if (frame->data.uint8[0] == 0x61 && frame->data.uint8[1] == 0x11) {
-
-        startSync();
-        delay(1);
-        syncOK();
-        delay(1);
-        syncDisp();
-        delay(5);
-        registerDisplay();
-        delay(5);
-        initDisplay();  
-        // delay(100);
-        // enableDisplay();
-        // delay(100);
-        // messageWelcome();
-          
-    }
-
-    if (frame->data.uint8[0] == 0x69 && (frame->data.uint8[1] == 0x00 || frame->data.uint8[1] == 0x01)) {
-        // Ping reply
-        syncOK();
-    } 
-}
+ 
