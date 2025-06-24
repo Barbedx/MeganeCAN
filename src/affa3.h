@@ -68,13 +68,17 @@
 
 #define AFFA3_KEY_HOLD_MASK          (0x80 | 0x40)
 
+extern bool affa3_is_synced; // ✅ declare only
+
 struct affa3_func {
 	uint16_t id;
 	uint8_t stat;
 };
 
+ 
+int8_t affa3_old_set_text(uint8_t textType, uint8_t chan, uint8_t loc, char oldText[8]);
+int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12]);
 
-int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, char old[8], char neww[12]) ;
 
 void affa3_init(void); /* Inicjalizacja biblioteki */
 void affa3_tick(void); /* Funkcja wywoływana z przerwania zegarowego */

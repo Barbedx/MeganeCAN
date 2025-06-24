@@ -16,7 +16,7 @@ public:
     void messageTest2();
     void messageWelcome();
     // This method will be called from your CAN callback when frame 0x3CF arrives
-    void handleFrame_0x3CF(const CAN_FRAME* frame);
+    
 
     bool isSessionStarted() const;
 

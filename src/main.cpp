@@ -36,29 +36,21 @@ void printCanFrame(const CAN_FRAME &frame, bool isOutgoing)
 
 void gotFrame(CAN_FRAME *frame)
 {
+
+    // Skip known spam or echo frames
+//   if (affa3_is_synced) {
+//         // Skip known AFFA3 protocol keep-alive and echo messages
+//         if ((frame->id == 0x3CF && frame->data.uint8[0] == 0x69) || 
+//             (frame->id == 0x3DF)) 
+//         {
+//             return;
+//         }
+//     }
+
     printCanFrame(*frame, false);
+
     affa3_recv(frame);
     // Echo or other processing can be added here
-}
-
-void gotFrame_0x3DF(CAN_FRAME *frame)
-{
-    // Do nothing or add logging if needed
-    printCanFrame(*frame, false);
-}
-
-void gotFrame_0x0A9(CAN_FRAME *frame)
-{
-    printCanFrame(*frame, false);
-    unsigned char msg4a9[8] = {0x74, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81};
-    CanUtils::sendMsgBuf(0x4A9, msg4a9);
-}
-
-void gotFrame_0x1C1(CAN_FRAME *frame)
-{
-    printCanFrame(*frame, false);
-    unsigned char msg5c1[8] = {0x74, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81};
-    CanUtils::sendMsgBuf(0x5C1, msg5c1);
 }
 
 void cmd_startSync() { displayManager.startSync(); }
@@ -69,35 +61,31 @@ void cmd_init() { displayManager.initDisplay(); }
 void cmd_enable() { affa3_display_ctrl(0x02); }
 void cmd_disable() { affa3_display_ctrl(0x00); }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
-void cmd_messageTestold(){   displayManager.messageTest(); }
-//void cmd_messageTestold(){ displayManager.messageTest2(); }
-// void cmd_mgwelcome(){ displayManager.messageWelcome(); }
-void cmd_messageTest()
-{
-    char oldStr[8] = {'1', '2', '3', '4', '5', '6', '7', '8'};
-    char newStr[12] = {'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x'};
+void cmd_messageTestold() { displayManager.messageTest(); }
+// void cmd_messageTestold(){ displayManager.messageTest2(); }
+//  void cmd_mgwelcome(){ displayManager.messageWelcome(); }
 
-    affa3_do_set_text(0xFF, 0x00, 0x00, 0x00, oldStr, newStr);
-}
-void cmd_messageTest2()
+void cmd_mtx()
 {
-    char oldStr[8] = {'T', 'E', 'S', 'T', '1', ' ', ' ', ' '};
-    char newStr[12] = {'H', 'e', 'l', 'l', 'o', ' ', 'C', 'A', 'N', '!', ' ', 0};
+    char *arg1 = sCmd.next(); // textType (hex)
+    char *arg2 = sCmd.next(); // chan (hex)
+    char *arg3 = sCmd.next(); // loc (hex)
+    char *arg4 = sCmd.next(); // oldText (8 chars)
 
-    affa3_do_set_text(0xFF, 0x00, 0x00, 0x00, oldStr, newStr);
-}
-void cmd_mgwelcome()
-{
-    char oldStr[8] = {'W', 'E', 'L', 'C', 'O', 'M', 'E', '!'};
-    char newStr[12] = {'H', 'e', 'l', 'l', 'o', ' ', 'C', 'A', 'N', '!', ' ', 0};
+    if (!arg1 || !arg2 || !arg3 || !arg4 || strlen(arg4) != 8)
+    {
+        Serial.println("Usage: mtx <textType hex> <chan hex> <loc hex> <8char_text>");
+        return;
+    }
 
-    affa3_do_set_text(0xFF, 0x00, 0x00, 0x01, oldStr, newStr);
-}
+    uint8_t textType = strtol(arg1, NULL, 16);
+    uint8_t chan = strtol(arg2, NULL, 16);
+    uint8_t loc = strtol(arg3, NULL, 16);
 
-void gotFrame_0x3CF(CAN_FRAME *frame)
-{
-    printCanFrame(*frame, false);
-    displayManager.handleFrame_0x3CF(frame);
+    char oldText[8];
+    memcpy(oldText, arg4, 8);
+
+    affa3_old_set_text(textType, chan, loc, oldText);
 }
 
 void setup()
@@ -115,25 +103,11 @@ void setup()
     sCmd.addCommand("i", cmd_init);
     sCmd.addCommand("e", cmd_enable);
     sCmd.addCommand("d", cmd_disable);
-    sCmd.addCommand("mt", cmd_messageTest);
     sCmd.addCommand("mto", cmd_messageTestold); // works
-    sCmd.addCommand("mt2", cmd_messageTest2); //not working
-    sCmd.addCommand("mw", cmd_mgwelcome);
+    sCmd.addCommand("mtx", cmd_mtx);            // works
 
     CAN0.setCANPins(GPIO_NUM_5, GPIO_NUM_4); // Set CAN RX/TX pins
     CAN0.begin(CAN_BPS_500K);                // 500 Kbps bitrate
-
-    // CAN0.setRXFilter(0, 0x1C1, 0x7FF, false);
-    // CAN0.setCallback(0, gotFrame_0x1C1);
-
-    // CAN0.setRXFilter(1, 0x0A9, 0x7FF, false);
-    // CAN0.setCallback(1, gotFrame_0x0A9);
-
-    // CAN0.setRXFilter(2, 0x3DF, 0x7FF, false);
-    // CAN0.setCallback(2, gotFrame_0x3DF);
-
-    // CAN0.setRXFilter(3, 0x3CF, 0x7FF, false);
-    // CAN0.setCallback(3, gotFrame_0x3CF);
 
     CAN0.setGeneralCallback(gotFrame);
 

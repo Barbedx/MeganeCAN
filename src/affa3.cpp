@@ -11,6 +11,7 @@ static uint16_t _key_q[AFFA3_KEY_QUEUE_SIZE] = {
 static uint8_t _key_q_in = 0;
 static uint8_t _key_q_out = 0;
 
+bool affa3_is_synced = false;
 static uint8_t _sync_status = AFFA3_SYNC_STAT_FAILED; /* Status synchronizacji z wświetlaczem */
 static uint8_t _menu_max_items = 0;
 
@@ -25,7 +26,7 @@ void affa3_tick(void)
 	struct CAN_FRAME packet;
 	static int8_t timeout = AFFA3_PING_TIMEOUT;
 
-	AFFA3_PRINT("[tick] Sending alive ping\n");
+	//AFFA3_PRINT("[tick] Sending alive ping\n");
 	/* Wysyłamy pakiet informujący o tym że żyjemy */
 	CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x79, 0x00, AFFA3_PACKET_FILLER, AFFA3_PACKET_FILLER, AFFA3_PACKET_FILLER, AFFA3_PACKET_FILLER, AFFA3_PACKET_FILLER, AFFA3_PACKET_FILLER);
 
@@ -41,7 +42,7 @@ void affa3_tick(void)
 	{
 		if (_sync_status & AFFA3_SYNC_STAT_PEER_ALIVE)
 		{
-			AFFA3_PRINT("[tick] Peer is alive, resetting timeout\n");
+		//	AFFA3_PRINT("[tick] Peer is alive, resetting timeout\n");
 			timeout = AFFA3_PING_TIMEOUT;
 			_sync_status &= ~AFFA3_SYNC_STAT_PEER_ALIVE;
 		}
@@ -60,7 +61,6 @@ void affa3_tick(void)
 		}
 	}
 }
-
 void affa3_recv(struct CAN_FRAME *packet)
 {
 	uint8_t i;
@@ -70,14 +70,15 @@ void affa3_recv(struct CAN_FRAME *packet)
 		if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
 		{ /* Żądanie synchronizacji */
 			CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
-
+			 affa3_is_synced = false;
 			_sync_status &= ~AFFA3_SYNC_STAT_FAILED;
 			if (packet->data.uint8[2] == 0x01)
 				_sync_status |= AFFA3_SYNC_STAT_START;
 		}
 		else if (packet->data.uint8[0] == 0x69)
-		{
-			_sync_status |= AFFA3_SYNC_STAT_PEER_ALIVE;
+		{ 
+        	_sync_status |= AFFA3_SYNC_STAT_PEER_ALIVE;
+        	affa3_is_synced = true; // ✅ Mark as connected  
 		}
 		return;
 	}
@@ -266,8 +267,28 @@ int8_t affa3_display_ctrl(uint8_t state)
 
 	return affa3_send(AFFA3_PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
+ 
+int8_t affa3_old_set_text(uint8_t textType, uint8_t chan, uint8_t loc, char oldText[8])
+{
+    char newText[12];
 
-int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, char old[8], char neww[12])
+    // Copy old text to beginning of new text
+    for (uint8_t i = 0; i < 8; i++)
+    {
+        newText[i] = oldText[i];
+    }
+
+    // Pad with 4 spaces
+    for (uint8_t i = 8; i < 12; i++)
+    {
+        newText[i] = ' ';
+    }
+
+    // Call actual method with default icons and mode
+    return affa3_do_set_text(0xFF, 0x00, chan, loc, textType, oldText, newText);
+}
+ 
+int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
 {
 	static uint8_t old_icons = 0xFF;
 	static uint8_t old_mode = 0x00;
@@ -286,11 +307,11 @@ int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc,
 	else
 	{
 		data[len++] = 0x19; /* Sam tekst */
-		data[len++] = 0x7E; //??? 0x76 was setted but not working value, have put 0x7E isntead
+		data[len++] = textType; //??? 0x76 was setted but not working value, have put 0x7E isntead //possible 0x7E will add channel, but ox76 will not
 	}
 
-	data[len++] = 0x71; // 0x60 | (chan & 7);
-	data[len++] = loc;
+	data[len++] = chan; // 0x60 | (chan & 7);
+	data[len++] = loc; //0x01
 
 	for (i = 0; i < 8; i++)
 	{
