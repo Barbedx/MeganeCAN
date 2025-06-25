@@ -1,69 +1,47 @@
 
+#pragma once  // or use include guards instead
 //#include "affa3.h"
 #include "Affa3Display.h" 
 #include <string.h>
 
-#define AFFA3_PING_TIMEOUT           5
 
-// #define AFFA3_PACKET_LEN             0x08
-// #define AFFA3_PACKET_FILLER          0x81
+inline void AFFA3_PRINT(const char* fmt, ...) {
+#ifdef DEBUG
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+#endif
+}
+
+using SyncStatus = Affa3::SyncStatus;
+using FuncStatus = Affa3::FuncStatus;
+using Affa3Error = Affa3::Affa3Error;
+
+namespace{
+	constexpr int AFFA3_PING_TIMEOUT = 5;
+	constexpr size_t AFFA3_KEY_QUEUE_SIZE = 8;
+
+	// Definition for affa3_func struct
+	struct affa3_func {
+		uint16_t id;
+		FuncStatus stat;
+	};
+	static uint16_t _key_q[AFFA3_KEY_QUEUE_SIZE] = {0,};
+	static uint8_t _key_q_in = 0;
+	static uint8_t _key_q_out = 0; 
+	bool isKeyQueueFull() { return ((_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE) == _key_q_out; }
+	bool isKeyQueueEmpty() { return _key_q_in == _key_q_out; }
  
-#define AFFA3_PRINT(fmt, ...)        printf_P(PSTR(fmt), ##__VA_ARGS__)
- 
-
-// #define AFFA3_FUNC_STAT_IDLE         0x00 
-// #define AFFA3_FUNC_STAT_WAIT         0x01 /* Czekamy na odpowiedź */
-// #define AFFA3_FUNC_STAT_PARTIAL      0x02 /* Wyświetlacz otrzymał część danych */
-// #define AFFA3_FUNC_STAT_DONE         0x03 /* Zakończono wykonywanie */
-// #define AFFA3_FUNC_STAT_ERROR        0x04 /* Wystąpił błąd */
-
-// #define AFFA3_DISPLAY_CTRL_DISABLE   0x00
-// #define AFFA3_DISPLAY_CTRL_ENABLE    0x02
- 
-
-
-#define AFFA3_LOCATION(max,idx)      ((((max) & 7) << 5) | (((idx) & 7) << 2))
-#define AFFA3_LOCATION_SELECTED      0x01
-#define AFFA3_LOCATION_FULLSCREEN    0x02
-
-#define AFFA3_ICON_MODE_NONE         0xFF
-
-// #define AFFA3_ENOTSYNC               0x01
-// #define AFFA3_EUNKNOWNFUNC           0x02
-// #define AFFA3_ESENDFAILED            0x03
-// #define AFFA3_ETIMEOUT               0x04
-// #define AFFA3_ESTRTOLONG             0x05
-
-#define AFFA3_KEY_QUEUE_SIZE         0x08
-
-
-
-using SyncStatus = Affa3Display::SyncStatus;
-using FuncStatus = Affa3Display::FuncStatus;
-using Affa3Error = Affa3Error;
-
-// Definition for affa3_func struct
-struct affa3_func {
-	uint16_t id;
-	FuncStatus stat;
-};
- 
-#define KEYQ_IS_EMPTY() (_key_q_in == _key_q_out)
-#define KEYQ_IS_FULL() (((_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE) == _key_q_out)
-
-static uint16_t _key_q[AFFA3_KEY_QUEUE_SIZE] = {
-	0,
-};
-static uint8_t _key_q_in = 0;
-static uint8_t _key_q_out = 0;
+}
 
 bool affa3_is_synced = false;
 static SyncStatus _sync_status = SyncStatus::FAILED  ; /* Status synchronizacji z wświetlaczem */
 static uint8_t _menu_max_items = 0;
 
 static volatile struct affa3_func _funcs[] = {
-	{.id = Affa3Display::AFFA3_PACKET_ID_SETTEXT, .stat = FuncStatus::IDLE},
-	{.id = Affa3Display::PACKET_ID_DISPLAY_CTRL, .stat = FuncStatus::IDLE},
+	{.id = Affa3::PACKET_ID_SETTEXT, .stat = FuncStatus::IDLE},
+	{.id = Affa3::PACKET_ID_DISPLAY_CTRL, .stat = FuncStatus::IDLE},
 };
 #define FUNCS_MAX (sizeof(_funcs) / sizeof(struct affa3_func))
 
@@ -81,22 +59,22 @@ static Affa3Error affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
 		i = 0;
 
 		packet.id = _funcs[idx].id;
-		packet.length = Affa3Display::PACKET_LENGTH;
+		packet.length = Affa3::PACKET_LENGTH;
 
 		if (num > 0)
 		{
 			packet.data.uint8[i++] = 0x20 + num;
 		}
 
-		while ((i < Affa3Display::PACKET_LENGTH) && (left > 0))
+		while ((i < Affa3::PACKET_LENGTH) && (left > 0))
 		{
 			packet.data.uint8[i++] = *data++;
 			left--;
 		}
 
-		for (; i < Affa3Display::PACKET_LENGTH; i++)
+		for (; i < Affa3::PACKET_LENGTH; i++)
 		{
-			packet.data.uint8[i] = Affa3Display::PACKET_FILLER;
+			packet.data.uint8[i] = Affa3::PACKET_FILLER;
 		}
 
 		AFFA3_PRINT("Sending packet #%d to ID 0x%03X: ", num, packet.id);
@@ -212,13 +190,13 @@ void Affa3Display::tick() {
 
 	//AFFA3_PRINT("[tick] Sending alive ping\n");
 	/* Wysyłamy pakiet informujący o tym że żyjemy */
-	CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x79, 0x00, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER);
+	CanUtils::sendCan(Affa3::PACKET_ID_SYNC, 0x79, 0x00, Affa3::PACKET_FILLER, Affa3::PACKET_FILLER, Affa3::PACKET_FILLER, Affa3::PACKET_FILLER, Affa3::PACKET_FILLER, Affa3::PACKET_FILLER);
 
 	if (hasFlag(_sync_status,SyncStatus::FAILED) || hasFlag(_sync_status,SyncStatus::START))
 	{	/* Błąd synchronizacji */
 		/* Wysyłamy pakiet z żądaniem synchronizacji */
 		AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
-		CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
+		CanUtils::sendCan(Affa3::PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
 		_sync_status &= ~SyncStatus::START;
 		delay(100);
 	}
@@ -246,16 +224,16 @@ void Affa3Display::tick() {
 	}
 }
 
-Affa3Error  affa3_display_ctrl(Affa3Display::DisplayCtrl state)
+Affa3Error  affa3_display_ctrl(Affa3::DisplayCtrl state)
 {
 	uint8_t data[] = {
 		0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
 
-	return affa3_send(Affa3Display::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
+	return affa3_send(Affa3::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
 
 Affa3Error  Affa3Display::setState(bool enabled) {
-    Affa3Display::DisplayCtrl state = enabled ? Affa3Display::DisplayCtrl::Enable : Affa3Display::DisplayCtrl::Disable;
+    Affa3::DisplayCtrl state = enabled ? Affa3::DisplayCtrl::Enable : Affa3::DisplayCtrl::Disable;
     return affa3_display_ctrl(state);
 }
 
@@ -265,11 +243,11 @@ void Affa3Display::recv(CAN_FRAME* packet) {
     
 	uint8_t i;
 
-	if (packet->id ==Affa3Display::PACKET_ID_SYNC_REPLY)
+	if (packet->id ==Affa3::PACKET_ID_SYNC_REPLY)
 	{ /* Pakiety synchronizacyjne */
 		if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
 		{ /* Żądanie synchronizacji */
-			CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
+			CanUtils::sendCan(Affa3::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
 			 affa3_is_synced = false;
 			_sync_status &= ~SyncStatus::FAILED;
 			if (packet->data.uint8[2] == 0x01)
@@ -283,9 +261,9 @@ void Affa3Display::recv(CAN_FRAME* packet) {
 		return;
 	}
 
-	if (packet->id & AFFA3_PACKET_REPLY_FLAG)
+	if (packet->id & Affa3::PACKET_REPLY_FLAG)
 	{
-		packet->id &= ~AFFA3_PACKET_REPLY_FLAG;
+		packet->id &= ~Affa3::PACKET_REPLY_FLAG;
 		for (i = 0; i < FUNCS_MAX; i++)
 		{ /* Szukamy w tablicy funkcji */
 			if (_funcs[i].id == packet->id)
@@ -310,12 +288,12 @@ void Affa3Display::recv(CAN_FRAME* packet) {
 		return;
 	}
 
-	if (packet->id == AFFA3_PACKET_ID_KEYPRESSED)
+	if (packet->id == Affa3::PACKET_ID_KEYPRESSED)
 	{
 		if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] != 0x89)) /* Błędny pakiet */
 			return;
 
-		if (!KEYQ_IS_FULL())
+		if (!isKeyQueueFull())
 		{
 			_key_q[_key_q_in] = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
 			printf_P(PSTR("AFFA2: key code: 0x%X\n"), _key_q[_key_q_in]);
@@ -325,13 +303,13 @@ void Affa3Display::recv(CAN_FRAME* packet) {
 
 	struct CAN_FRAME reply;
 	/* Wysyłamy odpowiedź */
-	reply.id = packet->id | AFFA3_PACKET_REPLY_FLAG;
-	reply.length = Affa3Display::PACKET_LENGTH;
+	reply.id = packet->id | Affa3::PACKET_REPLY_FLAG;
+	reply.length = Affa3::PACKET_LENGTH;
 	i = 0;
 	reply.data.uint8[i++] = 0x74;
 
-	for (; i < Affa3Display::PACKET_LENGTH; i++)
-		reply.data.uint8[i] = Affa3Display::PACKET_FILLER;
+	for (; i < Affa3::PACKET_LENGTH; i++)
+		reply.data.uint8[i] = Affa3::PACKET_FILLER;
 
 	CanUtils::sendFrame(reply);
 }
@@ -384,7 +362,7 @@ Affa3Error affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t 
     //     AFFA3_PRINT("%02X ", data[j]);
     // }
     // AFFA3_PRINT("\n");
-	return affa3_send(Affa3Display::AFFA3_PACKET_ID_SETTEXT, data, len);
+	return affa3_send(Affa3::PACKET_ID_SETTEXT, data, len);
 }
 
 Affa3Error Affa3Display::setText(const char* text, uint8_t digit /* 0-9, or anything else for none */) {
