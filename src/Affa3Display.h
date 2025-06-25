@@ -1,94 +1,110 @@
-#ifndef Affa3Display_H
-#define Affa3Display_H
+// Step 4: Create Affa3Display.h/.cpp (AFFA3 implementation)
+// File: Affa3Display.h
+#pragma once
+#include "IDisplay.h"
+#include "CanUtils.h"
+#ifdef HAS_MENU
+#include "IMenuDisplay.h"
+#endif 
 
-#include <Arduino.h>
+class Affa3Display : public IDisplay
+#ifdef HAS_MENU
+, public IMenuDisplay
+#endif
+{
+public:
+    static constexpr uint16_t AFFA3_PACKET_REPLY_FLAG = 0x400;/* Bit oznaczajązy że jest to odpowiedź */
 
-#include <esp32_can.h> /* https://github.com/collin80/esp32_can */
+    static constexpr uint16_t PACKET_ID_SYNC_REPLY = 0x3CF;/* Pakiet uzywany w celu utrzymania synchronizacji od wyświetlacza */
+    static constexpr uint16_t AFFA3_PACKET_ID_SYNC = 0x3DF;/* Pakiet uzywany w celu utrzymania synchronizacji od wyświetlacza */
 
-#define AFFA3_PACKET_LEN 0x08
-#define AFFA3_KEY_LOAD 0x0000 /* This at the bottom of the remote;) */
-#define AFFA3_KEY_SRC_RIGHT 0x0001
-#define AFFA3_KEY_SRC_LEFT 0x0002
-#define AFFA3_KEY_VOLUME_UP 0x0003
-#define AFFA3_KEY_VOLUME_DOWN 0x0004
-#define AFFA3_KEY_PAUSE 0x0005
-#define AFFA3_KEY_ROLL_UP 0x0101
-#define AFFA3_KEY_ROLL_DOWN 0x0141
-#define AFFA3_KEY_HOLD_MASK (0x80 | 0x40) 
-#define AFFA3_PING_TIMEOUT 5000 // 5 seconds, or adjust as needed
+    static constexpr uint16_t PACKET_ID_DISPLAY_CTRL = 0x1B1;/* Pakiet używany do kontroli wyświetlacza (włączanie/wyłączanie) */
+    static constexpr uint16_t AFFA3_PACKET_ID_SETTEXT = 0x121;/* Pakiet uzywany do wysyłania tekstu na wyświetlacz */
+    static constexpr uint16_t AFFA3_PACKET_ID_KEYPRESSED = 0x0A9;/* Pakiet używany do przesyłania kodu klawisza z pilota */
+;/* Pakiet uzywany do wysyłania tekstu na wyświetlacz */
 
+    
+    static constexpr uint8_t PACKET_LENGTH = 8;
+    static constexpr uint8_t PACKET_FILLER = 0x81;
+
+    enum class SyncStatus : uint8_t {
+    FAILED     = 0x01,
+    PEER_ALIVE = 0x02,
+    START      = 0x04,
+    FUNCSREG   = 0x08
+};
 
  
+    enum FuncStatus : uint8_t {
+            IDLE = 0x00,
+            WAIT = 0x01,/* Czekamy na odpowiedź */
+            PARTIAL = 0x02,/* Wyświetlacz otrzymał część danych */
+            DONE = 0x03,/* Zakończono wykonywanie */
+            ERROR = 0x04/* Wystąpił błąd */
+        };
+    enum IconFlags : uint8_t {
+            ICON_NO_NEWS = 1 << 0,
+            ICON_NEWS_ARROW = 1 << 1,
+            ICON_NO_TRAFFIC = 1 << 2,
+            ICON_TRAFFIC_ARROW = 1 << 3,
+            ICON_NO_AFRDS = 1 << 4,
+            ICON_AFRDS_ARROW = 1 << 5,
+            ICON_NO_MODE = 1 << 6
+        };
+    enum class DisplayCtrl : uint8_t {
+        Disable = 0x00,
+        Enable  = 0x02
+    };
+    enum class Affa3Key : uint16_t {
+    Load        = 0x0000,  // Ten na dole pilota ;)
+    SrcRight    = 0x0001,
+    SrcLeft     = 0x0002,
+    VolumeUp    = 0x0003,
+    VolumeDown  = 0x0004,
+    Pause       = 0x0005,
+    RollUp      = 0x0101,
+    RollDown    = 0x0141
+};
 
+static constexpr uint8_t KEY_HOLD_MASK = 0x80 | 0x40;
 
-
-namespace Affa3Display {
-
-    static bool isDisplayEnabled;
-
-
-    void updateDisplayStateFromCan(const CAN_FRAME& frame);
-
-void showConfirmBoxWithOffsets(
-    const char* caption,
-    const char* row1,
-    const char* row2
-  ) ;
-
-
-// Forward declaration of sendCan
-    void sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
-                uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7);
-
-    void showMenu(
-    const char* header, 
-    const char* item1, 
-    const char* item2, 
-    uint8_t firstFrameSize = 0x5A, 
-    uint8_t scrollLockIndicator = 0x0B,
-    uint8_t selectionItem1 = 0x00, 
-    uint8_t selectionItem2 = 0x01
-    );
-
-    void showInfoMenu(
-    const char* item1 = "AUX   AUTO",
-    const char* item2 = "AF ON",
-    const char* item3 = "SPEED 0",
-    uint8_t offset1 = 0x41,
-    uint8_t offset2 = 0x44,
-    uint8_t offset3 = 0x48, 
-    uint8_t infoPrefix = 0x60
-    );
-
-    void emulateKey(uint16_t key, bool hold = false );
-
-    void display_Control( int8_t state);
-    void setTime(const char* clock);
-    void sendTextToDisplay(
-        uint8_t mode,
-        uint8_t rdsIcon,
-        uint8_t sourceIcon,
-        uint8_t channel,
-        
-        const char* rawText
-    );
-
-    void sendDisplayHeader(
-        uint8_t mode,            // byte3 - 74: full, 77: partial
-        uint8_t rdsIcon,         // byte4 - 45: AF-RDS, 55: none
-        uint8_t unknown,         // byte5 - usually 55
-        uint8_t sourceIcon,      // byte6 - df: MANU, fd: PRESET, ff: NONE
-        uint8_t textFormat,      // byte7 - 19–3F: radio, 59–7F: plain
-        uint8_t controlByte      // byte8 - always 1
-    );
-    
-    void sendDisplayFrame(uint8_t frameIndex, const char* textSegment);
-    void scrollTextRightToLeft(
-
-        const char* rawText,
-        int speed = 300,
-        int count = 1,
-        const char* padding = "        "  // 8 spaces
-    );
-}
+    void tick() override;
+    void recv(CAN_FRAME* frame) override;
+    Affa3Error setText(const char* text, uint8_t digit=255 /* 0-9, or anything else for none */) override;
+    Affa3Error scrollText(const char* text, uint16_t  delayMs /* 0-9, or anything else for none */) override;
+    Affa3Error setState(bool enabled) override;  
+#ifdef HAS_MENU
+    void setMenu(const char* title, const char* items[], uint8_t count) override;
 #endif
+};
+    inline Affa3Display::SyncStatus operator|(Affa3Display::SyncStatus a, Affa3Display::SyncStatus b) {
+        return static_cast<Affa3Display::SyncStatus>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+    }
+
+    inline Affa3Display::SyncStatus operator&(Affa3Display::SyncStatus a, Affa3Display::SyncStatus b) {
+        return static_cast<Affa3Display::SyncStatus>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
+    }
+
+    inline Affa3Display::SyncStatus& operator|=(Affa3Display::SyncStatus& a, Affa3Display::SyncStatus b) {
+        a = a | b;
+        return a;
+    }
+
+    // Bitwise NOT
+    inline Affa3Display::SyncStatus operator~(Affa3Display::SyncStatus a) {
+        return static_cast<Affa3Display::SyncStatus>(
+            ~static_cast<uint8_t>(a)
+        );
+    }
+    // AND-assign
+    inline Affa3Display::SyncStatus& operator&=(Affa3Display::SyncStatus& a, Affa3Display::SyncStatus b) {
+        a = a & b;
+        return a;
+    }
+
+
+    template<typename Enum>
+inline bool hasFlag(Enum value, Enum flag) {
+    using Underlying = typename std::underlying_type<Enum>::type;
+    return (static_cast<Underlying>(value) & static_cast<Underlying>(flag)) == static_cast<Underlying>(flag);
+}

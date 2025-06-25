@@ -1,14 +1,10 @@
 #include <Arduino.h>
-#include <esp32_can.h> /* https://github.com/collin80/esp32_can */
-#include "CanUtils.h"
-#include <SerialCommand.h> // Assuming this is already included in your project
-#include "DisplayManager.h"
-#include "affa3.h"
-
-DisplayManager displayManager;
+#include "CanUtils.h" 
+#include "Affa3Display.h"
+#include <SerialCommand.h> // Assuming this is already included in your project 
 
 SerialCommand sCmd; // The SerialCommand object
-
+Affa3Display display;
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
 
@@ -37,14 +33,14 @@ void printCanFrame(const CAN_FRAME &frame, bool isOutgoing)
 void gotFrame(CAN_FRAME *frame)
 {
 
-    if ((frame->id == 0x521 || frame->id == 0x3DF) && affa3_is_synced)
-    { // didnt process after sync?
-        // Skip sync frames answers in radio mode becouse we generate it by ourselves
+    // if ((frame->id == 0x521 || frame->id == 0x3DF) && affa3_is_synced)
+    // { // didnt process after sync?
+    //     // Skip sync frames answers in radio mode becouse we generate it by ourselves
 
-        // return;
-    }
+    //     // return;
+    // }
 
-    if (affa3_is_synced && !(
+    if (/*affa3_is_synced &&*/ !(
 
                                (frame->id == 0x3CF && frame->data.uint8[0] == 0x69) ||
                                (frame->id == 0x521 || frame->id == 0x3DF)))
@@ -52,24 +48,22 @@ void gotFrame(CAN_FRAME *frame)
         printCanFrame(*frame, false);
     }
 
-    affa3_recv(frame);
+    display.recv(frame);
     // Echo or other processing can be added here
 }
 
-void cmd_startSync() { displayManager.startSync(); }
-void cmd_syncOK() { displayManager.syncOK(); }
-void cmd_syncDisp() { displayManager.syncDisp(); }
-void cmd_register() { displayManager.registerDisplay(); }
-void cmd_init() { displayManager.initDisplay(); }
-void cmd_enable() { affa3_display_ctrl(0x02); }
-void cmd_disable() { affa3_display_ctrl(0x00); }
+
+
+void cmd_enable() { display.setState(true); }
+void cmd_disable() { display.setState(false);  }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 void cmd_messageTestold() { 
-    affa3_old_set_text("12345678"); }
-void cmd_messageTestold2() { affa3_old_scroll_text("12233344445555", 300) ; }
-void cmd_messageTestold3() { affa3_old_scroll_text("welcome back, Igor!", 300) ;}
-void cmd_messageTestold4() { affa3_old_scroll_text("nice to see you again!", 300) ; }
-void cmd_messageTestold5() { displayManager.messageTest5(); }
+   display.setText("12345678",1); }
+void cmd_messageTestold2() { display.setText("12345678",255); }
+void cmd_messageTestold3() { display.scrollText("12233344445555",300);  }
+void cmd_messageTestold4() {  }
+
+
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
 //  void cmd_messageTestold6() { displayManager.messageTest6(); }
 //  void cmd_messageTestold(){ displayManager.messageTest2(); }
@@ -81,7 +75,7 @@ void cmd_scrollmtx()
 
     if (!text)
     {
-        AFFA3_PRINT("Usage: ms <text> [delay_ms]\n");
+       // AFFA3_PRINT("Usage: ms <text> [delay_ms]\n");
         return;
     }
 
@@ -93,12 +87,12 @@ void cmd_scrollmtx()
             delayMs = 20; // clamp minimum
     }
 
-    affa3_old_scroll_text(text, delayMs);
+   // affa3_old_scroll_text(text, delayMs);
 }
 void cmd_mtx()
 {
-    char *text = sCmd.next();
-    affa3_old_set_text(text);
+    // char *text = sCmd.next();
+    // affa3_old_set_text(text);
 }
 
 void setTime(const char *clock)
@@ -111,7 +105,7 @@ void setTime(const char *clock)
     }
 
     CAN_FRAME answer;
-    answer.id = AFFA3_PACKET_ID_DISPLAY_CTRL;
+    answer.id = 0;//AFFA3_PACKET_ID_DISPLAY_CTRL;
     answer.length = 8;
     answer.data.uint8[0] = 0x05;
     answer.data.uint8[1] = 'V'; // likely constant
@@ -147,19 +141,18 @@ void setup()
     Serial.println("------------------------");
 
     // Setup commands
-    sCmd.addCommand("ss", cmd_startSync);
-    sCmd.addCommand("so", cmd_syncOK);
-    sCmd.addCommand("sd", cmd_syncDisp);
-    sCmd.addCommand("r", cmd_register);
-    sCmd.addCommand("i", cmd_init);
+    // sCmd.addCommand("ss", cmd_startSync);
+    // sCmd.addCommand("so", cmd_syncOK);
+    // sCmd.addCommand("sd", cmd_syncDisp);
+    // sCmd.addCommand("r", cmd_register);
+    // sCmd.addCommand("i", cmd_init);
     sCmd.addCommand("e", cmd_enable);
     sCmd.addCommand("d", cmd_disable);
     sCmd.addCommand("mto", cmd_messageTestold);   // works
     sCmd.addCommand("mto2", cmd_messageTestold2); // works
     sCmd.addCommand("mto3", cmd_messageTestold3);
-    sCmd.addCommand("mto4", cmd_messageTestold4);
-    sCmd.addCommand("mto5", cmd_messageTestold5);
-    sCmd.addCommand("mtx", cmd_mtx);    // workss
+    sCmd.addCommand("mto4", cmd_messageTestold4); 
+//    sCmd.addCommand("mtx", cmd_mtx);    // workss
     sCmd.addCommand("st", cmd_setTime); // Example: st 0925
     sCmd.addCommand("ms", cmd_scrollmtx); // Example: st 0925
 

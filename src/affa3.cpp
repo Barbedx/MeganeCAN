@@ -356,10 +356,7 @@ int8_t affa3_old_set_text(uint8_t textType, uint8_t chan, uint8_t loc, char oldT
  
 int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
 {
-
-	///long delay in work
-
-
+	
 	static uint8_t old_icons = 0xFF;
 	static uint8_t old_mode = 0x00;
 	uint8_t data[32];

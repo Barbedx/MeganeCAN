@@ -1,416 +1,460 @@
-#include "Affa3Display.h"
-#include <Arduino.h>
 
-#include <esp32_can.h> /* https://github.com/collin80/esp32_can */
-namespace Affa3Display {
+//#include "affa3.h"
+#include "Affa3Display.h" 
+#include <string.h>
+
+#define AFFA3_PING_TIMEOUT           5
+
+// #define AFFA3_PACKET_LEN             0x08
+// #define AFFA3_PACKET_FILLER          0x81
+ 
+#define AFFA3_PRINT(fmt, ...)        printf_P(PSTR(fmt), ##__VA_ARGS__)
  
 
-  void showConfirmBoxWithOffsets(
-    const char* caption,
-    const char* row1,
-    const char* row2
-  ) {
-    Serial.println("[showConfirmBoxWithOffsets] --- Sending Custom Confirm Box ---");
-  
-    // ISO-TP total payload: 112 bytes (16 frames × 7 bytes)
-    uint8_t payload[112] = {0};  // Initialize all bytes to 0
-    uint8_t currentFillEnd = 0;  // Tracks where the last write ended
-  
-    // Insert button caption at offset 0x1A (max 7 characters)
-    for (uint8_t i = 0; i < 7 && caption[i]; i++) {
-      payload[0x1A + i] = caption[i];
-    }
-  
-  
-    // Insert rows with 0x20 between them, starting at 0x20
-    uint8_t offset = 0x20;
-  
-    auto insertRow = [&](const char* text) {
-      while (*text && offset < 0x36) {
-        payload[offset++] = *text++;
-      }
-      // Add 0x20 to separate rows (unless last one)
-      if (offset < 0x36) {
-        payload[offset++] = 0xD;
-      }
-    };
-    insertRow(row1); 
-    insertRow(row2);
-  
-   
-  
-    // Now send CAN frames
-    // First frame (0x10): initialize ISO-TP with first data byte (0x6F)
-    sendCan(0x151, 0x10, 0x6F, 0x21, 0x05, 0x00, 0x00, 0x01, 0x49);
-  
-    uint8_t payloadIndex =0;
-  
-    // Now send 15 more frames: 0x21 to 0x2F
-    for (uint8_t i = 0; i < 15; i++) {
-      uint8_t pci = 0x21 + i;  // Frame identifier
-      uint8_t data[8] = {0};    // Data array to store 8 bytes
-  
-      data[0] = pci;  // First byte is the frame identifier
-      // Fill the remaining 7 bytes with payload data, from the correct offset
-      for (uint8_t j = 0; j < 7; j++) {
-        
-        data[j + 1] = payload[payloadIndex++]; 
-      }
-  
-      // Send the CAN frame with the correct data
-       sendCan(0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-  
-      // Debugging: Print the CAN message sent
-      Serial.printf("  [CAN] %03X -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
-        0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-  
-      delay(5);  // Small delay between frames
-    }
-  
-    Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
-  }
-  
+// #define AFFA3_FUNC_STAT_IDLE         0x00 
+// #define AFFA3_FUNC_STAT_WAIT         0x01 /* Czekamy na odpowiedź */
+// #define AFFA3_FUNC_STAT_PARTIAL      0x02 /* Wyświetlacz otrzymał część danych */
+// #define AFFA3_FUNC_STAT_DONE         0x03 /* Zakończono wykonywanie */
+// #define AFFA3_FUNC_STAT_ERROR        0x04 /* Wystąpił błąd */
 
-    void sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
-        uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7) {
-      CAN_FRAME frame;
-      frame.id = id;
-      frame.length = 8;
-      frame.data.uint8[0] = d0;
-      frame.data.uint8[1] = d1;
-      frame.data.uint8[2] = d2;
-      frame.data.uint8[3] = d3;
-      frame.data.uint8[4] = d4;
-      frame.data.uint8[5] = d5;
-      frame.data.uint8[6] = d6;
-      frame.data.uint8[7] = d7;
-      
-      CAN0.sendFrame(frame);
-      }
-      
-    void emulateKey(uint16_t key, bool hold) {
-        CAN_FRAME frame;
-        frame.id = 0x1C1; // ID expected by gotFrame_0x1C1()
-        frame.length = 8;
-        frame.extended = 0; // standard frame
-      
-        frame.data.uint8[0] = 0x03; // must be 0x03
-        frame.data.uint8[1] = 0x89; // must be 0x89
-        frame.data.uint8[2] = (key >> 8) & 0xFF; // key high byte
-        frame.data.uint8[3] = key & 0xFF;        // key low byte
-      
-        // Fill the rest with 0 or whatever is standard
-        frame.data.uint8[4] = 0;
-        frame.data.uint8[5] = 0;
-        frame.data.uint8[6] = 0;
-        frame.data.uint8[7] = 0;
-      
-        if (hold) {
-          frame.data.uint8[3] |= AFFA3_KEY_HOLD_MASK;
-        }
-        
-        CAN0.sendFrame(frame);
-      
-        Serial.print("Emulated key press: 0x");
-        Serial.println(key, HEX);
-      }
+// #define AFFA3_DISPLAY_CTRL_DISABLE   0x00
+// #define AFFA3_DISPLAY_CTRL_ENABLE    0x02
+ 
 
-void showMenu(
-    const char* header, 
-    const char* item1, 
-    const char* item2, 
-    uint8_t firstFrameSize, 
-    uint8_t scrollLockIndicator,
-    uint8_t selectionItem1, 
-    uint8_t selectionItem2
-  ) {
-    Serial.println("[showMenu] --- Building Menu ---");
-  
-    Serial.print("[Header] "); Serial.println(header);
-    Serial.print("[Item1] "); Serial.println(item1);
-    Serial.print("[Item2] "); Serial.println(item2);
-  
-    uint8_t payload[96] = {0};
-    int idx = 0;
-  
-    payload[idx++] = 0x21;
-    payload[idx++] = 0x01;
-    payload[idx++] = 0x7E;
-    payload[idx++] = 0x80;
-    payload[idx++] = 0x00;
-    payload[idx++] = 0x00;
-  
-    Serial.print("[CAN] Sending First Frame: ID=0x151 Data= ");
-    Serial.printf("10 %02X ", firstFrameSize);
-    for (int i = 0; i < 6; i++) Serial.printf("%02X ", payload[i]);
-    Serial.println();
-  
-    sendCan(0x151, 0x10, firstFrameSize, payload[0], payload[1], payload[2], payload[3], payload[4], payload[5]);
-  
-    payload[idx++] = 0x82;
-    payload[idx++] = 0xFF;
-    payload[idx++] = scrollLockIndicator;
-  
-    int maxHeaderLen = 26;
-    int h = 0;
-    while (header && header[h] && h < maxHeaderLen && idx < 96) {
-      payload[idx++] = header[h++];
-    }
-  
-    while (idx < 35) payload[idx++] = 0x00;
-  
-    payload[idx++] = selectionItem1;//not selection tbh
-    payload[idx++] = 0x7E;
-    
-    while (*item1 && idx < 62) payload[idx++] = *item1++;
 
-    while (idx < 62) payload[idx++] = 0x00;
-  
-    payload[idx++] = selectionItem2;
-    payload[idx++] = 0x7F;
-    while (*item2 && idx < 96) payload[idx++] = *item2++;
-    while (idx < 96) payload[idx++] = 0x00;
-  
-    uint8_t seq = 1;
-    for (int i = 6; i < idx; i += 7) {
-      uint8_t d[8];
-      d[0] = 0x20 | (seq++ & 0x0F);
-      for (int j = 0; j < 7; j++) {
-        d[j + 1] = (i + j < idx) ? payload[i + j] : 0x00;
-      }
-  
-      sendCan(0x151, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
-      delay(5);
-    }
-  
-    Serial.println("[showMenu] --- Done ---");
-  }
-  
-  void showInfoMenu(
-    const char* item1,
-    const char* item2,
-    const char* item3,
-    uint8_t offset1,
-    uint8_t offset2,
-    uint8_t offset3, 
-    uint8_t infoPrefix
-  ) {
-    Serial.println("[showInfoMenu] --- Sending Info Menu ---");
-  
-    auto sendMenuItem = [&](uint8_t offset, const char* text, const char* label) {
-      char padded[8] = { ' ' };
-      strncpy(padded, text, 8);
-  
-      Serial.print("[MenuItem] "); Serial.print(label);
-      Serial.print(" | Offset: 0x"); Serial.print(offset, HEX);
-      Serial.print(" | Text: \""); Serial.print(padded); Serial.println("\"");
-  
-      sendCan(0x151, 0x10, 0x0B, 0x76, infoPrefix, offset, padded[0], padded[1], padded[2]);
-      delay(5);
-      sendCan(0x151, 0x21, padded[3], padded[4], padded[5], padded[6], padded[7], 0x00, 0x00);
-      delay(5);
-    };
-  
-    sendMenuItem(offset1, item1, "Item1");
-    sendMenuItem(offset2, item2, "Item2");
-    sendMenuItem(offset3, item3, "Item3");
-  
-    Serial.println("[showInfoMenu] --- Done ---");
-  }
+#define AFFA3_LOCATION(max,idx)      ((((max) & 7) << 5) | (((idx) & 7) << 2))
+#define AFFA3_LOCATION_SELECTED      0x01
+#define AFFA3_LOCATION_FULLSCREEN    0x02
 
-  
-void setTime(const char* clock) { 
-    CAN_FRAME answer;
-    answer.id = 0x151;
-    answer.length = 8;
-    answer.data.uint8[0] = 0x05;
-    answer.data.uint8[1] = 'V';              // likely constant
-    answer.data.uint8[2] = clock[0];
-    answer.data.uint8[3] = clock[1];
-    answer.data.uint8[4] = clock[2];
-    answer.data.uint8[5] = clock[3];
-    answer.data.uint8[6] = 0x00;
-    answer.data.uint8[7] = 0x00;
-  
-    CAN0.sendFrame(answer);
-    Serial.print("Sent time set frame with year: ");
-    Serial.println(clock);
-  }
+#define AFFA3_ICON_MODE_NONE         0xFF
 
-  
-void sendDisplayFrame(uint8_t frameIndex, const char* textSegment) {
-    CAN_FRAME frame;
-    frame.id = 0x151;
-    frame.length = 8;
-    frame.data.uint8[0] = 0x21 + frameIndex; // 0x21, 0x22, ...
-    
-    for (int i = 0; i < 7; i++) {
-      frame.data.uint8[i + 1] = textSegment[i];
-    }
-  
-    CAN0.sendFrame(frame);
-    Serial.println("Header sended:" );
-   // printFrame_inline(frame); 
-    delay(5);
-  }
-  
-void display_Control( int8_t state){
+// #define AFFA3_ENOTSYNC               0x01
+// #define AFFA3_EUNKNOWNFUNC           0x02
+// #define AFFA3_ESENDFAILED            0x03
+// #define AFFA3_ETIMEOUT               0x04
+// #define AFFA3_ESTRTOLONG             0x05
 
-    if(state == 1 ){
-      sendCan(151,3,	52,		9,0,	0	,0,	0,	0);//sc 151 3 52 9 0 0 0 0 0 
-      isDisplayEnabled = true;
-    }
-    else{
-      sendCan(151,3,	52,		0,0,	0	,0,	0,	0);//sc 151 3 52 9 0 0 0 0 0
-      isDisplayEnabled = false;
+#define AFFA3_KEY_QUEUE_SIZE         0x08
 
-    }   
-    
-  }
 
-  void updateDisplayStateFromCan(const CAN_FRAME& frame) {
-    if (frame.data.uint8[0] == 3 && frame.data.uint8[1] == 0x34) {
-        if (frame.data.uint8[2] == 9) {
-            isDisplayEnabled = true;
-        } else if (frame.data.uint8[2] == 0) {
-            isDisplayEnabled = false;
-        }
-    }
+
+using SyncStatus = Affa3Display::SyncStatus;
+using FuncStatus = Affa3Display::FuncStatus;
+using Affa3Error = Affa3Error;
+
+// Definition for affa3_func struct
+struct affa3_func {
+	uint16_t id;
+	FuncStatus stat;
+};
+ 
+#define KEYQ_IS_EMPTY() (_key_q_in == _key_q_out)
+#define KEYQ_IS_FULL() (((_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE) == _key_q_out)
+
+static uint16_t _key_q[AFFA3_KEY_QUEUE_SIZE] = {
+	0,
+};
+static uint8_t _key_q_in = 0;
+static uint8_t _key_q_out = 0;
+
+bool affa3_is_synced = false;
+static SyncStatus _sync_status = SyncStatus::FAILED  ; /* Status synchronizacji z wświetlaczem */
+static uint8_t _menu_max_items = 0;
+
+static volatile struct affa3_func _funcs[] = {
+	{.id = Affa3Display::AFFA3_PACKET_ID_SETTEXT, .stat = FuncStatus::IDLE},
+	{.id = Affa3Display::PACKET_ID_DISPLAY_CTRL, .stat = FuncStatus::IDLE},
+};
+#define FUNCS_MAX (sizeof(_funcs) / sizeof(struct affa3_func))
+
+static Affa3Error affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
+{
+	struct CAN_FRAME packet;
+	uint8_t i, stat, num = 0, left = len;
+	int16_t timeout;
+
+	if (hasFlag(_sync_status, SyncStatus::FAILED))
+		return Affa3Error::NoSync;
+
+	while (left > 0)
+	{
+		i = 0;
+
+		packet.id = _funcs[idx].id;
+		packet.length = Affa3Display::PACKET_LENGTH;
+
+		if (num > 0)
+		{
+			packet.data.uint8[i++] = 0x20 + num;
+		}
+
+		while ((i < Affa3Display::PACKET_LENGTH) && (left > 0))
+		{
+			packet.data.uint8[i++] = *data++;
+			left--;
+		}
+
+		for (; i < Affa3Display::PACKET_LENGTH; i++)
+		{
+			packet.data.uint8[i] = Affa3Display::PACKET_FILLER;
+		}
+
+		AFFA3_PRINT("Sending packet #%d to ID 0x%03X: ", num, packet.id);
+		for (int j = 0; j < packet.length; j++)
+			AFFA3_PRINT("%02X ", packet.data.uint8[j]);
+		AFFA3_PRINT("\n");
+
+
+		_funcs[idx].stat =FuncStatus::WAIT;
+
+		CanUtils::sendFrame(packet);
+
+		/* Czkekamy na odpowiedź */
+		timeout = 2000; /* 2sek */
+			uint16_t wait_counter = 0;
+		while ((_funcs[idx].stat == FuncStatus::WAIT) && (--timeout > 0))
+		{
+			delay(1);
+			
+			// Log every 500ms
+			if (wait_counter++ % 500 == 0)
+			{
+				AFFA3_PRINT("Waiting... %dms elapsed for packet #%d (ID: 0x%03X)\n", wait_counter, num, packet.id);
+			}
+		}
+
+		stat = _funcs[idx].stat;
+		_funcs[idx].stat = FuncStatus::IDLE;
+
+		if (!timeout)
+		{ /* Nie dostaliśmy odpowiedzi */
+			AFFA3_PRINT("affa3_send(): timeout, num = %d\n", num);
+			return Affa3Error::Timeout;
+		}
+
+		if (stat == FuncStatus::DONE)
+		{
+			AFFA3_PRINT("affa3_send(): DONE received on packet #%d\n", num);
+			break;
+		}
+		else if (stat == FuncStatus::PARTIAL)
+		{
+			AFFA3_PRINT("affa3_send(): PARTIAL ack on packet #%d, remaining: %d bytes\n", num, left);
+			if (!left)
+			{ /* Nie mamy więcej danych */
+				AFFA3_PRINT("affa3_send(): no more data\n");
+				return Affa3Error::SendFailed;
+			}
+			num++;
+		}
+		else if (stat == FuncStatus::ERROR)
+		{
+				AFFA3_PRINT("affa3_send(): ERROR received on packet #%d\n", num);
+				return Affa3Error::SendFailed;
+		}
+	}
+
+	return Affa3Error::NoError;
 }
 
-  
-  void sendDisplayHeader(
-    uint8_t mode,            // byte3 - 74: full, 77: partial
-    uint8_t rdsIcon,         // byte4 - 45: AF-RDS, 55: none
-    uint8_t unknown,         // byte5 - usually 55
-    uint8_t sourceIcon,      // byte6 - df: MANU, fd: PRESET, ff: NONE
-    uint8_t textFormat,      // byte7 - 19–3F: radio, 59–7F: plain
-    uint8_t controlByte      // byte8 - always 1
-  ) {
-    CAN_FRAME frame;
-    frame.id = 0x151;
-    frame.length = 8;
-  
-    frame.data.uint8[0] = 0x10; // First ISO-TP frame
-    frame.data.uint8[1] = 0x0E; // Total length (14 bytes)
-  
-    frame.data.uint8[2] = mode;
-    frame.data.uint8[3] = rdsIcon;
-    frame.data.uint8[4] = unknown;
-    frame.data.uint8[5] = sourceIcon;
-    frame.data.uint8[6] = textFormat;
-    frame.data.uint8[7] = controlByte;
-  
-    CAN0.sendFrame(frame);
-    Serial.println("Header sended:" );
-    //printFrame_inline(frame);
-    delay(5);
-  }
-  /**
-   * Sends a text string to the car display over CAN bus.
-   *
-   * @param mode Display mode: 
-   *             0x74 - full window,
-   *             0x77 - partial window (some values freeze UI if not matched)
-   *
-   * @param rdsIcon RDS icon display:
-   *                0x45 - AF-RDS icon,
-   *                0x55 - no icon
-   *
-   * @param sourceIcon Source label icon:
-   *                   0xDF - "MANU",
-   *                   0xFD - "PRESET",
-   *                   0xFF - none,
-   *                   others show icons like "LIST"
-   *
-   * @param channel Text display format:
-   *                   0x19–0x3F - Radio-style (5 digits + '.' + 1 char),
-   *                   0x59–0x7F - Plain ASCII (up to 7 chars visible)
-   *                   channel symbol
-   *
-   * @param controlByte Always 0x01 — required by display protocol
-   *
-   * @param rawText Text to display (max 7 characters shown).
-   *                Underscores (_) are replaced with spaces.
-   */
-  void sendTextToDisplay(
-    uint8_t mode,
-    uint8_t rdsIcon,
-    uint8_t sourceIcon,
-    uint8_t channel,
-    
-    const char* rawText
-  ) {
-    // Convert and pad text to 7 characters only
-    String text = String(rawText);
-    text.replace("_", " ");
-    while (text.length() < 8) text += ' ';
-  
-    sendDisplayHeader(mode, rdsIcon, 0x55/*unknown*/, sourceIcon, channel, 1);
-    sendDisplayFrame(0, text.c_str());  //  0x21
-    delay(50);
-    sendDisplayFrame(1, text.c_str()+7);  //  0x22 (send next frame wit [7..16])
-  }
-  void scrollTextRightToLeft(
-    
-    const char* rawText,
-    int speed ,
-    int count ,
-    const char* padding  // 8 spaces
-  ) {
 
 
+static Affa3Error affa3_send(uint16_t id, uint8_t *data, uint8_t len)
+{
+	uint8_t idx;
+	uint8_t regdata[1] = {0x70};
+	Affa3Error err;
 
-    uint8_t mode       = 0x77; // strtol(modeStr,       nullptr, 16);
-    uint8_t rdsIcon    = 0x55; //strtol(rdsIconStr,    nullptr, 16);
-    uint8_t sourceIcon = 0xFF; // strtol(sourceIconStr, nullptr, 16);
-    uint8_t textFormat = 0x60; // strtol(textFormatStr, nullptr, 16);
+	// if ((_sync_status & AFFA3_SYNC_STAT_FUNCSREG) != AFFA3_SYNC_STAT_FUNCSREG)
+	if (!hasFlag(_sync_status , SyncStatus::FUNCSREG))
+	{
+	//	AFFA3_PRINT("[send] Registering supported functions...\n");
 
+		for (idx = 0; idx < FUNCS_MAX; idx++)
+		{
+			AFFA3_PRINT("[send] Registering func ID 0x%X\n", _funcs[idx].id);
 
-    // Step 1: Clean input
-    String cleanedText = String(rawText);
-    cleanedText.replace("_", " "); // Replace underscores with spaces
-  
-    // Step 2: Build the full scrolling text
-    String fullText ="        ";// String(padding);  // Leading padding always 8
-  
-    for (int i = 0; i < count; i++) {
-      fullText += cleanedText + padding;  // Append text + padding each time
-    }
-  
-    // Add extra safety padding to prevent out-of-bounds
-    fullText += padding; //TODO: Fix that
-  
-    int totalLength = fullText.length() - 7; // Scroll window of 8 chars
-  
-    Serial.println("---- scrollTextRightToLeft ----");
-    Serial.print("Raw text: ");
-    Serial.println(rawText);
-    Serial.print("Full text: ");
-    Serial.println(fullText);
-    Serial.print("Speed: ");
-    Serial.println(speed);
-    Serial.print("Total scroll steps: ");
-    Serial.println(totalLength);
-  
-    // Step 3: Scroll the text
-    for (int i = 0; i < totalLength; i++) {
-      String segment = fullText.substring(i, i + 8);
-  
-      // Pad just in case it's short
-      while (segment.length() < 8) {
-        segment += " ";
-      }
-  
-      Serial.print("Segment [");
-      Serial.print(i);
-      Serial.print("]: ");
-      Serial.println(segment);
-  
-      sendTextToDisplay(mode, rdsIcon, sourceIcon, textFormat, segment.c_str());
-      delay(speed);
-    }
-  
-    Serial.println("---- scrollTextRightToLeft done ----");
-  }
+			err = affa3_do_send(idx, regdata, sizeof(regdata));
+			if (err != Affa3Error::NoError)
+			{
+		//		AFFA3_PRINT("[send] Registration failed for func 0x%X, error %d\n", _funcs[idx].id, err);
+
+				return err;
+			}
+		}
+
+		_sync_status |= SyncStatus::FUNCSREG;
+		//AFFA3_PRINT("[send] All functions registered.\n");
+	}
+
+	for (idx = 0; idx < FUNCS_MAX; idx++)
+	{
+		if (_funcs[idx].id == id)
+			break;
+	}
+
+	if (idx >= FUNCS_MAX)
+	{
+		//AFFA3_PRINT("[send] Unknown function ID: 0x%X\n", id);
+
+		return Affa3Error::UnknownFunc;
+	}
+	//AFFA3_PRINT("[send] Sending data to func 0x%X, length: %d\n", id, len);
+
+	return affa3_do_send(idx, data, len);
+	
 }
+
+void Affa3Display::tick() {
+  
+	struct CAN_FRAME packet;
+	static int8_t timeout = AFFA3_PING_TIMEOUT;
+
+	//AFFA3_PRINT("[tick] Sending alive ping\n");
+	/* Wysyłamy pakiet informujący o tym że żyjemy */
+	CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x79, 0x00, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER, Affa3Display::PACKET_FILLER);
+
+	if (hasFlag(_sync_status,SyncStatus::FAILED) || hasFlag(_sync_status,SyncStatus::START))
+	{	/* Błąd synchronizacji */
+		/* Wysyłamy pakiet z żądaniem synchronizacji */
+		AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
+		CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
+		_sync_status &= ~SyncStatus::START;
+		delay(100);
+	}
+	else
+	{
+		if (hasFlag(_sync_status, SyncStatus::PEER_ALIVE))
+		{
+		//	AFFA3_PRINT("[tick] Peer is alive, resetting timeout\n");
+			timeout = AFFA3_PING_TIMEOUT;
+			_sync_status &= ~SyncStatus::PEER_ALIVE;
+		}
+		else
+		{
+			timeout--;
+			AFFA3_PRINT("[tick] Waiting for peer... timeout in %d\n", timeout);
+			if (timeout <= 0)
+			{ /* Nic nie odpowiada, wymuszamy resynchronizację */
+				_sync_status = SyncStatus::FAILED;
+				/* Wszystkie funkcje tracą rejestracje */
+				_sync_status &= ~SyncStatus::FUNCSREG;
+
+				AFFA3_PRINT("ping timeout!\n");
+			}
+		}
+	}
+}
+
+Affa3Error  affa3_display_ctrl(Affa3Display::DisplayCtrl state)
+{
+	uint8_t data[] = {
+		0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
+
+	return affa3_send(Affa3Display::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
+}
+
+Affa3Error  Affa3Display::setState(bool enabled) {
+    Affa3Display::DisplayCtrl state = enabled ? Affa3Display::DisplayCtrl::Enable : Affa3Display::DisplayCtrl::Disable;
+    return affa3_display_ctrl(state);
+}
+
+
+
+void Affa3Display::recv(CAN_FRAME* packet) {
+    
+	uint8_t i;
+
+	if (packet->id ==Affa3Display::PACKET_ID_SYNC_REPLY)
+	{ /* Pakiety synchronizacyjne */
+		if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
+		{ /* Żądanie synchronizacji */
+			CanUtils::sendCan(AFFA3_PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
+			 affa3_is_synced = false;
+			_sync_status &= ~SyncStatus::FAILED;
+			if (packet->data.uint8[2] == 0x01)
+				_sync_status |=  SyncStatus:: START;
+		}
+		else if (packet->data.uint8[0] == 0x69)
+		{ 
+        	_sync_status |= SyncStatus::PEER_ALIVE;
+			tick();
+		}
+		return;
+	}
+
+	if (packet->id & AFFA3_PACKET_REPLY_FLAG)
+	{
+		packet->id &= ~AFFA3_PACKET_REPLY_FLAG;
+		for (i = 0; i < FUNCS_MAX; i++)
+		{ /* Szukamy w tablicy funkcji */
+			if (_funcs[i].id == packet->id)
+				break;
+		}
+
+		if ((i < FUNCS_MAX) && (_funcs[i].stat == FuncStatus::WAIT))
+		{ /* Jeżeli funkcja ma status: oczekiwanie na odpowiedź */
+			if (packet->data.uint8[0] == 0x74)
+			{ /* Koniec danych */
+				_funcs[i].stat = FuncStatus::DONE;
+			}
+			else if ((packet->data.uint8[0] == 0x30) && (packet->data.uint8[1] == 0x01) && (packet->data.uint8[2] == 0x00))
+			{ /* Wyświetlacz potwierdza przyjęcie części danych */
+				_funcs[i].stat = FuncStatus::PARTIAL;
+			}
+			else
+			{
+				_funcs[i].stat = FuncStatus::ERROR;
+			}
+		}
+		return;
+	}
+
+	if (packet->id == AFFA3_PACKET_ID_KEYPRESSED)
+	{
+		if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] != 0x89)) /* Błędny pakiet */
+			return;
+
+		if (!KEYQ_IS_FULL())
+		{
+			_key_q[_key_q_in] = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
+			printf_P(PSTR("AFFA2: key code: 0x%X\n"), _key_q[_key_q_in]);
+			_key_q_in = (_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE;
+		}
+	}
+
+	struct CAN_FRAME reply;
+	/* Wysyłamy odpowiedź */
+	reply.id = packet->id | AFFA3_PACKET_REPLY_FLAG;
+	reply.length = Affa3Display::PACKET_LENGTH;
+	i = 0;
+	reply.data.uint8[i++] = 0x74;
+
+	for (; i < Affa3Display::PACKET_LENGTH; i++)
+		reply.data.uint8[i] = Affa3Display::PACKET_FILLER;
+
+	CanUtils::sendFrame(reply);
+}
+
+Affa3Error affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
+{
+	
+	static uint8_t old_icons = 0xFF;
+	static uint8_t old_mode = 0x00;
+	uint8_t data[32];
+	uint8_t i, len = 0;
+	// TODO: Check if need newone
+	data[len++] = 0x10; /* Ustaw tekst */
+	if ((icons != old_icons) || (mode != old_mode))
+	{
+		data[len++] = 0x1C; /* Tekst + ikony */
+		data[len++] = 0x7F;
+		data[len++] = icons;
+		data[len++] = 0x55;
+		data[len++] = mode;
+	}
+	else
+	{
+		data[len++] = 0x19; /* Sam tekst */
+		data[len++] = textType; //??? 0x76 was setted but not working value, have put 0x7E isntead //possible 0x7E will add channel, but ox76 will not
+	}
+
+	data[len++] = chan; // 0x70<chan<0x7A  0..9+null;
+	data[len++] = loc; //0x01 always by now
+
+	for (i = 0; i < 8; i++)
+	{
+		data[len++] = old[i];
+	}
+
+	data[len++] = 0x10; /* Separator */
+
+	for (i = 0; i < 12; i++)
+	{
+		data[len++] = neww[i];
+	}
+
+	data[len++] = 0x00; /* Terminator */
+	data[len++] = 0x81; /* filler to try */
+	data[len++] = 0x81; /*  filler to try */
+  // 👇 Add debug output
+    // AFFA3_PRINT("[do_set_text] ID: 0x%X, len=%u\n", AFFA3_PACKET_ID_SETTEXT, len);
+    // for (uint8_t j = 0; j < len; j++)
+    // {
+    //     AFFA3_PRINT("%02X ", data[j]);
+    // }
+    // AFFA3_PRINT("\n");
+	return affa3_send(Affa3Display::AFFA3_PACKET_ID_SETTEXT, data, len);
+}
+
+Affa3Error Affa3Display::setText(const char* text, uint8_t digit /* 0-9, or anything else for none */) {
+    char oldBuf[8] = { ' ' };
+    char newBuf[12] = { ' ' };
+
+    // Prepare channel byte
+    uint8_t chan = (digit <= 9 && digit>=0) ? (0x70 + digit) : 0x7A;
+
+    // Fill old and new buffers
+    strncpy(oldBuf, text, sizeof(oldBuf));
+    strncpy(newBuf, text, sizeof(newBuf));
+
+    return affa3_do_set_text(0xFF, 0x00, chan, 0x01, 0x76, oldBuf, newBuf);
+}
+
+Affa3Error Affa3Display::scrollText(const char *text, uint16_t  delayMs)
+{
+	 
+    char buffer[8];
+    size_t len = strlen(text);
+    size_t total = len + 8 + 1 ; // +8 to pad with blanks at the end +1 to clear entire screen
+
+    for (size_t i = 0; i < total; i++)
+    {
+        // Build 8-char window with leading/trailing spaces
+        for (size_t j = 0; j < 8; j++)
+        {
+            size_t pos = i + j;
+            if (pos < 8) {
+                buffer[j] = ' '; // leading space
+            } else if (pos - 8 < len) {
+                buffer[j] = text[pos - 8];
+            } else {
+                buffer[j] = ' '; // trailing space
+            }
+        }
+
+        // Call original function
+        setText(buffer,255);
+
+        // Wait between frames
+        delay(delayMs);
+    }
+
+    return Affa3Error::NoError;
+}
+
+SyncStatus affa3_sync_status(void)
+{
+	return _sync_status;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifdef HAS_MENU
+void Affa3Display::setMenu(const char* title, const char* items[], uint8_t count) {
+    // your menu display code here
+}
+#endif
+
+
+ 

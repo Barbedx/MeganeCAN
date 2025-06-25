@@ -1,4 +1,6 @@
 #pragma once
+#pragma once
+#include <can_common.h>
 #include <esp32_can.h>
 #include <Arduino.h>
 
