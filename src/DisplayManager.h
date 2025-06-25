@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 
-class DisplayManager {
+class  DisplayManager {
 public:
     DisplayManager();
 
@@ -14,6 +14,9 @@ public:
     void syncDisp();
     void messageTest();
     void messageTest2();
+    void messageTest3();
+    void messageTest4();
+    void messageTest5();
     void messageWelcome();
     // This method will be called from your CAN callback when frame 0x3CF arrives
     

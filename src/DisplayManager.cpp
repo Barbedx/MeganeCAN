@@ -46,8 +46,8 @@ void DisplayManager::messageWelcome() {
     CanUtils::sendMsgBuf(0x121, msg12);
     delay(1); 
 }
-void DisplayManager::messageTest() {
-    uint8_t msg11[8] = {0x10, 0x19, '~', 'q', 0x01, '1', '2', '3'};
+void DisplayManager::messageTest() { //goood
+    uint8_t msg11[8] = {0x10, 0x19, 0x7E, 0x70, 0x01, '1','2','3'};//123
     uint8_t msg12[8] = {0x21, '4', '5', '6', '7', '8', 0x10, 'x'};
     uint8_t msg13[8] = {0x22, 'x', 'x', 'x', 'x', 'x', 'x', 'x'};
     uint8_t msg14[8] = {0x23, 'x', 'x', 'x', 'x', 0x00, 0x81, 0x81};
@@ -60,12 +60,13 @@ void DisplayManager::messageTest() {
     delay(1);
     CanUtils::sendMsgBuf(0x121, msg14);
     delay(1); 
-}
-void DisplayManager::messageTest2() {
-    uint8_t msg11[8] = {0x10, 0x19, '~', 'q', 0x01, 't', 'e', 's'};
-    uint8_t msg12[8] = {0x21, 't', '5', '6', '7', '8', 0x10, ' '};
-    uint8_t msg13[8] = {0x22, 'E', 'U', 'R', 'O', 'P', 'E', '-'};
-    uint8_t msg14[8] = {0x23, '2', ' ', 'P', '1', 0x00, 0x81, 0x81};
+} 
+
+void DisplayManager::messageTest2() {////goood
+    uint8_t msg11[8] = {0x10, 0x19, 0x7E, 0x70, /*static bit -> */0x01, '1','2','3'};
+    uint8_t msg12[8] = {0x21, 'Y', 'Y', 'Y', '7', '8', 0x10, 'x'};
+    uint8_t msg13[8] = {0x22, 'x', 'x', 'x', 'x', 'x', 'x', 'x'};
+    uint8_t msg14[8] = {0x23, 'x', 'x', 'x', 'x', 0x00, 0x81, 0x81};
 
     CanUtils::sendMsgBuf(0x121, msg11);
     delay(1);
@@ -74,8 +75,54 @@ void DisplayManager::messageTest2() {
     CanUtils::sendMsgBuf(0x121, msg13);
     delay(1);
     CanUtils::sendMsgBuf(0x121, msg14);
+    delay(1); 
+} 
+
+void DisplayManager::messageTest3() {
+    uint8_t msg11[8] = {0x10, 0x19, 0x7E,/**no lower 69 */ 0x78, 0x01, '3', '3', '3'}; //works, shows8 in chanel(0x78)
+    uint8_t msg12[8] = {0x21, '3', '3', '3', '7', '8', 0x10, 'x'};
+    uint8_t msg13[8] = {0x22, 'x', 'x', 'x', 'x', 'x', 'x', 'x'};
+    uint8_t msg14[8] = {0x23, 'x', 'x', 'x', 'x', 0x00, 0x81, 0x81};
+
+    CanUtils::sendMsgBuf(0x121, msg11);
     delay(1);
-}
+    CanUtils::sendMsgBuf(0x121, msg12);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg13);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg14);
+    delay(1); 
+} 
+void DisplayManager::messageTest4() {
+    uint8_t msg11[8] = {0x10, 0x19, 0x7E,/** (value 69 < 79 <*/ 0x79, 0x01, '3', '3', '3'};  
+    uint8_t msg12[8] = {0x21, '3', '3', '3', '7', '8', 0x10, 'x'};
+    uint8_t msg13[8] = {0x22, 'x', 'x', 'x', 'x', 'x', 'x', 'x'};
+    uint8_t msg14[8] = {0x23, 'x', 'x', 'x', 'x', 0x00, 0x81, 0x81};
+
+    CanUtils::sendMsgBuf(0x121, msg11);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg12);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg13);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg14);
+    delay(1); 
+} 
+void DisplayManager::messageTest5() {
+    uint8_t msg11[8] = {0x10, 0x19, 0x7E,/* (value 69 < 79 <*/ 0x7A ,/* 7A is max and NULL  */ 0x01/*const*/, '3', '3', '3'};  
+    uint8_t msg12[8] = {0x21, '3', '3', '3', '7', '8', 0x10, 'x'};
+    uint8_t msg13[8] = {0x22, 'x', 'x', 'x', 'x', 'x', 'x', 'x'};
+    uint8_t msg14[8] = {0x23, 'x', 'x', 'x', 'x', 0x00, 0x81, 0x81};
+
+    CanUtils::sendMsgBuf(0x121, msg11);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg12);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg13);
+    delay(1);
+    CanUtils::sendMsgBuf(0x121, msg14);
+    delay(1); 
+} 
 
 bool DisplayManager::isSessionStarted() const {
     return sessionStarted;

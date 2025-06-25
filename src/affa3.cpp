@@ -21,7 +21,7 @@ static volatile struct affa3_func _funcs[] = {
 	{.id = AFFA3_PACKET_ID_DISPLAY_CTRL, .stat = AFFA3_FUNC_STAT_IDLE},
 };
 
-void affa3_tick(void)
+void affa3_tick()
 {
 	struct CAN_FRAME packet;
 	static int8_t timeout = AFFA3_PING_TIMEOUT;
@@ -78,7 +78,7 @@ void affa3_recv(struct CAN_FRAME *packet)
 		else if (packet->data.uint8[0] == 0x69)
 		{ 
         	_sync_status |= AFFA3_SYNC_STAT_PEER_ALIVE;
-        	affa3_is_synced = true; // ✅ Mark as connected  
+			affa3_tick();
 		}
 		return;
 	}
@@ -173,15 +173,28 @@ static int8_t affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
 			packet.data.uint8[i] = AFFA3_PACKET_FILLER;
 		}
 
+		AFFA3_PRINT("Sending packet #%d to ID 0x%03X: ", num, packet.id);
+		for (int j = 0; j < packet.length; j++)
+			AFFA3_PRINT("%02X ", packet.data.uint8[j]);
+		AFFA3_PRINT("\n");
+
+
 		_funcs[idx].stat = AFFA3_FUNC_STAT_WAIT;
 
 		CanUtils::sendFrame(packet);
 
 		/* Czkekamy na odpowiedź */
 		timeout = 2000; /* 2sek */
+			uint16_t wait_counter = 0;
 		while ((_funcs[idx].stat == AFFA3_FUNC_STAT_WAIT) && (--timeout > 0))
 		{
 			delay(1);
+			
+			// Log every 500ms
+			if (wait_counter++ % 500 == 0)
+			{
+				AFFA3_PRINT("Waiting... %dms elapsed for packet #%d (ID: 0x%03X)\n", wait_counter, num, packet.id);
+			}
 		}
 
 		stat = _funcs[idx].stat;
@@ -195,10 +208,12 @@ static int8_t affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
 
 		if (stat == AFFA3_FUNC_STAT_DONE)
 		{
+			AFFA3_PRINT("affa3_send(): DONE received on packet #%d\n", num);
 			break;
 		}
 		else if (stat == AFFA3_FUNC_STAT_PARTIAL)
 		{
+			AFFA3_PRINT("affa3_send(): PARTIAL ack on packet #%d, remaining: %d bytes\n", num, left);
 			if (!left)
 			{ /* Nie mamy więcej danych */
 				AFFA3_PRINT("affa3_send(): no more data\n");
@@ -208,8 +223,8 @@ static int8_t affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
 		}
 		else if (stat == AFFA3_FUNC_STAT_ERROR)
 		{
-			AFFA3_PRINT("affa3_send(): error\n");
-			return -AFFA3_ESENDFAILED;
+				AFFA3_PRINT("affa3_send(): ERROR received on packet #%d\n", num);
+				return -AFFA3_ESENDFAILED;
 		}
 	}
 
@@ -258,6 +273,7 @@ static int8_t affa3_send(uint16_t id, uint8_t *data, uint8_t len)
 	AFFA3_PRINT("[send] Sending data to func 0x%X, length: %d\n", id, len);
 
 	return affa3_do_send(idx, data, len);
+	
 }
 
 int8_t affa3_display_ctrl(uint8_t state)
@@ -267,7 +283,57 @@ int8_t affa3_display_ctrl(uint8_t state)
 
 	return affa3_send(AFFA3_PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
+
+
+ int8_t affa3_old_scroll_text(const char* text, uint16_t delayMs)
+{
+    char buffer[8];
+    size_t len = strlen(text);
+    size_t total = len + 8 + 1 ; // +8 to pad with blanks at the end +1 to clear entire screen
+
+    for (size_t i = 0; i < total; i++)
+    {
+        // Build 8-char window with leading/trailing spaces
+        for (size_t j = 0; j < 8; j++)
+        {
+            size_t pos = i + j;
+            if (pos < 8) {
+                buffer[j] = ' '; // leading space
+            } else if (pos - 8 < len) {
+                buffer[j] = text[pos - 8];
+            } else {
+                buffer[j] = ' '; // trailing space
+            }
+        }
+
+        // Call original function
+        affa3_old_set_text(buffer);
+
+        // Wait between frames
+        delay(delayMs);
+    }
+
+    return 0;
+}
+int8_t affa3_old_set_text(char text[8])
+{
+    char padded[8];
+    uint8_t i = 0;
+
+    // Copy input text into padded buffer, up to 8 characters
+    for (; i < 8 && text[i]; i++) {
+        padded[i] = text[i];
+    }
+
+    // Fill the rest with spaces if less than 8 characters
+    for (; i < 8; i++) {
+        padded[i] = ' ';
+    }
+
+    return affa3_old_set_text(0x7E, 0x7A /*without channel*/, 0x01, padded);
  
+}
+
 int8_t affa3_old_set_text(uint8_t textType, uint8_t chan, uint8_t loc, char oldText[8])
 {
     char newText[12];
@@ -290,6 +356,10 @@ int8_t affa3_old_set_text(uint8_t textType, uint8_t chan, uint8_t loc, char oldT
  
 int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
 {
+
+	///long delay in work
+
+
 	static uint8_t old_icons = 0xFF;
 	static uint8_t old_mode = 0x00;
 	uint8_t data[32];
@@ -310,8 +380,8 @@ int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc,
 		data[len++] = textType; //??? 0x76 was setted but not working value, have put 0x7E isntead //possible 0x7E will add channel, but ox76 will not
 	}
 
-	data[len++] = chan; // 0x60 | (chan & 7);
-	data[len++] = loc; //0x01
+	data[len++] = chan; // 0x70<chan<0x7A  0..9+null;
+	data[len++] = loc; //0x01 always by now
 
 	for (i = 0; i < 8; i++)
 	{
@@ -326,6 +396,8 @@ int8_t affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc,
 	}
 
 	data[len++] = 0x00; /* Terminator */
+	data[len++] = 0x81; /* filler to try */
+	data[len++] = 0x81; /*  filler to try */
   // 👇 Add debug output
     AFFA3_PRINT("[do_set_text] ID: 0x%X, len=%u\n", AFFA3_PACKET_ID_SETTEXT, len);
     for (uint8_t j = 0; j < len; j++)
