@@ -26,3 +26,25 @@ void CanUtils::sendMsgBuf(uint32_t id, const uint8_t* data, uint8_t len)
     if (len != 8) return;
     sendCan(id, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
 }
+
+void CanUtils::printCanFrame(const CAN_FRAME &frame, bool isOutgoing)
+{
+    const char *direction = isOutgoing ? "[TX]" : "[RX]";
+    Serial.print(direction);
+    Serial.print(" ID: 0x");
+    if (frame.id < 0x100)
+        Serial.print("0"); // pad if needed
+    Serial.print(frame.id, HEX);
+    Serial.print(" Len: ");
+    Serial.print(frame.length);
+    Serial.print(" Data: { ");
+    for (int i = 0; i < frame.length; i++)
+    {
+        if (frame.data.uint8[i] < 0x10)
+            Serial.print("0");
+        Serial.print(frame.data.uint8[i], HEX);
+        if (i < frame.length - 1)
+            Serial.print(" ");
+    }
+    Serial.println(" }");
+}

@@ -11,4 +11,5 @@ public:
     
     static void sendMsgBuf(uint32_t id, const uint8_t* data, uint8_t len = 8);
     static void sendFrame(CAN_FRAME &frame);
+    static void printCanFrame(const CAN_FRAME &frame, bool isOutgoing);
 };

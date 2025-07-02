@@ -1,34 +1,13 @@
-#include <Arduino.h>
-#include "CanUtils.h" 
-#include "Affa3Display.h"
+#include <Arduino.h>  
 #include <SerialCommand.h> // Assuming this is already included in your project 
+#include "display/Affa3Display.h"
+#include "effects/ScrollEffect.h" // Assuming this is already included in your project
 
 SerialCommand sCmd; // The SerialCommand object
-Affa3Display display;
+Affa3Display display; // Create an instance of Affa3Display
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
 
-void printCanFrame(const CAN_FRAME &frame, bool isOutgoing)
-{
-    const char *direction = isOutgoing ? "[TX]" : "[RX]";
-    Serial.print(direction);
-    Serial.print(" ID: 0x");
-    if (frame.id < 0x100)
-        Serial.print("0"); // pad if needed
-    Serial.print(frame.id, HEX);
-    Serial.print(" Len: ");
-    Serial.print(frame.length);
-    Serial.print(" Data: { ");
-    for (int i = 0; i < frame.length; i++)
-    {
-        if (frame.data.uint8[i] < 0x10)
-            Serial.print("0");
-        Serial.print(frame.data.uint8[i], HEX);
-        if (i < frame.length - 1)
-            Serial.print(" ");
-    }
-    Serial.println(" }");
-}
 
 void gotFrame(CAN_FRAME *frame)
 {
@@ -45,8 +24,8 @@ void gotFrame(CAN_FRAME *frame)
                                (frame->id == 0x3CF && frame->data.uint8[0] == 0x69) ||
                                (frame->id == 0x521 || frame->id == 0x3DF)))
     {
-        printCanFrame(*frame, false);
     }
+    CanUtils::printCanFrame(*frame, false);
 
     display.recv(frame);
     // Echo or other processing can be added here
@@ -57,11 +36,7 @@ void gotFrame(CAN_FRAME *frame)
 void cmd_enable() { display.setState(true); }
 void cmd_disable() { display.setState(false);  }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
-void cmd_messageTestold() { 
-   display.setText("12345678",1); }
-void cmd_messageTestold2() { display.setText("12345678",255); }
-void cmd_messageTestold3() { display.scrollText("12233344445555",300);  }
-void cmd_messageTestold4() {  }
+
 
 
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
@@ -86,41 +61,32 @@ void cmd_scrollmtx()
         if (delayMs < 20)
             delayMs = 20; // clamp minimum
     }
+    ScrollEffect(&display, ScrollDirection::Right, text, delayMs);
 
-   // affa3_old_scroll_text(text, delayMs);
-}
-void cmd_mtx()
-{
-    // char *text = sCmd.next();
-    // affa3_old_set_text(text);
+    //display.scrollText(text, delayMs);
 }
 
-void setTime(const char *clock)
+void cmd_scrollmtxl()
 {
-    if (strlen(clock) != 4 || !isdigit(clock[0]) || !isdigit(clock[1]) ||
-        !isdigit(clock[2]) || !isdigit(clock[3]))
+    const char *text = sCmd.next();
+    const char *delayStr = sCmd.next();
+
+    if (!text)
     {
-        Serial.println("Invalid time format. Use 4-digit HHMM.");
+       // AFFA3_PRINT("Usage: ms <text> [delay_ms]\n");
         return;
     }
 
-    CAN_FRAME answer;
-    answer.id = 0;//AFFA3_PACKET_ID_DISPLAY_CTRL;
-    answer.length = 8;
-    answer.data.uint8[0] = 0x05;
-    answer.data.uint8[1] = 'V'; // likely constant
-    answer.data.uint8[2] = clock[0];
-    answer.data.uint8[3] = clock[1];
-    answer.data.uint8[4] = clock[2];
-    answer.data.uint8[5] = clock[3];
-    answer.data.uint8[6] = 0x00;
-    answer.data.uint8[7] = 0x00;
-
-    CAN0.sendFrame(answer);
-    Serial.print("Sent time set frame  : ");
-    printCanFrame(answer, true);
-    Serial.println(clock);
+    uint16_t delayMs = 300; // default delay
+    if (delayStr)
+    {
+        delayMs = atoi(delayStr);
+        if (delayMs < 20)
+            delayMs = 20; // clamp minimum
+    }
+    ScrollEffect(&display, ScrollDirection::Left, text, delayMs); 
 }
+ 
 void cmd_setTime()
 {
 
@@ -130,33 +96,27 @@ void cmd_setTime()
         Serial.println("Usage: st <HHMM>");
         return;
     }
-    setTime(timeStr); // unknown protocol
+    display.setTime(timeStr); // unknown protocol
 }
 
 void setup()
 {
     Serial.begin(115200);
+    delay(1000);
     Serial.println("------------------------");
     Serial.println("   MEGANE CAN BUS       ");
     Serial.println("------------------------");
 
     // Setup commands
-    // sCmd.addCommand("ss", cmd_startSync);
-    // sCmd.addCommand("so", cmd_syncOK);
-    // sCmd.addCommand("sd", cmd_syncDisp);
-    // sCmd.addCommand("r", cmd_register);
-    // sCmd.addCommand("i", cmd_init);
     sCmd.addCommand("e", cmd_enable);
     sCmd.addCommand("d", cmd_disable);
-    sCmd.addCommand("mto", cmd_messageTestold);   // works
-    sCmd.addCommand("mto2", cmd_messageTestold2); // works
-    sCmd.addCommand("mto3", cmd_messageTestold3);
-    sCmd.addCommand("mto4", cmd_messageTestold4); 
 //    sCmd.addCommand("mtx", cmd_mtx);    // workss
     sCmd.addCommand("st", cmd_setTime); // Example: st 0925
-    sCmd.addCommand("ms", cmd_scrollmtx); // Example: st 0925
+    sCmd.addCommand("msr", cmd_scrollmtx); // Example: st 0925
+    sCmd.addCommand("msl", cmd_scrollmtxl); // Example: st 0925
 
-    CAN0.setCANPins(GPIO_NUM_5, GPIO_NUM_4); // Set CAN RX/TX pins
+    // CAN0.setCANPins(GPIO_NUM_5, GPIO_NUM_4); // Set CAN RX/TX pins
+    CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4); // Set CAN RX/TX pins
     CAN0.begin(CAN_BPS_500K);                // 500 Kbps bitrate
 
     CAN0.setGeneralCallback(gotFrame);
@@ -174,9 +134,7 @@ void loop()
     sCmd.readSerial();
     uint32_t now = millis();
     if (now - last_sync > SYNC_INTERVAL_MS)
-    {
-        //    displayManager.syncOK();
-        // affa3_tick();
+    { 
         last_sync = now;
     }
 }
