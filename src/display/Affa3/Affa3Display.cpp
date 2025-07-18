@@ -1,5 +1,4 @@
-
-#pragma once // or use include guards instead
+ 
 // #include "affa3.h"
 #include "Affa3Display.h"
 #include <string.h>
@@ -14,14 +13,14 @@ inline void AFFA3_PRINT(const char *fmt, ...)
 #endif
 }
 
-using SyncStatus = Affa3::SyncStatus;
-using FuncStatus = Affa3::FuncStatus;
-using Affa3Error = Affa3::Affa3Error;
+using SyncStatus = AffaCommon::SyncStatus;
+using FuncStatus = AffaCommon::FuncStatus;
+using AffaError = AffaCommon::AffaError;
 
 namespace
 {
-	static SyncStatus _sync_status = SyncStatus::FAILED;
-	static uint8_t _menu_max_items = 0; /* Status synchronizacji z wświetlaczem */
+	static SyncStatus _sync_status = SyncStatus::FAILED;/* Status synchronizacji z wświetlaczem */
+	static uint8_t _menu_max_items = 0; 
 	constexpr int AFFA3_PING_TIMEOUT = 5;
 	constexpr size_t AFFA3_KEY_QUEUE_SIZE = 8;
 
@@ -46,34 +45,34 @@ namespace
 	bool isKeyQueueFull() { return ((_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE) == _key_q_out; }
 	bool isKeyQueueEmpty() { return _key_q_in == _key_q_out; }
 
-	static Affa3Error affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
+	static AffaError affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
 	{
 		struct CAN_FRAME packet;
 		uint8_t i, stat, num = 0, left = len;
 		int16_t timeout;
 
 		if (hasFlag(_sync_status, SyncStatus::FAILED))
-			return Affa3Error::NoSync;
+			return AffaError::NoSync;
 
 		while (left > 0)
 		{
 			i = 0;
 
 			packet.id = funcs[idx].id;
-			packet.length = Affa3::PACKET_LENGTH;
+			packet.length = AffaCommon::PACKET_LENGTH;
 
 			if (num > 0)
 			{
 				packet.data.uint8[i++] = 0x20 + num;
 			}
 
-			while ((i < Affa3::PACKET_LENGTH) && (left > 0))
+			while ((i < AffaCommon::PACKET_LENGTH) && (left > 0))
 			{
 				packet.data.uint8[i++] = *data++;
 				left--;
 			}
 
-			for (; i < Affa3::PACKET_LENGTH; i++)
+			for (; i < AffaCommon::PACKET_LENGTH; i++)
 			{
 				packet.data.uint8[i] = Affa3::PACKET_FILLER;
 			}
@@ -107,7 +106,7 @@ namespace
 			if (!timeout)
 			{ /* Nie dostaliśmy odpowiedzi */
 				AFFA3_PRINT("affa3_send(): timeout, num = %d\n", num);
-				return Affa3Error::Timeout;
+				return AffaError::Timeout;
 			}
 
 			if (stat == FuncStatus::DONE)
@@ -121,25 +120,25 @@ namespace
 				if (!left)
 				{ /* Nie mamy więcej danych */
 					AFFA3_PRINT("affa3_send(): no more data\n");
-					return Affa3Error::SendFailed;
+					return AffaError::SendFailed;
 				}
 				num++;
 			}
 			else if (stat == FuncStatus::ERROR)
 			{
 				AFFA3_PRINT("affa3_send(): ERROR received on packet #%d\n", num);
-				return Affa3Error::SendFailed;
+				return AffaError::SendFailed;
 			}
 		}
 
-		return Affa3Error::NoError;
+		return AffaError::NoError;
 	}
 
-	static Affa3Error affa3_send(uint16_t id, uint8_t *data, uint8_t len)
+	static AffaError affa3_send(uint16_t id, uint8_t *data, uint8_t len)
 	{
 		uint8_t idx;
 		uint8_t regdata[1] = {0x70};
-		Affa3Error err;
+		AffaError err;
 
 		// if ((_sync_status & AFFA3_SYNC_STAT_FUNCSREG) != AFFA3_SYNC_STAT_FUNCSREG)
 		if (!hasFlag(_sync_status, SyncStatus::FUNCSREG))
@@ -151,7 +150,7 @@ namespace
 				AFFA3_PRINT("[send] Registering func ID 0x%X\n", funcs[idx].id);
 
 				err = affa3_do_send(idx, regdata, sizeof(regdata));
-				if (err != Affa3Error::NoError)
+				if (err != AffaError::NoError)
 				{
 					//		AFFA3_PRINT("[send] Registration failed for func 0x%X, error %d\n", _funcs[idx].id, err);
 
@@ -173,13 +172,14 @@ namespace
 		{
 			// AFFA3_PRINT("[send] Unknown function ID: 0x%X\n", id);
 
-			return Affa3Error::UnknownFunc;
+			return AffaError::UnknownFunc;
 		}
 		// AFFA3_PRINT("[send] Sending data to func 0x%X, length: %d\n", id, len);
 
 		return affa3_do_send(idx, data, len);
 	}
-	Affa3Error affa3_display_ctrl(Affa3::DisplayCtrl state)
+
+	AffaError affa3_display_ctrl(AffaCommon::DisplayCtrl state)
 	{
 		uint8_t data[] = {
 			0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
@@ -187,7 +187,7 @@ namespace
 		return affa3_send(Affa3::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 	}
 
-	Affa3Error affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
+	AffaError affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
 	{
 
 		static uint8_t old_icons = 0xFF;
@@ -284,13 +284,12 @@ void Affa3Display::tick()
 	}
 }
 
+ 
 
 
-
-
-Affa3Error Affa3Display::setState(bool enabled)
+AffaCommon::AffaError Affa3Display::setState(bool enabled)
 {
-	Affa3::DisplayCtrl state = enabled ? Affa3::DisplayCtrl::Enable : Affa3::DisplayCtrl::Disable;
+	AffaCommon::DisplayCtrl state = enabled ? AffaCommon::DisplayCtrl::Enable : AffaCommon::DisplayCtrl::Disable;
 	return affa3_display_ctrl(state);
 }
 
@@ -360,17 +359,17 @@ void Affa3Display::recv(CAN_FRAME *packet)
 	struct CAN_FRAME reply;
 	/* Wysyłamy odpowiedź */
 	reply.id = packet->id | Affa3::PACKET_REPLY_FLAG;
-	reply.length = Affa3::PACKET_LENGTH;
+	reply.length = AffaCommon::PACKET_LENGTH;
 	i = 0;
 	reply.data.uint8[i++] = 0x74;
 
-	for (; i < Affa3::PACKET_LENGTH; i++)
+	for (; i < AffaCommon::PACKET_LENGTH; i++)
 		reply.data.uint8[i] = Affa3::PACKET_FILLER;
 
 	CanUtils::sendFrame(reply);
 }
 
-Affa3Error Affa3Display::setText(const char *text, uint8_t digit /* 0-9, or anything else for none */)
+AffaCommon::AffaError Affa3Display::setText(const char *text, uint8_t digit /* 0-9, or anything else for none */)
 {
 	char oldBuf[8] = {' '};
 	char newBuf[12] = {' '};
@@ -390,6 +389,6 @@ SyncStatus affa3_sync_status(void)
 	return _sync_status;
 }
 
-Affa3::Affa3Error Affa3Display::setTime(const char *clock) {
-	return Affa3::Affa3Error::NoError; // Placeholder for actual implementation
+AffaCommon::AffaError Affa3Display::setTime(const char *clock) {
+	return AffaCommon::AffaError::NoError; // Placeholder for actual implementation
 }
