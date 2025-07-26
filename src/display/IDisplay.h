@@ -10,5 +10,12 @@ public:
     virtual AffaCommon::AffaError setText(const char* text, uint8_t digit =255 /* 0-9, or anything else for none */) ; 
     virtual AffaCommon::AffaError setState(bool enabled) = 0; 
     virtual AffaCommon::AffaError setTime(const char *clock) = 0;   
+
+
+
+    //AFFA3NavDisplay specific methods 
+                                          
+    
+
 };
 

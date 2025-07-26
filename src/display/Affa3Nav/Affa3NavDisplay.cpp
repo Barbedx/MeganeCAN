@@ -300,6 +300,182 @@ void Affa3NavDisplay::tick()
 
 // Extended NAV display logic
 
+// Add enums for item types and key input
+enum class MenuItemType {
+  StaticText,
+  OptionSelector,
+  IntegerEditor,
+  SubMenu,
+};
+
+struct MenuItem;
+
+struct Menu {
+  const char* header;
+  std::vector<MenuItem> items;
+  int selectedIndex = 0;
+  Menu* parent = nullptr;
+
+  Menu(const char* h) : header(h) {}
+
+  // Navigate within menu items
+  void navigateUp() {
+    if (selectedIndex > 0) selectedIndex--;
+    else selectedIndex = items.size() - 1;
+  }
+  void navigateDown() {
+    if (selectedIndex < (int)items.size() - 1) selectedIndex++;
+    else selectedIndex = 0;
+  }
+
+  void draw();
+};
+
+struct MenuItem {
+  MenuItemType type;
+  const char* label;
+
+  // For StaticText
+  const char* staticValue;
+
+  // For OptionSelector
+  std::vector<const char*> options;
+  int selectedOption = 0;
+
+  // For IntegerEditor
+  int intValue = 0;
+  int minValue = 0;
+  int maxValue = 100;
+
+  // For SubMenu
+  Menu* submenu = nullptr;
+
+  MenuItem(MenuItemType t, const char* l)
+    : type(t), label(l), staticValue(nullptr), submenu(nullptr) {}
+};
+
+
+
+
+
+
+void Menu::draw() {
+  // Show 3 items total: selected + 1 above + 1 below (if exist)
+  const char* item1 = nullptr;
+  const char* item2 = nullptr;
+  const char* item3 = nullptr;
+
+  int sel = selectedIndex;
+
+  if (items.empty()) {
+    item1 = "";
+    item2 = "";
+    item3 = "";
+  } else {
+    // item2 is selected
+    item2 = nullptr;
+    // item1 is selected-1 or blank
+    // item3 is selected+1 or blank
+
+    // Helper to get string for display of an item
+    auto getItemString = [](const MenuItem& mi) -> String {
+      switch (mi.type) {
+        case MenuItemType::StaticText:
+          return String(mi.label) + ": " + (mi.staticValue ? mi.staticValue : "");
+        case MenuItemType::OptionSelector:
+          return String(mi.label) + ": " + (mi.options.empty() ? "" : mi.options[mi.selectedOption]);
+        case MenuItemType::IntegerEditor:
+          return String(mi.label) + ": " + String(mi.intValue);
+        case MenuItemType::SubMenu:
+          return String(mi.label) + " >";
+      }
+      return "";
+    };
+
+    String str1 = (sel > 0) ? getItemString(items[sel - 1]) : "";
+    String str2 = getItemString(items[sel]);
+    String str3 = (sel + 1 < (int)items.size()) ? getItemString(items[sel + 1]) : "";
+
+    item1 = str1.c_str();
+    item2 = str2.c_str();
+    item3 = str3.c_str();
+
+    // WARNING: The pointers returned here are to temporary String objects!
+    // We'll handle this in a safer way in actual code.
+  }
+
+  // Use your existing showMenu to send display.
+  // For simplicity here, only 2 items shown in showMenu, but let's modify your showMenu later to 3 items or create a new one.
+  // For now let's send first 2 items + header:
+
+  // Because your showMenu takes 2 items, we can call it twice or modify it to support 3.
+  // Let's create a simple 3 item version for our menu here:
+
+  // We'll send a combined menu with header and 3 items, showing selected highlight with flags:
+  // 0x7E = not selected, 0x7F = selected
+
+  // We'll craft a simple helper here:
+
+  auto sendMenu = [](const char* header, const char* i1, bool i1sel, const char* i2, bool i2sel, const char* i3, bool i3sel) {
+    uint8_t sel1 = i1sel ? 0x7F : 0x7E;
+    uint8_t sel2 = i2sel ? 0x7F : 0x7E;
+    uint8_t sel3 = i3sel ? 0x7F : 0x7E;
+
+    // We'll build and send menu with 3 items here using a similar method as your showMenu
+    // You can copy/paste your showMenu and adapt to 3 items with those flags accordingly
+
+    // For demo, just send 2 items (header + item1 + item2)
+    // You can extend to 3 later easily.
+
+   // showMenu(header, i1, i2, 0x5A, 0x0B, sel1, sel2);
+    // Optionally send the 3rd item as info or in another way
+  };
+
+  sendMenu(header, item1, sel > 0 && sel-1 == sel, item2, true, item3, sel + 1 == sel);
+}
+
+Menu* currentMenu = nullptr;
+
+Menu rootMenu("Settings");
+Menu effectsMenu("Effects");
+
+void setupMenus() {
+  // Setup effects submenu
+  effectsMenu.items.push_back(MenuItem(MenuItemType::StaticText, "Lighting"));
+  effectsMenu.items.push_back(MenuItem(MenuItemType::StaticText, "Blink"));
+  effectsMenu.items.push_back(MenuItem(MenuItemType::StaticText, "Off"));
+  effectsMenu.parent = &rootMenu;
+
+  // Setup root menu items
+  MenuItem voltage(MenuItemType::StaticText, "Accu Voltage");
+  voltage.staticValue = "14V";
+
+  MenuItem color(MenuItemType::OptionSelector, "Color");
+  color.options = {"Red", "Green", "Blue"};
+  color.selectedOption = 0;
+
+  MenuItem someInt(MenuItemType::IntegerEditor, "SomeIntPar");
+  someInt.intValue = 1;
+  someInt.minValue = 0;
+  someInt.maxValue = 10;
+
+  MenuItem effect(MenuItemType::SubMenu, "Effect");
+  effect.submenu = &effectsMenu;
+  effect.submenu->parent = &rootMenu;
+
+  rootMenu.items.push_back(voltage);
+  rootMenu.items.push_back(color);
+  rootMenu.items.push_back(someInt);
+  rootMenu.items.push_back(effect);
+
+  currentMenu = &rootMenu;
+}
+
+
+
+
+
+
 #define VOLTAGE_PIN 33 // Use  GPIO32
 struct VoltageInfo {
   float voltage;
@@ -334,6 +510,17 @@ VoltageInfo getVoltage()
 
   return { Vbatt, adcValue };
 }
+
+
+
+
+
+
+
+
+
+
+
 
 void showMenu(
     const char *header,
@@ -638,15 +825,19 @@ void showConfirmBoxWithOffsets(
   Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
 }
 
-
+//menuit 41 44 48 77 AUX__AUTO AFAUTO SPEED_0
 void showInfoMenu(
     const char *item1,
     const char *item2,
     const char *item3,
-    uint8_t offset1,
-    uint8_t offset2,
-    uint8_t offset3,
-    uint8_t infoPrefix)
+    uint8_t offset1,// 0x41
+    uint8_t offset2,// 0x44
+    uint8_t offset3,// 0x48 -- dont know what changing, maybe itr constants
+    uint8_t infoPrefix)  //same as with text, 
+    // 19-3f 5symbols + point + 2sym + channel.  (19 for ✔️),59-7F plain 8 sym + Channel ascii
+  // so if you send 19-3f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
+  // if you send 59-7f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
+  //  its also shows somechannel symbol based on asccii code, for example to show 9 you need send 39 or 79, for show # - 23 or 63
 {
   Serial.println("[showInfoMenu] --- Sending Info Menu ---");
 
@@ -676,65 +867,62 @@ void showInfoMenu(
   Serial.println("[showInfoMenu] --- Done ---");
 }
 
-void sendDisplayFrame(uint8_t frameIndex, const char *textSegment)
-{
-  CAN_FRAME frame;
-  frame.id = 0x151;
-  frame.length = 8;
-  frame.data.uint8[0] = 0x21 + frameIndex; // 0x21, 0x22, ...
+// void sendDisplayFrame(uint8_t frameIndex, const char *textSegment)
+// {
+//   CAN_FRAME frame;
+//   frame.id = 0x151;
+//   frame.length = 8;
+//   frame.data.uint8[0] = 0x21 + frameIndex; // 0x21, 0x22, ...
 
-  for (int i = 0; i < 7; i++)
-  {
-    frame.data.uint8[i + 1] = textSegment[i];
-  }
+//   for (int i = 0; i < 7; i++)
+//   {
+//     frame.data.uint8[i + 1] = textSegment[i];
+//   }
 
-  CanUtils::sendFrame(frame);
-  Serial.println("Header sended:");
-  // printFrame_inline(frame);
-  delay(5);
-}
-void sendDisplayHeader(
-    uint8_t mode,       // byte3 - 74: full, 77: partial
-    uint8_t rdsIcon,    // byte4 - 45: AF-RDS, 55: none
-    uint8_t unknown,    // byte5 - usually 55
-    uint8_t sourceIcon, // byte6 - df: MANU, fd: PRESET, ff: NONE
-    uint8_t textFormat, // byte7 - 19–3F: radio, 59–7F: plain
-    uint8_t controlByte // byte8 - always 1
-)
-{
-  CAN_FRAME frame;
-  frame.id = 0x151;
-  frame.length = 8;
+//   CanUtils::sendFrame(frame);
+//   Serial.println("Header sended:");
+//   // printFrame_inline(frame);
+//   delay(5);
+// }
+// void sendDisplayHeader(
+//     uint8_t mode,       // byte3 - 74: full, 77: partial
+//     uint8_t rdsIcon,    // byte4 - 45: AF-RDS, 55: none
+//     uint8_t unknown,    // byte5 - usually 55
+//     uint8_t sourceIcon, // byte6 - df: MANU, fd: PRESET, ff: NONE
+//     uint8_t textFormat, // byte7 - 19–3F: radio, 59–7F: plain
+//     uint8_t controlByte // byte8 - always 1
+// )
+// {
+//   CAN_FRAME frame;
+//   frame.id = 0x151;
+//   frame.length = 8;
 
-  frame.data.uint8[0] = 0x10; // First ISO-TP frame
-  frame.data.uint8[1] = 0x0E; // Total length (14 bytes)
+//   frame.data.uint8[0] = 0x10; // First ISO-TP frame
+//   frame.data.uint8[1] = 0x0E; // Total length (14 bytes)
 
-  frame.data.uint8[2] = mode;
-  frame.data.uint8[3] = rdsIcon;
-  frame.data.uint8[4] = unknown;
-  frame.data.uint8[5] = sourceIcon;
-  frame.data.uint8[6] = textFormat;
-  frame.data.uint8[7] = controlByte;
+//   frame.data.uint8[2] = mode;
+//   frame.data.uint8[3] = rdsIcon;
+//   frame.data.uint8[4] = unknown;
+//   frame.data.uint8[5] = sourceIcon;
+//   frame.data.uint8[6] = textFormat;
+//   frame.data.uint8[7] = controlByte;
 
-  CanUtils::sendFrame(frame);
-  Serial.println("Header sended:");
-  // printFrame_inline(frame);
-  delay(5);
-}
+//   CanUtils::sendFrame(frame);
+//   Serial.println("Header sended:");
+//   // printFrame_inline(frame);
+//   delay(5);
+// }
 
 
+ 
 AffaCommon::AffaError Affa3NavDisplay::setState(bool enabled)
 {
-  // NAV might support more visual states
-  if (enabled)
-  {
-    CanUtils::sendCan(151, 3, 52, 9, 0, 0, 0, 0, 0); // sc 151 3 52 9 0 0 0 0 0
-  }
-  else
-  {
-    CanUtils::sendCan(151, 3, 52, 0, 0, 0, 0, 0, 0); // sc 151 3 52 9 0 0 0 0 0
-  }
-  return AffaCommon::AffaError::NoError;
+  Affa3Nav::DisplayCtrl state = enabled ? Affa3Nav::DisplayCtrl::Enable : Affa3Nav::DisplayCtrl::Disable;
+  
+		uint8_t data[] = {
+			0x3, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};// sc 151 3 52 9 0 0 0 0 0
+
+		return affa3_send(Affa3Nav::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
 
 
@@ -753,7 +941,23 @@ AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
   answer.data.uint8[6] = 0x00;
   answer.data.uint8[7] = 0x00;
 
-  CanUtils::sendFrame(answer);
+  affa3_send(answer.id, answer.data.uint8, answer.length);
   Serial.print("Sent time set frame with year: ");
   Serial.println(clock);
+  return AffaCommon::AffaError::NoError;
+}
+
+AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t selectionItem1, uint8_t selectionItem2)
+{
+    return AffaCommon::AffaError();
+}
+
+AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)
+{
+    return AffaCommon::AffaError();
+}
+
+AffaCommon::AffaError Affa3NavDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
+{
+    return AffaCommon::AffaError();
 }

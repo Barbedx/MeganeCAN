@@ -179,7 +179,7 @@ namespace
 		return affa3_do_send(idx, data, len);
 	}
 
-	AffaError affa3_display_ctrl(AffaCommon::DisplayCtrl state)
+	AffaError affa3_display_ctrl(Affa3::DisplayCtrl state)
 	{
 		uint8_t data[] = {
 			0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
@@ -289,7 +289,7 @@ void Affa3Display::tick()
 
 AffaCommon::AffaError Affa3Display::setState(bool enabled)
 {
-	AffaCommon::DisplayCtrl state = enabled ? AffaCommon::DisplayCtrl::Enable : AffaCommon::DisplayCtrl::Disable;
+	Affa3::DisplayCtrl state = enabled ? Affa3::DisplayCtrl::Enable : Affa3::DisplayCtrl::Disable;
 	return affa3_display_ctrl(state);
 }
 

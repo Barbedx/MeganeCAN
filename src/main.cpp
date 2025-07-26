@@ -2,7 +2,7 @@
 #include <SerialCommand.h> // Assuming this is already included in your project
 #include "effects/ScrollEffect.h" // Assuming this is already included in your project
 #include <stdlib.h>               // for rand()
-
+#include "server/HttpServerManager.h"
 #include <secrets.h>
 #include <WiFi.h>
 
@@ -18,6 +18,9 @@ Affa3NavDisplay display; // Create an instance of Affa3Display
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
 
+Preferences preferences;
+HttpServerManager serverManager(display, preferences);
+
 
 // Enter your WIFI credentials in secret.h
 const char *ssid = Soft_AP_WIFI_SSID;
@@ -26,26 +29,19 @@ const char *password = Soft_AP_WIFI_PASS;
 void gotFrame(CAN_FRAME *frame)
 {
 
-    // if ((frame->id == 0x521 || frame->id == 0x3DF) && affa3_is_synced)
-    // { // didnt process after sync?
-    //     // Skip sync frames answers in radio mode becouse we generate it by ourselves
 
-    //     // return;
-    // }
+    
 
-    if (/*affa3_is_synced &&*/ !(
-
-        (frame->id == 0x3CF && frame->data.uint8[0] == 0x69) ||
-        (frame->id == 0x521 || frame->id == 0x3DF)))
-    {
-    }
+    
     CanUtils::printCanFrame(*frame, false);
-
     display.recv(frame);
     // Echo or other processing can be added here
 }
 
-void cmd_enable() { display.setState(true); }
+void cmd_enable() { 
+    Serial.println("Enabling display");
+    display.setState(true); 
+}
 void cmd_disable() { display.setState(false); }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 
@@ -123,10 +119,45 @@ void initSerial(){
     sCmd.addCommand("d", cmd_disable);
     //    sCmd.addCommand("mtx", cmd_mtx);    // workss
     sCmd.addCommand("st", cmd_setTime);     // Example: st 0925
-    sCmd.addCommand("msr", cmd_scrollmtx);  // Example: st 0925
-    sCmd.addCommand("msl", cmd_scrollmtxl); // Example: st 0925
+    sCmd.addCommand("msr", cmd_scrollmtx);  // Example: msr 1241235134513245
+    sCmd.addCommand("msl", cmd_scrollmtxl); // Example: st 1111
 
 }
+
+
+void restoreDisplay(IDisplay& display, Preferences& prefs) {
+    
+    
+    bool autoRestore = prefs.getBool("autoRestore", true); // default true
+    if (!autoRestore) {
+        prefs.end();
+        Serial.println("Auto restore disabled by setting.");
+        return;
+    }
+
+    prefs.begin("display", true);  // read-only
+    String savedText = prefs.getString("lastText", "");
+    String welcomeText = prefs.getString("welcomeText", "");
+    prefs.end();
+
+    display.setState(true);
+    if (welcomeText.length() > 0) {
+        ScrollEffect(&display, ScrollDirection::Left, welcomeText.c_str(), 250);
+    } else {
+        ScrollEffect(&display, ScrollDirection::Left, "                  Welcome to MEGANE 2", 250);
+    }
+
+    if (savedText.length() > 0) {
+        display.setText(savedText.c_str());
+    } else {
+        if (random(0, 2) == 0) {
+            display.setText("MEGANE");
+        } else {
+            display.setText("RENAULT");
+        }
+   }
+}
+
 
 void setup()
 {
@@ -149,6 +180,7 @@ void setup()
     WiFi.mode(WIFI_AP);
     WiFi.softAP(ssid, password);
 
+    serverManager.begin();
 
 //     server.listen(80);
 //     server.on("/help", HTTP_GET, [](PsychicRequest *request)

@@ -10,4 +10,8 @@ namespace Affa3 {
     static constexpr uint16_t PACKET_ID_KEYPRESSED    = 0x0A9;
     static constexpr uint8_t PACKET_FILLER = 0x81;
 
+    enum class DisplayCtrl : uint8_t {
+        Disable = 0x00,
+        Enable  = 0x02
+    };
 };

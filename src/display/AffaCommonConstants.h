@@ -25,10 +25,6 @@ namespace AffaCommon {
         ICON_NO_MODE = 1 << 6
     };
 
-    enum class DisplayCtrl : uint8_t {
-        Disable = 0x00,
-        Enable  = 0x02
-    };
 
     enum class AffaKey : uint16_t {
         Load        = 0x0000 /* This at the bottom of the remote;) */,

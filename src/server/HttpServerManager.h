@@ -1,21 +1,23 @@
 #pragma once
 
-#include <PsychicHttp.h>
-#include "display/Affa3/Affa3Display.h"
-#include "display/Affa3Nav/Affa3NavDisplay.h"
+#include <PsychicHttp.h> 
+#include "display/IDisplay.h"
 #include <Preferences.h>
-Preferences preferences;
+
+#include "commands/DisplayCommands.h" // Include the DisplayCommands manager    
+ 
 
 class HttpServerManager {
 public:
-    HttpServerManager(PsychicHttpServer& server, Preferences& prefs, Affa3NavDisplay& display);
+    HttpServerManager(IDisplay &display, Preferences &prefs);
 
     void begin();
     
-private:
-    PsychicHttpServer& _server;
-    Preferences& _prefs;
-    Affa3NavDisplay& _display;
+private: 
+    PsychicHttpServer _server;
+    IDisplay &_display;
+    Preferences &_prefs; 
+    DisplayCommands::Manager _commands;
 
     void setupRoutes();
 };
