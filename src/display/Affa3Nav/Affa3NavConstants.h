@@ -15,4 +15,10 @@ namespace Affa3Nav {
         Disable = 0x00,
         Enable  = 0x09
     };
+    enum ScrollLockIndicator : uint8_t {
+    SCROLL_NONE      = 0x00, // no scroll lock
+    SCROLL_UP        = 0x07, // scroll UP
+    SCROLL_DOWN      = 0x0B, // scroll DOWN
+    SCROLL_BOTH      = 0x0C  // scroll UP and DOWN
+};
 }

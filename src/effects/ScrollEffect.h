@@ -21,6 +21,8 @@ inline void ScrollEffect(
         for (size_t i = 0; i <= str.size() - windowSize; ++i) {
             display->setText(str.substr(i, windowSize).c_str());
             delay(delayMs);
+            Serial.println("scrolled part: ");
+
         }
     } 
     else if (direction == ScrollDirection::Right) {

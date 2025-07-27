@@ -11,6 +11,7 @@ public:
     virtual AffaCommon::AffaError setState(bool enabled) = 0; 
     virtual AffaCommon::AffaError setTime(const char *clock) = 0;   
 
+    virtual AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator=0x0B);
 
 
     //AFFA3NavDisplay specific methods 

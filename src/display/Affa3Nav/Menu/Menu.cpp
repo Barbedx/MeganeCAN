@@ -36,7 +36,7 @@ std::string Menu::getItemString(int index) const {
             return std::string(mi.label) + ": " + mi.options[mi.selectedOption];
 
         case MenuItemType::IntegerEditor:
-            snprintf(buf, sizeof(buf), "%s: %d", mi.label, mi.intValue);
+            snprintf(buf, sizeof(buf), "%s: %d", mi.label, mi.intValue); //scroll testestse
             return std::string(buf);
 
         case MenuItemType::SubMenu:

@@ -45,12 +45,12 @@ namespace DisplayCommands
         _display.setTime(timeStr.c_str());
     }
 
-    void Manager::setMenu(const String &caption, const String &name1, const String &name2)
-    {
-        throw std::logic_error("setMenu not implemented for Affa3NAVDisplay");
-        // _display.setState(true); // Ensure the display is enabled
-        // _display.showMenu(caption.c_str(), name1.c_str(), name2.c_str());
-    }
+    void Manager::showMenu(const char *caption, const char *name1, const char *name2, uint8_t scrollLockIndicator)
+    { 
+        _display.showMenu(caption, name1, name2, scrollLockIndicator);
+        // If you have a display object, call its showMenu method.
+        // Example: _display.showMenu(caption, name1, name2, scrollLockIndicator);
+    };
 
     void Manager::setTextBig(const String &caption, const String &row1, const String &row2)
     {

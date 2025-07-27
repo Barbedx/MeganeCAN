@@ -74,7 +74,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <h2>Set Time</h2>
     <form action="/settime" method="GET">
     <label>Time (HHMM, e.g. 0930):</label>
-    <input type="text" name="time" pattern="\\d{4}" maxlength="4" required />
+    <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
     <input type="submit" value="Set Time" />
     </form>
 </body>
@@ -139,7 +139,7 @@ void HttpServerManager::setupRoutes()
             return request->reply(200, "text/plain", resp.c_str());
         } else {
             _prefs.begin("display", true);
-            bool autoRestore = _prefs.getBool("autoRestore", true);
+            bool autoRestore = _prefs.getBool("autoRestore", false);
             _prefs.end();
             String resp = autoRestore ? "1" : "0";
             return request->reply(200, "text/plain", resp.c_str());
@@ -160,18 +160,53 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", welcomeText.c_str()); });
     _server.on("/settime", HTTP_GET, [this](PsychicRequest *request)
                {
-    if (!request->hasParam("time")) {
-        return request->reply(400, "text/plain", "Missing 'time' parameter");
-    }
-    String timeStr = request->getParam("time")->value();
+        if (!request->hasParam("time")) {
+            return request->reply(400, "text/plain", "Missing 'time' parameter");
+        }
+        String timeStr = request->getParam("time")->value();
 
-    if (timeStr.length() != 4) {
-        return request->reply(400, "text/plain", "Invalid time format. Use 4 digits like '1234'");
+        if (timeStr.length() != 4) {
+            return request->reply(400, "text/plain", "Invalid time format. Use 4 digits like '1234'");
+        }
+
+        _commands.setTime(timeStr);
+        String response = "Time set to: " + timeStr;
+        return request->reply(200, "text/plain", response.c_str()); });
+        
+
+_server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
+{
+    if (!request->hasParam("caption") || 
+        !request->hasParam("name1") || 
+        !request->hasParam("name2")) 
+    {
+        return request->reply(400, "text/plain", "Missing one or more required parameters: caption, name1, name2");
     }
 
-    _commands.setTime(timeStr);
-    String response = "Time set to: " + timeStr;
-    return request->reply(200, "text/plain", response.c_str()); });
+    String caption = request->getParam("caption")->value();
+    String name1 = request->getParam("name1")->value();
+    String name2 = request->getParam("name2")->value();
+
+     uint8_t scrollLockIndicator = 0x0B; // default value
+
+    if (request->hasParam("scrollLock")) {
+        String scrollLockStr = request->getParam("scrollLock")->value();
+        if (scrollLockStr.length() != 2 ) {
+            return request->reply(400, "text/plain", "Invalid scrollLock format. Use two-digit hex like '7E'");
+        }
+        scrollLockIndicator = (uint8_t) strtoul(scrollLockStr.c_str(), nullptr, 16);
+    }
+
+    Serial.printf("[showMenu] caption='%s' name1='%s' name2='%s' scrollLock=0x%02X\n",
+                  caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+
+    _commands.showMenu(caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+
+    String response = "Menu sent with scrollLock=0x" + String(scrollLockIndicator, HEX);
+    return request->reply(200, "text/plain", response.c_str());
+});
+
+        
     // Serve a dedicated page for Affa3 display test commands
     _server.on("/affa3test", HTTP_GET, [this](PsychicRequest *request)
                {
@@ -182,7 +217,9 @@ void HttpServerManager::setupRoutes()
         <form action="/affa3/setMenu" method="GET">
             Caption: <input name="caption" required><br>
             Name1: <input name="name1" required><br>
-            Name2: <input name="name2" required><br>
+            Name2: <input name="name2" required><br> 
+            Scroll Lock (Hex): <input name="scrollLock" value="0B" pattern="[0-9a-fA-F]{2}" ><br>
+  
             <input type="submit" value="Set Menu">
         </form>
 
@@ -201,8 +238,6 @@ void HttpServerManager::setupRoutes()
         </body></html>
     )rawliteral";
     return request->reply(200, "text/html", page); });
-
-
 
     // // Endpoint for setMenu
     // _server.on("/affa3/setMenu", HTTP_GET, [](PsychicRequest *request)

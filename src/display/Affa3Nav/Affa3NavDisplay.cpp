@@ -37,7 +37,7 @@ namespace
 
     uint16_t raw = static_cast<uint16_t>(key);
     CAN_FRAME frame;
-    frame.id = 0x1C1; // ID expected by gotFrame_0x1C1()
+    frame.id = 0x1C1; //  
     frame.length = 8;
     frame.extended = 0; // standard frame
 
@@ -69,7 +69,7 @@ namespace
     for (int i = 0; i < 5; i++)
     {
       emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(100);
+      delay(200);
     }
     emulateKey(AffaCommon::AffaKey::Load);
     delay(200);
@@ -78,7 +78,7 @@ namespace
     for (int i = 0; i < 3; i++)
     {
       emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(100);
+      delay(200);
     }
     emulateKey(AffaCommon::AffaKey::Load);
     delay(200);
@@ -87,7 +87,7 @@ namespace
     for (int i = 0; i < 2; i++)
     {
       emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(100);
+      delay(200);
     }
     emulateKey(AffaCommon::AffaKey::Load);
     delay(200);
@@ -96,10 +96,12 @@ namespace
     for (int i = 0; i < 1; i++)
     {
       emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(100);
+      delay(200);
     }
 
     emulateKey(AffaCommon::AffaKey::Load, true); // <-- hold
+    delay(200);
+
   }
   // Definition for affa3_func struct
   struct Affa3Func
@@ -121,139 +123,6 @@ namespace
   // bool isKeyQueueFull() { return ((_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE) == _key_q_out; }
   // bool isKeyQueueEmpty() { return _key_q_in == _key_q_out; }
 
-  static AffaError affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
-  {
-    struct CAN_FRAME packet;
-    uint8_t i, stat, num = 0, left = len;
-    int16_t timeout;
-
-    if (hasFlag(_sync_status, SyncStatus::FAILED))
-      return AffaError::NoSync;
-
-    while (left > 0)
-    {
-      i = 0;
-
-      packet.id = funcs[idx].id;
-      packet.length = AffaCommon::PACKET_LENGTH;
-
-      if (num > 0)
-      {
-        packet.data.uint8[i++] = 0x20 + num;
-      }
-
-      while ((i < AffaCommon::PACKET_LENGTH) && (left > 0))
-      {
-        packet.data.uint8[i++] = *data++;
-        left--;
-      }
-
-      for (; i < AffaCommon::PACKET_LENGTH; i++)
-      {
-        packet.data.uint8[i] = Affa3Nav::PACKET_FILLER;
-      }
-
-      AFFA3_PRINT("Sending packet #%d to ID 0x%03X: ", num, packet.id);
-      for (int j = 0; j < packet.length; j++)
-        AFFA3_PRINT("%02X ", packet.data.uint8[j]);
-      AFFA3_PRINT("\n");
-
-      funcs[idx].stat = FuncStatus::WAIT;
-
-      CanUtils::sendFrame(packet);
-
-      /* Czkekamy na odpowiedź */
-      timeout = 2000; /* 2sek */
-      uint16_t wait_counter = 0;
-      while ((funcs[idx].stat == FuncStatus::WAIT) && (--timeout > 0))
-      {
-        delay(1);
-
-        // Log every 500ms
-        if (wait_counter++ % 500 == 0)
-        {
-          AFFA3_PRINT("Waiting... %dms elapsed for packet #%d (ID: 0x%03X)\n", wait_counter, num, packet.id);
-        }
-      }
-
-      stat = funcs[idx].stat;
-      funcs[idx].stat = FuncStatus::IDLE;
-
-      if (!timeout)
-      { /* Nie dostaliśmy odpowiedzi */
-        AFFA3_PRINT("affa3_send(): timeout, num = %d\n", num);
-        return AffaError::Timeout;
-      }
-
-      if (stat == FuncStatus::DONE)
-      {
-        AFFA3_PRINT("affa3_send(): DONE received on packet #%d\n", num);
-        break;
-      }
-      else if (stat == FuncStatus::PARTIAL)
-      {
-        AFFA3_PRINT("affa3_send(): PARTIAL ack on packet #%d, remaining: %d bytes\n", num, left);
-        if (!left)
-        { /* Nie mamy więcej danych */
-          AFFA3_PRINT("affa3_send(): no more data\n");
-          return AffaError::SendFailed;
-        }
-        num++;
-      }
-      else if (stat == FuncStatus::ERROR)
-      {
-        AFFA3_PRINT("affa3_send(): ERROR received on packet #%d\n", num);
-        return AffaError::SendFailed;
-      }
-    }
-
-    return AffaError::NoError;
-  }
-
-  static AffaError affa3_send(uint16_t id, uint8_t *data, uint8_t len)
-  {
-    uint8_t idx;
-    uint8_t regdata[1] = {0x70};
-    AffaError err;
-
-    // if ((_sync_status & AFFA3_SYNC_STAT_FUNCSREG) != AFFA3_SYNC_STAT_FUNCSREG)
-    if (!hasFlag(_sync_status, SyncStatus::FUNCSREG))
-    {
-      //	AFFA3_PRINT("[send] Registering supported functions...\n");
-
-      for (idx = 0; idx < funcsMax; idx++)
-      {
-        AFFA3_PRINT("[send] Registering func ID 0x%X\n", funcs[idx].id);
-
-        err = affa3_do_send(idx, regdata, sizeof(regdata));
-        if (err != AffaError::NoError)
-        {
-          //		AFFA3_PRINT("[send] Registration failed for func 0x%X, error %d\n", _funcs[idx].id, err);
-
-          return err;
-        }
-      }
-
-      _sync_status |= SyncStatus::FUNCSREG;
-      // AFFA3_PRINT("[send] All functions registered.\n");
-    }
-
-    for (idx = 0; idx < funcsMax; idx++)
-    {
-      if (funcs[idx].id == id)
-        break;
-    }
-
-    if (idx >= funcsMax)
-    {
-      // AFFA3_PRINT("[send] Unknown function ID: 0x%X\n", id);
-
-      return AffaError::UnknownFunc;
-    }
-    // AFFA3_PRINT("[send] Sending data to func 0x%X, length: %d\n", id, len);
-
-    return affa3_do_send(idx, data, len);
-  }
 
 }
 
@@ -751,8 +620,77 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
   CanUtils::sendFrame(reply);
 }
 
+
+ 
+
+  /**
+   * Sends a text string to the car display over CAN bus.
+   *
+   * @param mode Display mode: 
+   *             0x74 - full window,
+   *             0x77 - partial window (some values freeze UI if not matched)
+   *
+   * @param rdsIcon RDS icon display:
+   *                0x45 - AF-RDS icon,
+   *                0x55 - no icon
+   *
+   * @param sourceIcon Source label icon:
+   *                   0xDF - "MANU",
+   *                   0xFD - "PRESET",
+   *                   0xFF - none,
+   *                   others show icons like "LIST"
+   *
+   * @param channel Text display format:
+   *                   0x19–0x3F - Radio-style (5 digits + '.' + 1 char),
+   *                   0x59–0x7F - Plain ASCII (up to 7 chars visible)
+   *                    19-3f 5sym + point+ 2sym + channel.  (19 for ✔️),59-7F plain 8 sym + Channel ascii
+   *
+   * @param controlByte Always 0x01 — required by display protocol
+   *
+   * @param rawText Text to display (max 7 characters shown).
+   *                Underscores (_) are replaced with spaces.
+   */
 AffaCommon::AffaError Affa3NavDisplay::setText(const char *text, uint8_t digit)
-{
+{ 
+
+  // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
+                                // sc 151 2 54 3 0 0 0 0 0  to close full window
+
+Serial.println("[setText] --- Sending Text to Display AFFA3NAV ---");
+   uint8_t mode = 0x77;       // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
+                                // sc 151 2 54 3 0 0 0 0 0  to close full window
+   uint8_t rdsIcon = 0x55;    // strtol(rdsIconStr,    nullptr, 16);
+   uint8_t sourceIcon = 0xFF; // strtol(sourceIconStr, nullptr, 16);
+   
+   uint8_t textFormat = 0x60; // strtol(textFormatStr, nullptr, 16);
+   
+
+  uint8_t data[32];     // max payload
+  uint8_t len = 0;
+
+  // First ISO-TP frame + length
+  data[len++] = 0x10;   // First ISO-TP frame
+  data[len++] = 0x0E;   // 14 bytes total (header + text)
+
+  // Display header structure
+  data[len++] = mode;
+  data[len++] = rdsIcon;
+  data[len++] = 0x55;         // unknown/fixed
+  data[len++] = sourceIcon;
+  data[len++] = textFormat;
+  data[len++] = 0x01;         // control byte
+
+
+    // Sanitize and pad text to 14 bytes
+    char paddedText[15] = {0};  // null-terminated buffer
+    strncpy(paddedText, text, 14);
+    for (uint8_t i = 0; i < 14; i++) {
+        //if (paddedText[i] == '_') paddedText[i] = ' ';
+        data[len++] = paddedText[i];
+    }
+
+
+  return affa3_send(0x151, data, len);
   // Possibly allows longer or formatted text
   return AffaCommon::AffaError::NoError;
 }
@@ -865,55 +803,7 @@ void showInfoMenu(
   sendMenuItem(offset3, item3, "Item3");
 
   Serial.println("[showInfoMenu] --- Done ---");
-}
-
-// void sendDisplayFrame(uint8_t frameIndex, const char *textSegment)
-// {
-//   CAN_FRAME frame;
-//   frame.id = 0x151;
-//   frame.length = 8;
-//   frame.data.uint8[0] = 0x21 + frameIndex; // 0x21, 0x22, ...
-
-//   for (int i = 0; i < 7; i++)
-//   {
-//     frame.data.uint8[i + 1] = textSegment[i];
-//   }
-
-//   CanUtils::sendFrame(frame);
-//   Serial.println("Header sended:");
-//   // printFrame_inline(frame);
-//   delay(5);
-// }
-// void sendDisplayHeader(
-//     uint8_t mode,       // byte3 - 74: full, 77: partial
-//     uint8_t rdsIcon,    // byte4 - 45: AF-RDS, 55: none
-//     uint8_t unknown,    // byte5 - usually 55
-//     uint8_t sourceIcon, // byte6 - df: MANU, fd: PRESET, ff: NONE
-//     uint8_t textFormat, // byte7 - 19–3F: radio, 59–7F: plain
-//     uint8_t controlByte // byte8 - always 1
-// )
-// {
-//   CAN_FRAME frame;
-//   frame.id = 0x151;
-//   frame.length = 8;
-
-//   frame.data.uint8[0] = 0x10; // First ISO-TP frame
-//   frame.data.uint8[1] = 0x0E; // Total length (14 bytes)
-
-//   frame.data.uint8[2] = mode;
-//   frame.data.uint8[3] = rdsIcon;
-//   frame.data.uint8[4] = unknown;
-//   frame.data.uint8[5] = sourceIcon;
-//   frame.data.uint8[6] = textFormat;
-//   frame.data.uint8[7] = controlByte;
-
-//   CanUtils::sendFrame(frame);
-//   Serial.println("Header sended:");
-//   // printFrame_inline(frame);
-//   delay(5);
-// }
-
-
+} 
  
 AffaCommon::AffaError Affa3NavDisplay::setState(bool enabled)
 {
@@ -947,9 +837,82 @@ AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
   return AffaCommon::AffaError::NoError;
 }
 
-AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t selectionItem1, uint8_t selectionItem2)
-{
-    return AffaCommon::AffaError();
+
+//SCROLL LOCK INDICATOR
+// 0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWN
+AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2,   Affa3Nav::ScrollLockIndicator scrollLockIndicator)
+{ 
+    Serial.println("[showMenu] --- Building Menu ---");
+    Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
+    uint8_t selectionItem1 = 0x01;//unknown, to test
+    uint8_t selectionItem2 = 0x00;//unknown, to test
+  
+    uint8_t payload[96] = {0};
+    int idx = 0;
+  
+    payload[idx++] = 0x10;// First ISO-TP frame
+    payload[idx++] = 0x5A;
+ 
+
+    
+
+
+    payload[idx++] = 0x21;
+    payload[idx++] = 0x01;
+    payload[idx++] = 0x7E;
+    payload[idx++] = 0x80;
+    payload[idx++] = 0x00;
+    payload[idx++] = 0x00;
+   
+   
+    payload[idx++] = 0x82;
+    payload[idx++] = 0xFF;
+    payload[idx++] = scrollLockIndicator;
+  
+    //int maxHeaderLen = 26;
+    // int h = 0;
+    // while (header && header[h] && h < maxHeaderLen && idx < 96) {
+    //   payload[idx++] = header[h++];
+    // }
+    // int maxHeaderLen = 26;
+    // for (int i = 0; i < maxHeaderLen && header[i]; ++i) {
+    //     payload[idx++] = header[i];
+    // }
+     // Copy header (max 26 bytes)
+    int h = 0;
+    for (; h < 26 && header[h]; ++h) {
+        payload[idx++] = header[h];
+    }
+
+    // Padding to reach item1
+    // while (idx < 35) payload[idx++] = 0x00;
+
+    // Adjusted paddings to account for 2-byte header
+    while (idx < 37) payload[idx++] = 0x00;
+  
+    // Item 1
+    payload[idx++] = selectionItem1;
+    payload[idx++] = 0x7E; //maybe this is ID for item, and to select we need to send that id? check it with infomenu later
+    // for (int i = 0; i < 25 && item1[i]; ++i) {
+    //         payload[idx++] = item1[i];
+    //     }
+
+    while (*item1 && idx < 64) payload[idx++] = *item1++;
+    // Padding to reach item2
+    while (idx < 64) payload[idx++] = 0x00;
+    // while (idx < 62) payload[idx++] = 0x00;
+  
+    payload[idx++] = selectionItem2;
+    payload[idx++] = 0x7F;
+    while (*item2 && idx < 96) payload[idx++] = *item2++;
+    while (idx < 96) payload[idx++] = 0x00;
+  
+    // Final length check
+    int totalLen = idx;
+
+    Serial.printf("[CAN] do_send totalLen: %d  \n", totalLen ); 
+    return affa3_send(0x151, payload, totalLen);
+  
 }
 
 AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)

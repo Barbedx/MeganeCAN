@@ -178,14 +178,7 @@ namespace
 
 		return affa3_do_send(idx, data, len);
 	}
-
-	AffaError affa3_display_ctrl(Affa3::DisplayCtrl state)
-	{
-		uint8_t data[] = {
-			0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
-
-		return affa3_send(Affa3::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
-	}
+ 
 
 	AffaError affa3_do_set_text(uint8_t icons, uint8_t mode, uint8_t chan, uint8_t loc, uint8_t textType, char old[8], char neww[12])
 	{
@@ -238,6 +231,13 @@ namespace
 		return affa3_send(Affa3::PACKET_ID_SETTEXT, data, len);
 	}
 
+	AffaError affa3_display_ctrl(Affa3::DisplayCtrl state)
+	{
+		uint8_t data[] = {
+			0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
+
+		return affa3_send(Affa3::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
+	}
 }
 
 bool affa3_is_synced = false; 
