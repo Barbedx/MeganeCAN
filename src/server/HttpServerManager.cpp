@@ -41,6 +41,15 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
 </head>
 <body>
+  <h2>display type</h2>
+
+    <form action="/setDisplay" method="POST">
+    <select name="type">
+        <option value="affa3">AFFA3</option>
+        <option value="affa3nav">AFFA3Nav</option>
+    </select>
+    <input type="submit" value="Save" />
+    </form>
 
   <h2>Auto-restore text</h2>
     <form action="/config/restore" method="GET">
@@ -172,7 +181,21 @@ void HttpServerManager::setupRoutes()
         _commands.setTime(timeStr);
         String response = "Time set to: " + timeStr;
         return request->reply(200, "text/plain", response.c_str()); });
-        
+
+    _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {
+    if (request->hasParam("type")) 
+    {
+        String type = request->getParam("type")->value();
+
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.putString("display_type", type);
+        prefs.end();
+        delay(1000); // Give time for ESP to restart
+        ESP.restart(); // Optional: force restart to apply change
+        return request->reply(200, "text/plain", "Display type saved. Restart required.");
+    }
+});
 
 _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
 {

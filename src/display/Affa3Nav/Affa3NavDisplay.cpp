@@ -16,20 +16,15 @@ inline void AFFA3_PRINT(const char *fmt, ...)
 }
 
 // You can copy code from Affa3Display.cpp as a starting point
-using FuncStatus = AffaCommon::FuncStatus;
-using SyncStatus = AffaCommon::SyncStatus;
-using AffaError = AffaCommon::AffaError;
+ 
 
 BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
 
+ 
+
 namespace
 {
-
-  static SyncStatus _sync_status = SyncStatus::FAILED; /* Status synchronizacji z wświetlaczem */
-  static uint8_t _menu_max_items = 0;
-  constexpr int AFFA3_PING_TIMEOUT = 5;
-  constexpr size_t AFFA3_KEY_QUEUE_SIZE = 8;
-
+ 
   AuxModeTracker tracker;
 
   void emulateKey(AffaCommon::AffaKey key, bool hold = false)
@@ -103,34 +98,14 @@ namespace
     delay(200);
 
   }
-  // Definition for affa3_func struct
-  struct Affa3Func
-  {
-    uint16_t id;
-    FuncStatus stat;
-  };
-  Affa3Func funcs[] = {
-      {Affa3Nav::PACKET_ID_SETTEXT, FuncStatus::IDLE},
-      {Affa3Nav::PACKET_ID_NAV, FuncStatus::IDLE}};
-
-  constexpr size_t funcsMax = sizeof(funcs) / sizeof(funcs[0]);
-
-  // static uint16_t _key_q[AFFA3_KEY_QUEUE_SIZE] = {
-  //     0,
-  // };
-  // static uint8_t _key_q_in = 0;
-  // static uint8_t _key_q_out = 0;
-  // bool isKeyQueueFull() { return ((_key_q_in + 1) % AFFA3_KEY_QUEUE_SIZE) == _key_q_out; }
-  // bool isKeyQueueEmpty() { return _key_q_in == _key_q_out; }
-
-
+  
 }
 
 void Affa3NavDisplay::tick()
 {
 
   struct CAN_FRAME packet;
-  static int8_t timeout = AFFA3_PING_TIMEOUT;
+  static int8_t timeout = SYNC_TIMEOUT;
 
   /* Wysyłamy pakiet informujący o tym że żyjemy */
   CanUtils::sendCan(Affa3Nav::PACKET_ID_SYNC, 0xB9, 0x00, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER);
@@ -148,7 +123,7 @@ void Affa3NavDisplay::tick()
     if (hasFlag(_sync_status, SyncStatus::PEER_ALIVE))
     {
       //	AFFA3_PRINT("[tick] Peer is alive, resetting timeout\n");
-      timeout = AFFA3_PING_TIMEOUT;
+      timeout = SYNC_TIMEOUT;
       _sync_status &= ~SyncStatus::PEER_ALIVE;
     }
     else
@@ -230,77 +205,77 @@ struct MenuItem {
 
 void Menu::draw() {
   // Show 3 items total: selected + 1 above + 1 below (if exist)
-  const char* item1 = nullptr;
-  const char* item2 = nullptr;
-  const char* item3 = nullptr;
+  // const char* item1 = nullptr;
+  // const char* item2 = nullptr;
+  // const char* item3 = nullptr;
 
-  int sel = selectedIndex;
+  // int sel = selectedIndex;
 
-  if (items.empty()) {
-    item1 = "";
-    item2 = "";
-    item3 = "";
-  } else {
-    // item2 is selected
-    item2 = nullptr;
-    // item1 is selected-1 or blank
-    // item3 is selected+1 or blank
+  // if (items.empty()) {
+  //   item1 = "";
+  //   item2 = "";
+  //   item3 = "";
+  // } else {
+  //   // item2 is selected
+  //   item2 = nullptr;
+  //   // item1 is selected-1 or blank
+  //   // item3 is selected+1 or blank
 
-    // Helper to get string for display of an item
-    auto getItemString = [](const MenuItem& mi) -> String {
-      switch (mi.type) {
-        case MenuItemType::StaticText:
-          return String(mi.label) + ": " + (mi.staticValue ? mi.staticValue : "");
-        case MenuItemType::OptionSelector:
-          return String(mi.label) + ": " + (mi.options.empty() ? "" : mi.options[mi.selectedOption]);
-        case MenuItemType::IntegerEditor:
-          return String(mi.label) + ": " + String(mi.intValue);
-        case MenuItemType::SubMenu:
-          return String(mi.label) + " >";
-      }
-      return "";
-    };
+  //   // Helper to get string for display of an item
+  //   auto getItemString = [](const MenuItem& mi) -> String {
+  //     switch (mi.type) {
+  //       case MenuItemType::StaticText:
+  //         return String(mi.label) + ": " + (mi.staticValue ? mi.staticValue : "");
+  //       case MenuItemType::OptionSelector:
+  //         return String(mi.label) + ": " + (mi.options.empty() ? "" : mi.options[mi.selectedOption]);
+  //       case MenuItemType::IntegerEditor:
+  //         return String(mi.label) + ": " + String(mi.intValue);
+  //       case MenuItemType::SubMenu:
+  //         return String(mi.label) + " >";
+  //     }
+  //     return "";
+  //   };
 
-    String str1 = (sel > 0) ? getItemString(items[sel - 1]) : "";
-    String str2 = getItemString(items[sel]);
-    String str3 = (sel + 1 < (int)items.size()) ? getItemString(items[sel + 1]) : "";
+  //   String str1 = (sel > 0) ? getItemString(items[sel - 1]) : "";
+  //   String str2 = getItemString(items[sel]);
+  //   String str3 = (sel + 1 < (int)items.size()) ? getItemString(items[sel + 1]) : "";
 
-    item1 = str1.c_str();
-    item2 = str2.c_str();
-    item3 = str3.c_str();
+  //   item1 = str1.c_str();
+  //   item2 = str2.c_str();
+  //   item3 = str3.c_str();
 
-    // WARNING: The pointers returned here are to temporary String objects!
-    // We'll handle this in a safer way in actual code.
-  }
+  //   // WARNING: The pointers returned here are to temporary String objects!
+  //   // We'll handle this in a safer way in actual code.
+  // }
 
-  // Use your existing showMenu to send display.
-  // For simplicity here, only 2 items shown in showMenu, but let's modify your showMenu later to 3 items or create a new one.
-  // For now let's send first 2 items + header:
+  // // Use your existing showMenu to send display.
+  // // For simplicity here, only 2 items shown in showMenu, but let's modify your showMenu later to 3 items or create a new one.
+  // // For now let's send first 2 items + header:
 
-  // Because your showMenu takes 2 items, we can call it twice or modify it to support 3.
-  // Let's create a simple 3 item version for our menu here:
+  // // Because your showMenu takes 2 items, we can call it twice or modify it to support 3.
+  // // Let's create a simple 3 item version for our menu here:
 
-  // We'll send a combined menu with header and 3 items, showing selected highlight with flags:
-  // 0x7E = not selected, 0x7F = selected
+  // // We'll send a combined menu with header and 3 items, showing selected highlight with flags:
+  // // 0x7E = not selected, 0x7F = selected
 
-  // We'll craft a simple helper here:
+  // // We'll craft a simple helper here:
 
-  auto sendMenu = [](const char* header, const char* i1, bool i1sel, const char* i2, bool i2sel, const char* i3, bool i3sel) {
-    uint8_t sel1 = i1sel ? 0x7F : 0x7E;
-    uint8_t sel2 = i2sel ? 0x7F : 0x7E;
-    uint8_t sel3 = i3sel ? 0x7F : 0x7E;
+  // auto sendMenu = [](const char* header, const char* i1, bool i1sel, const char* i2, bool i2sel, const char* i3, bool i3sel) {
+  //   uint8_t sel1 = i1sel ? 0x7F : 0x7E;
+  //   uint8_t sel2 = i2sel ? 0x7F : 0x7E;
+  //   uint8_t sel3 = i3sel ? 0x7F : 0x7E;
 
-    // We'll build and send menu with 3 items here using a similar method as your showMenu
-    // You can copy/paste your showMenu and adapt to 3 items with those flags accordingly
+  //   // We'll build and send menu with 3 items here using a similar method as your showMenu
+  //   // You can copy/paste your showMenu and adapt to 3 items with those flags accordingly
 
-    // For demo, just send 2 items (header + item1 + item2)
-    // You can extend to 3 later easily.
+  //   // For demo, just send 2 items (header + item1 + item2)
+  //   // You can extend to 3 later easily.
 
-   // showMenu(header, i1, i2, 0x5A, 0x0B, sel1, sel2);
-    // Optionally send the 3rd item as info or in another way
-  };
+  //  // showMenu(header, i1, i2, 0x5A, 0x0B, sel1, sel2);
+  //   // Optionally send the 3rd item as info or in another way
+//  };
 
-  sendMenu(header, item1, sel > 0 && sel-1 == sel, item2, true, item3, sel + 1 == sel);
+ // sendMenu(header, item1, sel > 0 && sel-1 == sel, item2, true, item3, sel + 1 == sel);
 }
 
 Menu* currentMenu = nullptr;
@@ -387,93 +362,7 @@ VoltageInfo getVoltage()
 
 
 
-
-
-
-
-void showMenu(
-    const char *header,
-    const char *item1,
-    const char *item2,
-    uint8_t firstFrameSize = 0x5A, 
-    uint8_t scrollLockIndicator = 0x0B,
-    uint8_t selectionItem1 = 0x00, 
-    uint8_t selectionItem2 = 0x01
-  )
-{
-  Serial.println("[showMenu] --- Building Menu ---");
-
-  Serial.print("[Header] ");
-  Serial.println(header);
-  Serial.print("[Item1] ");
-  Serial.println(item1);
-  Serial.print("[Item2] ");
-  Serial.println(item2);
-
-  uint8_t payload[96] = {0};
-  int idx = 0;
-
-  payload[idx++] = 0x21;
-  payload[idx++] = 0x01;
-  payload[idx++] = 0x7E;
-  payload[idx++] = 0x80;
-  payload[idx++] = 0x00;
-  payload[idx++] = 0x00;
-
-  Serial.print("[CAN] Sending First Frame: ID=0x151 Data= ");
-  Serial.printf("10 %02X ", firstFrameSize);
-  for (int i = 0; i < 6; i++)
-    Serial.printf("%02X ", payload[i]);
-  Serial.println();
-
-  CanUtils::sendCan(0x151, 0x10, firstFrameSize, payload[0], payload[1], payload[2], payload[3], payload[4], payload[5]);
-
-  payload[idx++] = 0x82;
-  payload[idx++] = 0xFF;
-  payload[idx++] = scrollLockIndicator;
-
-  int maxHeaderLen = 26;
-  int h = 0;
-  while (header && header[h] && h < maxHeaderLen && idx < 96)
-  {
-    payload[idx++] = header[h++];
-  }
-
-  while (idx < 35)
-    payload[idx++] = 0x00;
-
-  payload[idx++] = selectionItem1; // not selection tbh
-  payload[idx++] = 0x7E;
-
-  while (*item1 && idx < 62)
-    payload[idx++] = *item1++;
-
-  while (idx < 62)
-    payload[idx++] = 0x00;
-
-  payload[idx++] = selectionItem2;
-  payload[idx++] = 0x7F;
-  while (*item2 && idx < 96)
-    payload[idx++] = *item2++;
-  while (idx < 96)
-    payload[idx++] = 0x00;
-
-  uint8_t seq = 1;
-  for (int i = 6; i < idx; i += 7)
-  {
-    uint8_t d[8];
-    d[0] = 0x20 | (seq++ & 0x0F);
-    for (int j = 0; j < 7; j++)
-    {
-      d[j + 1] = (i + j < idx) ? payload[i + j] : 0x00;
-    }
-
-    CanUtils::sendCan(0x151, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
-    delay(5);
-  }
-
-  Serial.println("[showMenu] --- Done ---");
-}
+ 
 void ShowMyInfoMenu()
 {
 
@@ -482,7 +371,7 @@ void ShowMyInfoMenu()
   char row1[32];
   snprintf(row1, sizeof(row1), "Voltage: %.1fV (%.0f)", info.voltage, info.adcValue);
 
-  showMenu("MeganeCAN", row1, "Color: ORANGE");
+ // showMenu("MeganeCAN", row1, "Color: ORANGE");
 
 }
 
@@ -839,24 +728,19 @@ AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
 
 
 //SCROLL LOCK INDICATOR
-// 0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWN
-AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2,   Affa3Nav::ScrollLockIndicator scrollLockIndicator)
+// 0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNAffa3Nav::ScrollLockIndicator scrollLockIndicator
+AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2,   uint8_t scrollLockIndicator)
 { 
     Serial.println("[showMenu] --- Building Menu ---");
     Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
-    uint8_t selectionItem1 = 0x01;//unknown, to test
-    uint8_t selectionItem2 = 0x00;//unknown, to test
+    // uint8_t selectionItem1 = 0x00;//unknown, to test
+    // uint8_t selectionItem2 = 0x01;//unknown, to test
   
     uint8_t payload[96] = {0};
     int idx = 0;
   
     payload[idx++] = 0x10;// First ISO-TP frame
-    payload[idx++] = 0x5A;
- 
-
-    
-
-
+    payload[idx++] = 0x5A; 
     payload[idx++] = 0x21;
     payload[idx++] = 0x01;
     payload[idx++] = 0x7E;
@@ -868,41 +752,23 @@ AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *
     payload[idx++] = 0x82;
     payload[idx++] = 0xFF;
     payload[idx++] = scrollLockIndicator;
-  
-    //int maxHeaderLen = 26;
-    // int h = 0;
-    // while (header && header[h] && h < maxHeaderLen && idx < 96) {
-    //   payload[idx++] = header[h++];
-    // }
-    // int maxHeaderLen = 26;
-    // for (int i = 0; i < maxHeaderLen && header[i]; ++i) {
-    //     payload[idx++] = header[i];
-    // }
-     // Copy header (max 26 bytes)
+   
     int h = 0;
     for (; h < 26 && header[h]; ++h) {
         payload[idx++] = header[h];
     }
-
-    // Padding to reach item1
-    // while (idx < 35) payload[idx++] = 0x00;
-
-    // Adjusted paddings to account for 2-byte header
+ 
     while (idx < 37) payload[idx++] = 0x00;
   
     // Item 1
-    payload[idx++] = selectionItem1;
-    payload[idx++] = 0x7E; //maybe this is ID for item, and to select we need to send that id? check it with infomenu later
-    // for (int i = 0; i < 25 && item1[i]; ++i) {
-    //         payload[idx++] = item1[i];
-    //     }
+    payload[idx++] = 0x00;
+    payload[idx++] = 0x7E;  
 
     while (*item1 && idx < 64) payload[idx++] = *item1++;
     // Padding to reach item2
-    while (idx < 64) payload[idx++] = 0x00;
-    // while (idx < 62) payload[idx++] = 0x00;
+    while (idx < 64) payload[idx++] = 0x00; 
   
-    payload[idx++] = selectionItem2;
+    payload[idx++] = 0x01;
     payload[idx++] = 0x7F;
     while (*item2 && idx < 96) payload[idx++] = *item2++;
     while (idx < 96) payload[idx++] = 0x00;

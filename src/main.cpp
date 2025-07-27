@@ -14,12 +14,14 @@
  
 
 SerialCommand sCmd;   // The SerialCommand object
-Affa3NavDisplay display; // Create an instance of Affa3Display
+// Affa3NavDisplay display; // Create an instance of Affa3Display
+AffaDisplayBase* display = nullptr;
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
 
 Preferences preferences;
-HttpServerManager serverManager(display, preferences);
+// HttpServerManager serverManager(*display, preferences);
+HttpServerManager* serverManager = nullptr;
 
 
 // Enter your WIFI credentials in secret.h
@@ -34,15 +36,15 @@ void gotFrame(CAN_FRAME *frame)
 
     
     CanUtils::printCanFrame(*frame, false);
-    display.recv(frame);
+    display->recv(frame);
     // Echo or other processing can be added here
 }
 
 void cmd_enable() { 
     Serial.println("Enabling display");
-    display.setState(true); 
+    display->setState(true); 
 }
-void cmd_disable() { display.setState(false); }
+void cmd_disable() { display->setState(false); }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
@@ -69,7 +71,7 @@ void cmd_scrollmtx()
     }
     Serial.println("Scrolling text: ");
     Serial.println(text);
-    ScrollEffect(&display, ScrollDirection::Right, text, delayMs);
+    ScrollEffect(display, ScrollDirection::Right, text, delayMs);
 
     // display.scrollText(text, delayMs);
 }
@@ -92,7 +94,7 @@ void cmd_scrollmtxl()
         if (delayMs < 20)
             delayMs = 20; // clamp minimum
     }
-    ScrollEffect(&display, ScrollDirection::Left, text, delayMs);
+    ScrollEffect(display, ScrollDirection::Left, text, delayMs);
 }
 
 void cmd_setTime()
@@ -104,7 +106,7 @@ void cmd_setTime()
         Serial.println("Usage: st <HHMM>");
         return;
     }
-    display.setTime(timeStr); // unknown protocol
+    display->setTime(timeStr); // unknown protocol
 }
 
 void initSerial(){
@@ -122,6 +124,7 @@ void initSerial(){
     //    sCmd.addCommand("mtx", cmd_mtx);    // workss
     sCmd.addCommand("st", cmd_setTime);     // Example: st 0925
     sCmd.addCommand("msr", cmd_scrollmtx);  // Example: msr 1241235134513245
+    
     sCmd.addCommand("msl", cmd_scrollmtxl); // Example: st 2222 msl testing
 
 }
@@ -161,12 +164,37 @@ void restoreDisplay(IDisplay& display, Preferences& prefs) {
 }
 
 
+void initDisplay() {
+    Preferences prefs;
+    prefs.begin("config", true);
+    String displayType = prefs.getString("display_type", "affa3");
+    prefs.end();
+
+    Serial.println("[Display Init] Display type from config: " + displayType);
+
+    if (displayType == "affa3nav") {
+        Serial.println("[Display Init] Instantiating Affa3NavDisplay");
+        display = new Affa3NavDisplay();
+    } else {
+        Serial.println("[Display Init] Instantiating Affa3Display (default)");
+        display = new Affa3Display();
+    }
+
+    serverManager = new HttpServerManager(*display, preferences);  // ✅ Moved here
+    Serial.println("[Display Init] HttpServerManager initialized");
+
+    // Optionally call init method if needed
+    // display->init(); 
+    // Serial.println("[Display Init] Display initialized");
+}
+
 void setup()
 {
 
     // Initialize random seed (run only once)
      
     delay(2000);
+    initDisplay();
     initSerial();
     // CAN0.setCANPins(GPIO_NUM_4, GPIO_NUM_5); // Set CAN RX/TX pins
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4); // Set CAN RX/TX pins  MINI
@@ -182,7 +210,7 @@ void setup()
     WiFi.mode(WIFI_AP);
     WiFi.softAP(ssid, password);
 
-    serverManager.begin();
+    serverManager->begin();
  
         
     Serial.println(" all............inited"); // Serve the commands via HTTP GET requests
@@ -190,7 +218,7 @@ void setup()
     Serial.println("RESTAPI........done");
 
     delay(2000); // Wait for CAN bus to stabilize
-    restoreDisplay(display, preferences); // Restore display state and text from NVS TODO:Fix parameter ui
+    restoreDisplay(*display, preferences); // Restore display state and text from NVS TODO:Fix parameter ui
 }
 
 #define SYNC_INTERVAL_MS 500
