@@ -1,6 +1,7 @@
 #include "HttpServerManager.h"
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
+#include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
                                                                               _display(display),
@@ -93,6 +94,8 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 void HttpServerManager::begin()
 {
     _server.listen(80);
+
+    ElegantOTA.begin(&_server);
     setupRoutes();
     Serial.println("HTTP Server: routes initialized.");
 }

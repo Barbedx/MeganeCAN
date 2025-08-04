@@ -1,11 +1,11 @@
 #include <Arduino.h>
-#include <SerialCommand.h> // Assuming this is already included in your project
 #include "effects/ScrollEffect.h" // Assuming this is already included in your project
 #include <stdlib.h>               // for rand()
 #include "server/HttpServerManager.h"
 #include <secrets.h>
 #include <WiFi.h>
-
+#include <ElegantOTA.h>
+#include <SerialCommands.h> // Assuming this is already included in your project
 // #include <PsychicHttp.h>
 
 
@@ -13,7 +13,7 @@
 #include "display/Affa3Nav/Affa3NavDisplay.h"
  
 
-SerialCommand sCmd;   // The SerialCommand object
+// SerialCommand sCmd;   // The SerialCommand object
 // Affa3NavDisplay display; // Create an instance of Affa3Display
 AffaDisplayBase* display = nullptr;
 bool sessionStarted = false;
@@ -40,21 +40,21 @@ void gotFrame(CAN_FRAME *frame)
     // Echo or other processing can be added here
 }
 
-void cmd_enable() { 
+void cmd_enable(SerialCommands* sender) { 
     Serial.println("Enabling display");
     display->setState(true); 
 }
-void cmd_disable() { display->setState(false); }
+void cmd_disable(SerialCommands* sender) { display->setState(false); }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
 //  void cmd_messageTestold6() { displayManager.messageTest6(); }
 //  void cmd_messageTestold(){ displayManager.messageTest2(); }
 //   void cmd_mgwelcome(){ displayManager.messageWelcome(); }
-void cmd_scrollmtx()
+void cmd_scrollmtx(SerialCommands* sender)
 {
-    const char *text = sCmd.next();
-    const char *delayStr = sCmd.next();
+    const char *text = sender->Next();
+    const char *delayStr = sender->Next();
 
     if (!text)
     {
@@ -76,10 +76,10 @@ void cmd_scrollmtx()
     // display.scrollText(text, delayMs);
 }
 
-void cmd_scrollmtxl()
+void cmd_scrollmtxl(SerialCommands* sender)
 {
-    const char *text = sCmd.next();
-    const char *delayStr = sCmd.next();
+    const char *text = sender->Next();
+    const char *delayStr = sender->Next();
 
     if (!text)
     {
@@ -97,10 +97,10 @@ void cmd_scrollmtxl()
     ScrollEffect(display, ScrollDirection::Left, text, delayMs);
 }
 
-void cmd_setTime()
+void cmd_setTime(SerialCommands* sender)
 {
 
-    char *timeStr = sCmd.next(); // e.g., "0930"
+    char *timeStr = sender->Next(); // e.g., "0930"
     if (!timeStr)
     {
         Serial.println("Usage: st <HHMM>");
@@ -108,6 +108,26 @@ void cmd_setTime()
     }
     display->setTime(timeStr); // unknown protocol
 }
+
+// Declare command handlers
+// void cmd_enable(SerialCommands* sender);
+// void cmd_disable(SerialCommands* sender);
+// void cmd_setTime(SerialCommands* sender);
+// void cmd_scrollmtx(SerialCommands* sender);
+// void cmd_scrollmtxl(SerialCommands* sender);
+
+// Create command objects
+SerialCommand cmd_e("e", cmd_enable);
+SerialCommand cmd_d("d", cmd_disable);
+SerialCommand cmd_st("st", cmd_setTime);
+SerialCommand cmd_msr("msr", cmd_scrollmtx);
+SerialCommand cmd_msl("msl", cmd_scrollmtxl);
+
+
+// Create SerialCommands manager
+char serial_command_buffer[64];
+char serial_delim[] = " \r\n";
+SerialCommands serialCommands(&Serial, serial_command_buffer, sizeof(serial_command_buffer), serial_delim);
 
 void initSerial(){
     
@@ -119,14 +139,12 @@ void initSerial(){
     Serial.println("   MEGANE CAN BUS       ");
     Serial.println("------------------------");
     // Setup commands
-    sCmd.addCommand("e", cmd_enable);
-    sCmd.addCommand("d", cmd_disable);
-    //    sCmd.addCommand("mtx", cmd_mtx);    // workss
-    sCmd.addCommand("st", cmd_setTime);     // Example: st 0925
-    sCmd.addCommand("msr", cmd_scrollmtx);  // Example: msr 1241235134513245
-    
-    sCmd.addCommand("msl", cmd_scrollmtxl); // Example: st 2222 msl testing
-
+    // Register commands
+    serialCommands.AddCommand(&cmd_e);
+    serialCommands.AddCommand(&cmd_d);
+    serialCommands.AddCommand(&cmd_st);
+    serialCommands.AddCommand(&cmd_msr);
+    serialCommands.AddCommand(&cmd_msl);
 }
 
 
@@ -227,7 +245,8 @@ static uint32_t last_sync = 0;
 
 void loop()
 {
-    sCmd.readSerial();
+    serialCommands.ReadSerial();
+    ElegantOTA.loop();
     uint32_t now = millis();
     if (now - last_sync > SYNC_INTERVAL_MS)
     {
