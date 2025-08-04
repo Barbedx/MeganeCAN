@@ -179,7 +179,8 @@ void initDisplay() {
         Serial.println("[Display Init] Instantiating Affa3Display (default)");
         display = new Affa3Display();
     }
-
+    
+    display->begin();    // ✅ Only initializes BLE if needed
     serverManager = new HttpServerManager(*display, preferences);  // ✅ Moved here
     Serial.println("[Display Init] HttpServerManager initialized");
 

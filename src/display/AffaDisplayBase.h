@@ -24,10 +24,13 @@ protected:
     AffaError affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len);
     AffaError affa3_send(uint16_t id, uint8_t *data, uint8_t len);
     virtual uint8_t getPacketFiller() const = 0;//This means every derived class must implement this method.
+    virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
+    // Optional init method — default no-op
     
-
-public:
+    
+    public:
     AffaDisplayBase() = default; // ✅ Allow default constructor
+    virtual void begin() {}  // ✅ Safe default
     virtual ~AffaDisplayBase() {
         if (funcs) {
             delete[] funcs;

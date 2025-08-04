@@ -2,8 +2,10 @@
 // #include "Affa3Display.h"  //   (false) -> Ensure this is included if emulateKey is from there NO,
 // we dont need that file here, Affa3NavDisplay is a separate display class
 #include "AuxModeTracker.h"
-#include <BleKeyboard.h>
 #include <NimBLEDevice.h>
+#include <vector>
+
+#include "Menu/MenuTypes.h"
 
 inline void AFFA3_PRINT(const char *fmt, ...)
 {
@@ -100,6 +102,120 @@ namespace
   }
   
 }
+void Affa3NavDisplay::drawMenu() {
+    const auto& menu = currentMenu->items;
+    const int sel = selectedIndex;
+    const int total = menu.size();
+
+    if (total == 0) {
+        showMenu("Menu", "-", "", 0x00);
+        return;
+    }
+
+    // Calculate scroll indicator
+    uint8_t scrollLockIndicator = 0x00;
+    if (sel > 0 && sel < total - 1)
+        scrollLockIndicator = 0x0C;  // both up and down
+    else if (sel > 0)
+        scrollLockIndicator = 0x07;  // up only
+    else if (sel < total - 1)
+        scrollLockIndicator = 0x0B;  // down only
+
+    const char* header = "Menu";
+    String label1 = "";
+    String label2 = "";
+
+    if (sel > 0) {
+        const auto& above = menu[sel - 1];
+        label1 = above.label;
+        if (above.getValue) label1 += ": " + above.getValue();
+    }
+
+    const auto& selected = menu[sel];
+    label2 = selected.label;
+    if (selected.getValue) label2 += ": " + selected.getValue();
+
+    showMenu(header, label1.c_str(), label2.c_str(), scrollLockIndicator);
+}
+
+
+void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold) {
+  if (isHold && key == AffaCommon::AffaKey::Load) {
+    setState(true); 
+    tracker.SetAuxMode(true);
+    menuActive = false; //no menu!
+     selectedIndex = 0;
+    currentMenu = &mainMenu; // 🔁 Don't forget this
+    drawMenu();
+    return;  
+  }
+
+  if (tracker.isInAuxMode()) {
+    if (menuActive) {
+      // Handle menu navigation
+      switch (key) {
+        case AffaCommon::AffaKey::RollUp:
+          if (selectedIndex > 0) {
+            selectedIndex--;
+            drawMenu();
+          }
+          break;
+
+        // case AffaCommon::AffaKey::RollDown:
+        //   if (selectedIndex < currentMenu->items->size() - 1) {
+        //     selectedIndex++;
+        //     drawMenu();
+        //   }
+        //   break;
+
+        // case AffaCommon::AffaKey::SrcLeft:
+        //   if ((*currentMenu)[selectedIndex].onInput)
+        //     (*currentMenu)[selectedIndex].onInput(+1);
+        //   drawMenu();
+        //   break;
+
+        // case AffaCommon::AffaKey::SrcRight:
+        //   if ((*currentMenu)[selectedIndex].onInput)
+        //     (*currentMenu)[selectedIndex].onInput(-1);
+        //   drawMenu();
+        //   break;
+
+        // case AffaCommon::AffaKey::Pause:
+        //   if ((*currentMenu)[selectedIndex].onSelect)
+        //     (*currentMenu)[selectedIndex].onSelect();
+        //   break;
+
+        default:
+          break;
+      }
+    } else {
+      // Not in menu, but AUX mode: BLE media control
+      Serial.println("Key in AUX mode:");
+      switch (key) {
+        case AffaCommon::AffaKey::Pause:
+          Serial.println("Pause/Play");
+          bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+          break;
+
+        case AffaCommon::AffaKey::RollUp:
+          Serial.println("Next Track");
+          bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+          break;
+
+        case AffaCommon::AffaKey::RollDown:
+          Serial.println("Previous Track");
+          bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+          break;
+
+        default:
+          Serial.print("Unhandled key: 0x");
+          Serial.println(static_cast<uint16_t>(key), HEX);
+          break;
+      }
+    }
+  }
+}
+
 
 void Affa3NavDisplay::tick()
 {
@@ -143,181 +259,32 @@ void Affa3NavDisplay::tick()
 }
 
 // Extended NAV display logic
+ 
+// struct MenuItem {
+//   MenuItemType type;
+//   const char* label;
 
-// Add enums for item types and key input
-enum class MenuItemType {
-  StaticText,
-  OptionSelector,
-  IntegerEditor,
-  SubMenu,
-};
+//   // For StaticText
+//   const char* staticValue;
 
-struct MenuItem;
+//   // For OptionSelector
+//   std::vector<const char*> options;
+//   int selectedOption = 0;
 
-struct Menu {
-  const char* header;
-  std::vector<MenuItem> items;
-  int selectedIndex = 0;
-  Menu* parent = nullptr;
+//   // For IntegerEditor
+//   int intValue = 0;
+//   int minValue = 0;
+//   int maxValue = 100;
 
-  Menu(const char* h) : header(h) {}
+//   // For SubMenu
+//   Menu* submenu = nullptr;
 
-  // Navigate within menu items
-  void navigateUp() {
-    if (selectedIndex > 0) selectedIndex--;
-    else selectedIndex = items.size() - 1;
-  }
-  void navigateDown() {
-    if (selectedIndex < (int)items.size() - 1) selectedIndex++;
-    else selectedIndex = 0;
-  }
-
-  void draw();
-};
-
-struct MenuItem {
-  MenuItemType type;
-  const char* label;
-
-  // For StaticText
-  const char* staticValue;
-
-  // For OptionSelector
-  std::vector<const char*> options;
-  int selectedOption = 0;
-
-  // For IntegerEditor
-  int intValue = 0;
-  int minValue = 0;
-  int maxValue = 100;
-
-  // For SubMenu
-  Menu* submenu = nullptr;
-
-  MenuItem(MenuItemType t, const char* l)
-    : type(t), label(l), staticValue(nullptr), submenu(nullptr) {}
-};
+//   MenuItem(MenuItemType t, const char* l)
+//     : type(t), label(l), staticValue(nullptr), submenu(nullptr) {}
+// };
 
 
-
-
-
-
-void Menu::draw() {
-  // Show 3 items total: selected + 1 above + 1 below (if exist)
-  // const char* item1 = nullptr;
-  // const char* item2 = nullptr;
-  // const char* item3 = nullptr;
-
-  // int sel = selectedIndex;
-
-  // if (items.empty()) {
-  //   item1 = "";
-  //   item2 = "";
-  //   item3 = "";
-  // } else {
-  //   // item2 is selected
-  //   item2 = nullptr;
-  //   // item1 is selected-1 or blank
-  //   // item3 is selected+1 or blank
-
-  //   // Helper to get string for display of an item
-  //   auto getItemString = [](const MenuItem& mi) -> String {
-  //     switch (mi.type) {
-  //       case MenuItemType::StaticText:
-  //         return String(mi.label) + ": " + (mi.staticValue ? mi.staticValue : "");
-  //       case MenuItemType::OptionSelector:
-  //         return String(mi.label) + ": " + (mi.options.empty() ? "" : mi.options[mi.selectedOption]);
-  //       case MenuItemType::IntegerEditor:
-  //         return String(mi.label) + ": " + String(mi.intValue);
-  //       case MenuItemType::SubMenu:
-  //         return String(mi.label) + " >";
-  //     }
-  //     return "";
-  //   };
-
-  //   String str1 = (sel > 0) ? getItemString(items[sel - 1]) : "";
-  //   String str2 = getItemString(items[sel]);
-  //   String str3 = (sel + 1 < (int)items.size()) ? getItemString(items[sel + 1]) : "";
-
-  //   item1 = str1.c_str();
-  //   item2 = str2.c_str();
-  //   item3 = str3.c_str();
-
-  //   // WARNING: The pointers returned here are to temporary String objects!
-  //   // We'll handle this in a safer way in actual code.
-  // }
-
-  // // Use your existing showMenu to send display.
-  // // For simplicity here, only 2 items shown in showMenu, but let's modify your showMenu later to 3 items or create a new one.
-  // // For now let's send first 2 items + header:
-
-  // // Because your showMenu takes 2 items, we can call it twice or modify it to support 3.
-  // // Let's create a simple 3 item version for our menu here:
-
-  // // We'll send a combined menu with header and 3 items, showing selected highlight with flags:
-  // // 0x7E = not selected, 0x7F = selected
-
-  // // We'll craft a simple helper here:
-
-  // auto sendMenu = [](const char* header, const char* i1, bool i1sel, const char* i2, bool i2sel, const char* i3, bool i3sel) {
-  //   uint8_t sel1 = i1sel ? 0x7F : 0x7E;
-  //   uint8_t sel2 = i2sel ? 0x7F : 0x7E;
-  //   uint8_t sel3 = i3sel ? 0x7F : 0x7E;
-
-  //   // We'll build and send menu with 3 items here using a similar method as your showMenu
-  //   // You can copy/paste your showMenu and adapt to 3 items with those flags accordingly
-
-  //   // For demo, just send 2 items (header + item1 + item2)
-  //   // You can extend to 3 later easily.
-
-  //  // showMenu(header, i1, i2, 0x5A, 0x0B, sel1, sel2);
-  //   // Optionally send the 3rd item as info or in another way
-//  };
-
- // sendMenu(header, item1, sel > 0 && sel-1 == sel, item2, true, item3, sel + 1 == sel);
-}
-
-Menu* currentMenu = nullptr;
-
-Menu rootMenu("Settings");
-Menu effectsMenu("Effects");
-
-void setupMenus() {
-  // Setup effects submenu
-  effectsMenu.items.push_back(MenuItem(MenuItemType::StaticText, "Lighting"));
-  effectsMenu.items.push_back(MenuItem(MenuItemType::StaticText, "Blink"));
-  effectsMenu.items.push_back(MenuItem(MenuItemType::StaticText, "Off"));
-  effectsMenu.parent = &rootMenu;
-
-  // Setup root menu items
-  MenuItem voltage(MenuItemType::StaticText, "Accu Voltage");
-  voltage.staticValue = "14V";
-
-  MenuItem color(MenuItemType::OptionSelector, "Color");
-  color.options = {"Red", "Green", "Blue"};
-  color.selectedOption = 0;
-
-  MenuItem someInt(MenuItemType::IntegerEditor, "SomeIntPar");
-  someInt.intValue = 1;
-  someInt.minValue = 0;
-  someInt.maxValue = 10;
-
-  MenuItem effect(MenuItemType::SubMenu, "Effect");
-  effect.submenu = &effectsMenu;
-  effect.submenu->parent = &rootMenu;
-
-  rootMenu.items.push_back(voltage);
-  rootMenu.items.push_back(color);
-  rootMenu.items.push_back(someInt);
-  rootMenu.items.push_back(effect);
-
-  currentMenu = &rootMenu;
-}
-
-
-
-
+ 
 
 
 #define VOLTAGE_PIN 33 // Use  GPIO32
@@ -441,43 +408,44 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
 
     // Detect hold status
     bool isHold = (rawKey & AffaCommon::KEY_HOLD_MASK) != 0;
-    
+     
+    onKeyPressed(key, isHold);
 
  
-    if (isHold &&  key==AffaCommon::AffaKey::Load){ // load
+    // if (isHold &&  key==AffaCommon::AffaKey::Load){ // load
  
-          setState(true); 
-          tracker.SetAuxMode(true);
-          delay(50);
-          ShowMyInfoMenu();  
-    }
+    //       setState(true); 
+    //       tracker.SetAuxMode(true);
+    //       delay(50);
+    //       ShowMyInfoMenu();  
+    // }
 
 
-    if (tracker.isInAuxMode())
-    {
-      Serial.print("Current in aux");
-      // Handle key actions
-      switch (static_cast<AffaCommon::AffaKey>(key))
-      {
-      case AffaCommon::AffaKey::Pause:
-        Serial.println("Pause/Play");
-        bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-        break;
+    // if (tracker.isInAuxMode())
+    // {
+    //   Serial.print("Current in aux");
+    //   // Handle key actions
+    //   switch (static_cast<AffaCommon::AffaKey>(key))
+    //   {
+    //   case AffaCommon::AffaKey::Pause:
+    //     Serial.println("Pause/Play");
+    //     bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+    //     break;
 
-      case AffaCommon::AffaKey::RollUp: // Next track
-        Serial.println("Next Track");
-        bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-        break;
+    //   case AffaCommon::AffaKey::RollUp: // Next track
+    //     Serial.println("Next Track");
+    //     bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+    //     break;
 
-      case AffaCommon::AffaKey::RollDown: // Previous track
-        Serial.println("Previous Track");
-        bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-        break; 
-      default:
-        Serial.print("Unknown key: 0x"); 
-        break;
-      }
-    }
+    //   case AffaCommon::AffaKey::RollDown: // Previous track
+    //     Serial.println("Previous Track");
+    //     bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+    //     break; 
+    //   default:
+    //     Serial.print("Unknown key: 0x"); 
+    //     break;
+    //   }
+    // }
    
   }
   if (packet->id == Affa3Nav::PACKET_ID_SETTEXT)
@@ -789,4 +757,110 @@ AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *cap
 AffaCommon::AffaError Affa3NavDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
 {
     return AffaCommon::AffaError();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// void drawMenu() {
+//   const char* header = "MeganeCan";
+//   int total = mainMenu.size();
+
+//   int topIndex = constrain(selectedIndex - 1, 0, total - 1);
+//   int midIndex = constrain(selectedIndex, 0, total - 1);
+
+//   const char* item1 = (topIndex == selectedIndex) ? "" : mainMenu[topIndex].label;
+//   const char* item2 = mainMenu[midIndex].label;
+
+//   uint8_t indicator = 0x00;
+//   if (selectedIndex > 0 && selectedIndex < total - 1) indicator = 0x0C;
+//   else if (selectedIndex > 0) indicator = 0x07;
+//   else if (selectedIndex < total - 1) indicator = 0x0B;
+
+//   Affa3NavDisplay::showMenu(header, item1, item2, indicator);
+// }
+
+// std::vector<MenuItem> timeMenu = {
+//   {
+//     "Hour", MenuItemType::Range,
+//     []() -> String { return String(hour); },
+//     [](int8_t delta) { hour = (hour + delta + 13) % 13; },
+//     nullptr
+//   },
+//   {
+//     "Minute", MenuItemType::Range,
+//     []() -> String { return String(minute); },
+//     [](int8_t delta) { minute = (minute + delta + 60) % 60; },
+//     nullptr
+//   }
+// };
+
+void Affa3NavDisplay::cycleColor(int8_t delta) {
+    static const char* colors[] = {"Red", "Green", "Blue"};
+    int currentIndex = 0;
+    for (int i = 0; i < 3; i++) {
+        if (currentColor.equalsIgnoreCase(colors[i])) {
+            currentIndex = i;
+            break;
+        }
+    }
+    currentIndex = (currentIndex + delta + 3) % 3;
+    currentColor = colors[currentIndex];
+    drawMenu();
+}
+
+void Affa3NavDisplay::cycleEffect(int8_t delta) {
+    static const char* effects[] = {"Lighting", "Strobe", "Wave"};
+    int currentIndex = 0;
+    for (int i = 0; i < 3; i++) {
+        if (currentEffect.equalsIgnoreCase(effects[i])) {
+            currentIndex = i;
+            break;
+        }
+    }
+    currentIndex = (currentIndex + delta + 3) % 3;
+    currentEffect = effects[currentIndex];
+    drawMenu();
+}
+
+void Affa3NavDisplay::openTimeSubmenu() {
+    // static Menu timeMenu;
+    // timeMenu.items = {
+    //     MenuItem{
+    //         .label = "Hour",
+    //         .getValue = [this]() {
+    //             return String(hour).c_str();
+    //         },
+    //         .onInput = [this](int8_t delta) {
+    //             hour = (hour + delta + 24) % 24;
+    //             drawMenu();
+    //         },
+    //         .type = MenuItemType::CHOICE
+    //     },
+    //     MenuItem{
+    //         .label = "Minute",
+    //         .getValue = [this]() {
+    //             return String(minute).c_str();
+    //         },
+    //         .onInput = [this](int8_t delta) {
+    //             minute = (minute + delta + 60) % 60;
+    //             drawMenu();
+    //         },
+    //         .type = MenuItemType::CHOICE
+    //     }
+    // };
+    // timeMenu.parent = currentMenu;
+    // currentMenu = &timeMenu;
+    // selectedIndex = 0;
+    // drawMenu();
 }

@@ -13,6 +13,9 @@ public:
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255 /* 0-9, or anything else for none */) override;
     AffaCommon::AffaError setState(bool enabled) override;
     AffaCommon::AffaError setTime(const char *clock) override;
+    void onKeyPressed(AffaCommon::AffaKey key, bool isHold)override{
+        Serial.println("[WARN] onKeyPressed() called on Affa3Display — not supported.");
+    };
 
     AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator) override
     {
