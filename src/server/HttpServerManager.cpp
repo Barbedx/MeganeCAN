@@ -1,0 +1,302 @@
+#include "HttpServerManager.h"
+#include "effects/ScrollEffect.h"
+#include "../commands/DisplayCommands.h"
+
+HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
+                                                                              _display(display),
+                                                                              _prefs(prefs),
+                                                                              _commands(display, prefs)
+{
+}
+
+const char *htmlPage = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head><title>Display Control</title>
+<script>
+async function loadConfig() {
+  try {
+    // Fetch autoRestore
+    const restoreRes = await fetch('/config/restore');
+    const autoRestore = await restoreRes.text();
+    document.getElementById('autoRestoreCheckbox').checked = (autoRestore === '1');
+
+    // Fetch lastText
+    const lastTextRes = await fetch('/getlasttext');
+    const lastText = await lastTextRes.text();
+    document.getElementById('staticTextInput').value = lastText;
+
+    // Fetch welcomeText
+    const welcomeTextRes = await fetch('/getwelcometext');
+    const welcomeText = await welcomeTextRes.text();
+    document.getElementById('welcomeTextInput').value = welcomeText;
+  } catch (e) {
+    console.error('Failed to load config', e);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', loadConfig);
+</script>
+
+
+</head>
+<body>
+  <h2>display type</h2>
+
+    <form action="/setDisplay" method="POST">
+    <select name="type">
+        <option value="affa3">AFFA3</option>
+        <option value="affa3nav">AFFA3Nav</option>
+    </select>
+    <input type="submit" value="Save" />
+    </form>
+
+  <h2>Auto-restore text</h2>
+    <form action="/config/restore" method="GET">
+    <label>
+        <input type="checkbox" name="enable"  id="autoRestoreCheckbox"  value="1"  />
+        Auto-Restore texts on startup
+    </label>
+    <input type="submit" value="Save" />
+    </form>
+
+  <h2>Show Static Text</h2>
+  <form action="/static" method="GET">
+    <label>Text (max 8 chars):</label>
+    <input type="text" name="text" maxlength="8" id="staticTextInput" required />
+    <label><input type="checkbox" name="save" /> Save</label><br><br>
+    <input type="submit" value="Show Static Text" />
+  </form>
+
+  <hr>
+
+  <h2>Scroll Welcome Text</h2>
+  <form action="/scroll" method="GET">
+    <label>Text:</label>
+    <input type="text" id="welcomeTextInput" name="text" required />
+    <label><input type="checkbox" name="save" /> Save as Welcome</label><br><br>
+    <input type="submit" value="Scroll Text" />
+  </form>
+
+  <hr>
+
+    <h2>Set Time</h2>
+    <form action="/settime" method="GET">
+    <label>Time (HHMM, e.g. 0930):</label>
+    <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
+    <input type="submit" value="Set Time" />
+    </form>
+</body>
+</html>
+)rawliteral";
+
+void HttpServerManager::begin()
+{
+    _server.listen(80);
+    setupRoutes();
+    Serial.println("HTTP Server: routes initialized.");
+}
+
+void HttpServerManager::setupRoutes()
+{
+
+    _server.on("/", HTTP_GET, [this](PsychicRequest *request)
+               { return request->reply(200, "text/html", htmlPage); });
+
+    _server.on("/static", HTTP_GET, [this](PsychicRequest *request)
+               {
+        if (!request->hasParam("text")) {
+            return request->reply(400, "text/plain", "Missing 'text' parameter");
+        }
+        String text = request->getParam("text")->value();
+        bool save = request->hasParam("save");
+
+        // Call your command handler
+        _commands.showText(text, save);
+        String response = "Static Text shown: " + text;
+        return request->reply(200, "text/plain", response.c_str()); });
+
+    _server.on("/scroll", HTTP_GET, [this](PsychicRequest *request)
+               {    
+        if (!request->hasParam("text")) {
+            return request->reply(400, "text/plain", "Missing 'text' parameter");   
+        }
+        String text = request->getParam("text")->value();   
+        bool save = request->hasParam("save");
+
+        // Call your command handler
+        if (save) {
+            // Scroll AND save as welcome text
+            _commands.setWelcomeText(text);
+        } else {
+            // Scroll temporarily only
+            _commands.scrollText(text);
+        } 
+        String response = save ? "Text scrolled and saved as welcome: " + text
+                            : "Text scrolled temporarily: " + text;
+
+        return request->reply(200, "text/plain", response.c_str()); });
+
+    _server.on("/config/restore", HTTP_GET, [this](PsychicRequest *request)
+               {
+        if (request->hasParam("enable")) {
+            bool enable = request->getParam("enable")->value() == "1";
+            _prefs.begin("display", false);
+            _prefs.putBool("autoRestore", enable);
+            _prefs.end();
+            String resp = enable ? "Auto restore enabled" : "Auto restore disabled";
+            return request->reply(200, "text/plain", resp.c_str());
+        } else {
+            _prefs.begin("display", true);
+            bool autoRestore = _prefs.getBool("autoRestore", false);
+            _prefs.end();
+            String resp = autoRestore ? "1" : "0";
+            return request->reply(200, "text/plain", resp.c_str());
+        } });
+
+    _server.on("/getlasttext", HTTP_GET, [this](PsychicRequest *request)
+               {
+        _prefs.begin("display", true);
+        String lastText = _prefs.getString("lastText", "");
+        _prefs.end();
+        return request->reply(200, "text/plain", lastText.c_str()); });
+
+    _server.on("/getwelcometext", HTTP_GET, [this](PsychicRequest *request)
+               {
+        _prefs.begin("display", true);
+        String welcomeText = _prefs.getString("welcomeText", "");
+        _prefs.end();
+        return request->reply(200, "text/plain", welcomeText.c_str()); });
+    _server.on("/settime", HTTP_GET, [this](PsychicRequest *request)
+               {
+        if (!request->hasParam("time")) {
+            return request->reply(400, "text/plain", "Missing 'time' parameter");
+        }
+        String timeStr = request->getParam("time")->value();
+
+        if (timeStr.length() != 4) {
+            return request->reply(400, "text/plain", "Invalid time format. Use 4 digits like '1234'");
+        }
+
+        _commands.setTime(timeStr);
+        String response = "Time set to: " + timeStr;
+        return request->reply(200, "text/plain", response.c_str()); });
+
+    _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {
+    if (request->hasParam("type")) 
+    {
+        String type = request->getParam("type")->value();
+
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.putString("display_type", type);
+        prefs.end();
+        delay(1000); // Give time for ESP to restart
+        ESP.restart(); // Optional: force restart to apply change
+        return request->reply(200, "text/plain", "Display type saved. Restart required.");
+    }
+});
+
+_server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
+{
+    if (!request->hasParam("caption") || 
+        !request->hasParam("name1") || 
+        !request->hasParam("name2")) 
+    {
+        return request->reply(400, "text/plain", "Missing one or more required parameters: caption, name1, name2");
+    }
+
+    String caption = request->getParam("caption")->value();
+    String name1 = request->getParam("name1")->value();
+    String name2 = request->getParam("name2")->value();
+
+     uint8_t scrollLockIndicator = 0x0B; // default value
+
+    if (request->hasParam("scrollLock")) {
+        String scrollLockStr = request->getParam("scrollLock")->value();
+        if (scrollLockStr.length() != 2 ) {
+            return request->reply(400, "text/plain", "Invalid scrollLock format. Use two-digit hex like '7E'");
+        }
+        scrollLockIndicator = (uint8_t) strtoul(scrollLockStr.c_str(), nullptr, 16);
+    }
+
+    Serial.printf("[showMenu] caption='%s' name1='%s' name2='%s' scrollLock=0x%02X\n",
+                  caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+
+    _commands.showMenu(caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+
+    String response = "Menu sent with scrollLock=0x" + String(scrollLockIndicator, HEX);
+    return request->reply(200, "text/plain", response.c_str());
+});
+
+        
+    // Serve a dedicated page for Affa3 display test commands
+    _server.on("/affa3test", HTTP_GET, [this](PsychicRequest *request)
+               {
+    const char *page = R"rawliteral(
+        <!DOCTYPE html>
+        <html><head><title>Affa3 Display Test</title></head><body>
+        <h2>Set Menu</h2>
+        <form action="/affa3/setMenu" method="GET">
+            Caption: <input name="caption" required><br>
+            Name1: <input name="name1" required><br>
+            Name2: <input name="name2" required><br> 
+            Scroll Lock (Hex): <input name="scrollLock" value="0B" pattern="[0-9a-fA-F]{2}" ><br>
+  
+            <input type="submit" value="Set Menu">
+        </form>
+
+        <h2>Set AUX</h2>
+        <form action="/affa3/setAux" method="GET">
+            <input type="submit" value="Set AUX">
+        </form>
+
+        <h2>Set Big Text</h2>
+        <form action="/affa3/setTextBig" method="GET">
+            Caption: <input name="caption" required><br>
+            Row1: <input name="row1" required><br>
+            Row2: <input name="row2" required><br>
+            <input type="submit" value="Set Big Text">
+        </form>
+        </body></html>
+    )rawliteral";
+    return request->reply(200, "text/html", page); });
+
+    // // Endpoint for setMenu
+    // _server.on("/affa3/setMenu", HTTP_GET, [](PsychicRequest *request)
+    //            {
+    // if (request->hasParam("caption") && request->hasParam("name1") && request->hasParam("name2")) {
+    //     String caption = request->getParam("caption")->value();
+    //     String name1 = request->getParam("name1")->value();
+    //     String name2 = request->getParam("name2")->value();
+
+    //     Affa3Display::display_Control(1);
+    //     Affa3Display::showMenu(caption.c_str(), name1.c_str(), name2.c_str());
+
+    //     String text = "Menu set: " + caption + ", " + name1 + ", " + name2;
+    //     return request->reply(200, "text/plain", text.c_str());
+    // } else {
+    //     return request->reply(400, "text/plain", "Missing parameters");
+    // } });
+
+    // // Endpoint for setAux
+    // _server.on("/affa3/setAux", HTTP_GET, [](PsychicRequest *request)
+    //            {
+    // setAux();
+    // return request->reply(200, "text/plain", "AUX set"); });
+
+    // // Endpoint for setTextBig
+    // _server.on("/affa3/setTextBig", HTTP_GET, [](PsychicRequest *request)
+    //            {
+    // if (request->hasParam("caption") && request->hasParam("row1") && request->hasParam("row2")) {
+    //     String caption = request->getParam("caption")->value();
+    //     String row1 = request->getParam("row1")->value();
+    //     String row2 = request->getParam("row2")->value();
+
+    //     Affa3Display::showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
+    //     String response = "Text set to big: " + caption + ", " + row1 + ", " + row2;
+    //     return request->reply(200, "text/plain", response.c_str());
+    // } else {
+    //     return request->reply(400, "text/plain", "Missing parameters");
+    // } });
+}
