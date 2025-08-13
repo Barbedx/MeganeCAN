@@ -57,4 +57,11 @@ namespace DisplayCommands
         throw std::logic_error("setTextBig not implemented for Affa3NAVDisplay");
         //  _display.showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
     } // namespace DisplayCommands
+
+    void Manager::OnKeyPressed(AffaCommon::AffaKey key, bool isHold){
+        _display.onKeyPressed(key, isHold);
+        // Forward the key press to the display
+        // Example: _display.onKeyPressed(key, isHold);
+    }
+
 }

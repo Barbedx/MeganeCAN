@@ -2,13 +2,12 @@
 #include <vector>
 #include "Affa3NavConstants.h"
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
-#include "Menu/MenuTypes.h"  // Include the shared MenuItemType and MenuItem definitions
- #include <BleKeyboard.h>
+#include "Menu/Menu.h"  // Include the shared MenuItemType and MenuItem definitions
+ #include <BleKeyboard.h> 
 class Affa3NavDisplay : public AffaDisplayBase
 {
 public:
-    Affa3NavDisplay()
-    {
+    Affa3NavDisplay()  {
         initializeFuncs();
         initializeMenu();
     } // ✅ Ensure init logic runs
@@ -23,6 +22,7 @@ public:
     // Affa3Nav::ScrollLockIndicator::SCROLL_BOTH
     AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator = 0x0B) override;
 
+    AffaCommon::AffaError highlightItem(uint8_t id);
     AffaCommon::AffaError showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2); // Show confirm box with offsets
     AffaCommon::AffaError showInfoMenu(const char *item1, const char *item2, const char *item3,
                                        uint8_t offset1 = 0x41, uint8_t offset2 = 0x44, uint8_t offset3 = 0x48,
@@ -33,64 +33,63 @@ public:
 }
 
 protected:
-    bool menuActive = false;
-     int selectedIndex = 0;
-    Menu* currentMenu = nullptr;
-    Menu mainMenu; 
+    //bool menuActive = false;
+     //int selectedIndex = 0;
+    //Menu* currentMenu = nullptr;
+
+    Menu* mainMenu = nullptr;  // pointer instead of object
 
     void initializeMenu()
 {
-    mainMenu.items.clear();  // clear vector inside Menu
-    mainMenu.clear();
-    mainMenu.items.push_back(MenuItem(
-        "Voltage", MenuItemType::ReadOnly,
-        []() -> String { return String("14.2V"); },
-        nullptr,
-        nullptr
-    ));
+    mainMenu = new Menu("Main Menu"); // Initialize main menu with display reference
+     // Initialize main menu with display reference
+    // Add items to the main menu
+    // mainMenu->addItem(MenuItem(
+    //     "Voltage", MenuItemType::ReadOnly,
+    //     []() -> String { return String("14.2V"); },
+    //     nullptr,
+    //     nullptr
+    // ));
+    
+    // // mainMenu.items.clear();  // clear vector inside Menu
+    // // mainMenu.clear();
+    // mainMenu.addItem(MenuItem(
+    //     "Voltage", MenuItemType::ReadOnly,
+    //     []() -> String { return String("14.2V"); },
+    //     nullptr,
+    //     nullptr
+    // ));
 
-    mainMenu.items.push_back(MenuItem(
-        "Color", MenuItemType::Selector,
-        [this]() -> String { return currentColor; },
-        [this](int8_t delta) { cycleColor(delta); },
-        nullptr
-    ));
+    // mainMenu.items.push_back(MenuItem(
+    //     "Color", MenuItemType::Selector,
+    //     [this]() -> String { return currentColor; },
+    //     [this](int8_t delta) { cycleColor(delta); },
+    //     nullptr
+    // ));
 
-    mainMenu.items.push_back(MenuItem(
-        "Effect", MenuItemType::Selector,
-        [this]() -> String { return currentEffect; },
-        [this](int8_t delta) { cycleEffect(delta); },
-        nullptr
-    ));
+    // mainMenu.items.push_back(MenuItem(
+    //     "Effect", MenuItemType::Selector,
+    //     [this]() -> String { return currentEffect; },
+    //     [this](int8_t delta) { cycleEffect(delta); },
+    //     nullptr
+    // ));
 
-    mainMenu.items.push_back(MenuItem(
-        "Brightness", MenuItemType::Range,
-        [this]() -> String { return String(brightness) + "%"; },
-        [this](int8_t delta) { brightness = constrain(brightness + 5 * delta, 0, 100); },
-        nullptr
-    ));
+    // mainMenu.items.push_back(MenuItem(
+    //     "Brightness", MenuItemType::Range,
+    //     [this]() -> String { return String(brightness) + "%"; },
+    //     [this](int8_t delta) { brightness = constrain(brightness + 5 * delta, 0, 100); },
+    //     nullptr
+    // ));
 
-    mainMenu.items.push_back(MenuItem(
-        "Time setting", MenuItemType::Submenu,
-        []() -> String { return ""; },
-        nullptr,
-        [this]() { openTimeSubmenu(); }
-    ));
+    // mainMenu.items.push_back(MenuItem(
+    //     "Time setting", MenuItemType::Submenu,
+    //     []() -> String { return ""; },
+    //     nullptr,
+    //     [this]() { openTimeSubmenu(); }
+    // ));
 
-    currentMenu = &mainMenu;  // point currentMenu to mainMenu here
-}
-
-    // Method declarations
-    String currentColor = "Red";
-    String currentEffect = "Lighting";
-    int brightness = 50;
-    int hour = 12;
-    int minute = 0;
-
-    void drawMenu();
-    void cycleColor(int8_t delta);
-    void cycleEffect(int8_t delta);
-    void openTimeSubmenu();
+    // currentMenu = &mainMenu;  // point currentMenu to mainMenu here
+} 
 
     uint8_t getPacketFiller() const override
     {

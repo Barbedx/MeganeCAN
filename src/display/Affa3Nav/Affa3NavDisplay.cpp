@@ -17,16 +17,13 @@ inline void AFFA3_PRINT(const char *fmt, ...)
 #endif
 }
 
-// You can copy code from Affa3Display.cpp as a starting point
- 
-
 BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
 
- 
+int windowFirstItemIndex = 0;
 
 namespace
 {
- 
+
   AuxModeTracker tracker;
 
   void emulateKey(AffaCommon::AffaKey key, bool hold = false)
@@ -34,7 +31,7 @@ namespace
 
     uint16_t raw = static_cast<uint16_t>(key);
     CAN_FRAME frame;
-    frame.id = 0x1C1; //  
+    frame.id = 0x1C1; //
     frame.length = 8;
     frame.extended = 0; // standard frame
 
@@ -98,124 +95,62 @@ namespace
 
     emulateKey(AffaCommon::AffaKey::Load, true); // <-- hold
     delay(200);
-
   }
-  
-}
-void Affa3NavDisplay::drawMenu() {
-    const auto& menu = currentMenu->items;
-    const int sel = selectedIndex;
-    const int total = menu.size();
 
-    if (total == 0) {
-        showMenu("Menu", "-", "", 0x00);
-        return;
-    }
-
-    // Calculate scroll indicator
-    uint8_t scrollLockIndicator = 0x00;
-    if (sel > 0 && sel < total - 1)
-        scrollLockIndicator = 0x0C;  // both up and down
-    else if (sel > 0)
-        scrollLockIndicator = 0x07;  // up only
-    else if (sel < total - 1)
-        scrollLockIndicator = 0x0B;  // down only
-
-    const char* header = "Menu";
-    String label1 = "";
-    String label2 = "";
-
-    if (sel > 0) {
-        const auto& above = menu[sel - 1];
-        label1 = above.label;
-        if (above.getValue) label1 += ": " + above.getValue();
-    }
-
-    const auto& selected = menu[sel];
-    label2 = selected.label;
-    if (selected.getValue) label2 += ": " + selected.getValue();
-
-    showMenu(header, label1.c_str(), label2.c_str(), scrollLockIndicator);
 }
 
-
-void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold) {
-  if (isHold && key == AffaCommon::AffaKey::Load) {
-    setState(true); 
+void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
+{
+  if (isHold && key == AffaCommon::AffaKey::Load)
+  {
+    Serial.println(">> Load (hold) pressed - activating menu");
+    setState(true);
     tracker.SetAuxMode(true);
-    menuActive = false; //no menu!
-     selectedIndex = 0;
-    currentMenu = &mainMenu; // 🔁 Don't forget this
-    drawMenu();
-    return;  
+    mainMenu->show(); // Show main menu
+    //mainMenu.show(); // Show main menu
+    // menuActive = true;       // no menu!
+    // selectedIndex = 0;       // maybne leave it as is, to reenter menu at the same position?
+    // currentMenu = &mainMenu; // 🔁 Don't forget this
+    highlightItem(mainMenu->getCurrentViewBox().selectedRow);
+    return;
   }
 
-  if (tracker.isInAuxMode()) {
-    if (menuActive) {
+  if (tracker.isInAuxMode())
+  {
+    //if (mainMenu.isActive())
+    //{
       // Handle menu navigation
-      switch (key) {
-        case AffaCommon::AffaKey::RollUp:
-          if (selectedIndex > 0) {
-            selectedIndex--;
-            drawMenu();
-          }
-          break;
-
-        // case AffaCommon::AffaKey::RollDown:
-        //   if (selectedIndex < currentMenu->items->size() - 1) {
-        //     selectedIndex++;
-        //     drawMenu();
-        //   }
-        //   break;
-
-        // case AffaCommon::AffaKey::SrcLeft:
-        //   if ((*currentMenu)[selectedIndex].onInput)
-        //     (*currentMenu)[selectedIndex].onInput(+1);
-        //   drawMenu();
-        //   break;
-
-        // case AffaCommon::AffaKey::SrcRight:
-        //   if ((*currentMenu)[selectedIndex].onInput)
-        //     (*currentMenu)[selectedIndex].onInput(-1);
-        //   drawMenu();
-        //   break;
-
-        // case AffaCommon::AffaKey::Pause:
-        //   if ((*currentMenu)[selectedIndex].onSelect)
-        //     (*currentMenu)[selectedIndex].onSelect();
-        //   break;
-
-        default:
-          break;
-      }
-    } else {
+      //mainMenu.handleKey(key, isHold);
+    //}
+    //else
+    {
       // Not in menu, but AUX mode: BLE media control
       Serial.println("Key in AUX mode:");
-      switch (key) {
-        case AffaCommon::AffaKey::Pause:
-          Serial.println("Pause/Play");
-          bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-          break;
+      switch (key)
+      {
+      case AffaCommon::AffaKey::Pause:
+        Serial.println("Pause/Play");
+        bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+        break;
 
-        case AffaCommon::AffaKey::RollUp:
-          Serial.println("Next Track");
-          bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-          break;
+      case AffaCommon::AffaKey::RollUp:
+        Serial.println("Next Track");
+        bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+        break;
 
-        case AffaCommon::AffaKey::RollDown:
-          Serial.println("Previous Track");
-          bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-          break;
+      case AffaCommon::AffaKey::RollDown:
+        Serial.println("Previous Track");
+        bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+        break;
 
-        default:
-          Serial.print("Unhandled key: 0x");
-          Serial.println(static_cast<uint16_t>(key), HEX);
-          break;
+      default:
+        Serial.print("Unhandled key: 0x");
+        Serial.println(static_cast<uint16_t>(key), HEX);
+        break;
       }
     }
   }
 }
-
 
 void Affa3NavDisplay::tick()
 {
@@ -258,37 +193,9 @@ void Affa3NavDisplay::tick()
   }
 }
 
-// Extended NAV display logic
- 
-// struct MenuItem {
-//   MenuItemType type;
-//   const char* label;
-
-//   // For StaticText
-//   const char* staticValue;
-
-//   // For OptionSelector
-//   std::vector<const char*> options;
-//   int selectedOption = 0;
-
-//   // For IntegerEditor
-//   int intValue = 0;
-//   int minValue = 0;
-//   int maxValue = 100;
-
-//   // For SubMenu
-//   Menu* submenu = nullptr;
-
-//   MenuItem(MenuItemType t, const char* l)
-//     : type(t), label(l), staticValue(nullptr), submenu(nullptr) {}
-// };
-
-
- 
-
-
 #define VOLTAGE_PIN 33 // Use  GPIO32
-struct VoltageInfo {
+struct VoltageInfo
+{
   float voltage;
   float adcValue;
 };
@@ -297,7 +204,8 @@ VoltageInfo getVoltage()
   const int samples = 10;
   int adcTotal = 0;
 
-  for (int i = 0; i < samples; ++i) {
+  for (int i = 0; i < samples; ++i)
+  {
     adcTotal += analogRead(VOLTAGE_PIN);
     delay(5);
   }
@@ -305,7 +213,7 @@ VoltageInfo getVoltage()
   float adcValue = adcTotal / float(samples);
 
   float r1 = 47000.0f;
-  float r2 = 9770.0f;//10k
+  float r2 = 9770.0f; // 10k
   float vRef = 3.3f;
   float adcResolution = 4095.0f;
 
@@ -319,17 +227,9 @@ VoltageInfo getVoltage()
   Serial.print(" | Scale: ");
   Serial.println((vRef / adcResolution) * ((r1 + r2) / r2), 6);
 
-  return { Vbatt, adcValue };
+  return {Vbatt, adcValue};
 }
 
-
-
-
-
-
-
-
- 
 void ShowMyInfoMenu()
 {
 
@@ -338,8 +238,7 @@ void ShowMyInfoMenu()
   char row1[32];
   snprintf(row1, sizeof(row1), "Voltage: %.1fV (%.0f)", info.voltage, info.adcValue);
 
- // showMenu("MeganeCAN", row1, "Color: ORANGE");
-
+  // showMenu("MeganeCAN", row1, "Color: ORANGE");
 }
 
 void Affa3NavDisplay::recv(CAN_FRAME *packet)
@@ -408,45 +307,8 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
 
     // Detect hold status
     bool isHold = (rawKey & AffaCommon::KEY_HOLD_MASK) != 0;
-     
+
     onKeyPressed(key, isHold);
-
- 
-    // if (isHold &&  key==AffaCommon::AffaKey::Load){ // load
- 
-    //       setState(true); 
-    //       tracker.SetAuxMode(true);
-    //       delay(50);
-    //       ShowMyInfoMenu();  
-    // }
-
-
-    // if (tracker.isInAuxMode())
-    // {
-    //   Serial.print("Current in aux");
-    //   // Handle key actions
-    //   switch (static_cast<AffaCommon::AffaKey>(key))
-    //   {
-    //   case AffaCommon::AffaKey::Pause:
-    //     Serial.println("Pause/Play");
-    //     bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-    //     break;
-
-    //   case AffaCommon::AffaKey::RollUp: // Next track
-    //     Serial.println("Next Track");
-    //     bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-    //     break;
-
-    //   case AffaCommon::AffaKey::RollDown: // Previous track
-    //     Serial.println("Previous Track");
-    //     bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-    //     break; 
-    //   default:
-    //     Serial.print("Unknown key: 0x"); 
-    //     break;
-    //   }
-    // }
-   
   }
   if (packet->id == Affa3Nav::PACKET_ID_SETTEXT)
   { /* Pakiet z danymi text */
@@ -477,75 +339,70 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
   CanUtils::sendFrame(reply);
 }
 
-
- 
-
-  /**
-   * Sends a text string to the car display over CAN bus.
-   *
-   * @param mode Display mode: 
-   *             0x74 - full window,
-   *             0x77 - partial window (some values freeze UI if not matched)
-   *
-   * @param rdsIcon RDS icon display:
-   *                0x45 - AF-RDS icon,
-   *                0x55 - no icon
-   *
-   * @param sourceIcon Source label icon:
-   *                   0xDF - "MANU",
-   *                   0xFD - "PRESET",
-   *                   0xFF - none,
-   *                   others show icons like "LIST"
-   *
-   * @param channel Text display format:
-   *                   0x19–0x3F - Radio-style (5 digits + '.' + 1 char),
-   *                   0x59–0x7F - Plain ASCII (up to 7 chars visible)
-   *                    19-3f 5sym + point+ 2sym + channel.  (19 for ✔️),59-7F plain 8 sym + Channel ascii
-   *
-   * @param controlByte Always 0x01 — required by display protocol
-   *
-   * @param rawText Text to display (max 7 characters shown).
-   *                Underscores (_) are replaced with spaces.
-   */
+/**
+ * Sends a text string to the car display over CAN bus.
+ *
+ * @param mode Display mode:
+ *             0x74 - full window,
+ *             0x77 - partial window (some values freeze UI if not matched)
+ *
+ * @param rdsIcon RDS icon display:
+ *                0x45 - AF-RDS icon,
+ *                0x55 - no icon
+ *
+ * @param sourceIcon Source label icon:
+ *                   0xDF - "MANU",
+ *                   0xFD - "PRESET",
+ *                   0xFF - none,
+ *                   others show icons like "LIST"
+ *
+ * @param channel Text display format:
+ *                   0x19–0x3F - Radio-style (5 digits + '.' + 1 char),
+ *                   0x59–0x7F - Plain ASCII (up to 7 chars visible)
+ *                    19-3f 5sym + point+ 2sym + channel.  (19 for ✔️),59-7F plain 8 sym + Channel ascii
+ *
+ * @param controlByte Always 0x01 — required by display protocol
+ *
+ * @param rawText Text to display (max 7 characters shown).
+ *                Underscores (_) are replaced with spaces.
+ */
 AffaCommon::AffaError Affa3NavDisplay::setText(const char *text, uint8_t digit)
-{ 
+{
 
   // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
-                                // sc 151 2 54 3 0 0 0 0 0  to close full window
+  // sc 151 2 54 3 0 0 0 0 0  to close full window
 
-Serial.println("[setText] --- Sending Text to Display AFFA3NAV ---");
-   uint8_t mode = 0x77;       // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
-                                // sc 151 2 54 3 0 0 0 0 0  to close full window
-   uint8_t rdsIcon = 0x55;    // strtol(rdsIconStr,    nullptr, 16);
-   uint8_t sourceIcon = 0xFF; // strtol(sourceIconStr, nullptr, 16);
-   
-   uint8_t textFormat = 0x60; // strtol(textFormatStr, nullptr, 16);
-   
+  Serial.println("[setText] --- Sending Text to Display AFFA3NAV ---");
+  uint8_t mode = 0x77;       // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
+                             // sc 151 2 54 3 0 0 0 0 0  to close full window
+  uint8_t rdsIcon = 0x55;    // strtol(rdsIconStr,    nullptr, 16);
+  uint8_t sourceIcon = 0xFF; // strtol(sourceIconStr, nullptr, 16);
 
-  uint8_t data[32];     // max payload
+  uint8_t textFormat = 0x60; // strtol(textFormatStr, nullptr, 16);
+
+  uint8_t data[32]; // max payload
   uint8_t len = 0;
 
   // First ISO-TP frame + length
-  data[len++] = 0x10;   // First ISO-TP frame
-  data[len++] = 0x0E;   // 14 bytes total (header + text)
+  data[len++] = 0x10; // First ISO-TP frame
+  data[len++] = 0x0E; // 14 bytes total (header + text)
 
   // Display header structure
   data[len++] = mode;
   data[len++] = rdsIcon;
-  data[len++] = 0x55;         // unknown/fixed
+  data[len++] = 0x55; // unknown/fixed
   data[len++] = sourceIcon;
   data[len++] = textFormat;
-  data[len++] = 0x01;         // control byte
+  data[len++] = 0x01; // control byte
 
-
-    // Sanitize and pad text to 14 bytes
-    char paddedText[15] = {0};  // null-terminated buffer
-    strncpy(paddedText, text, 14);
-    for (uint8_t i = 0; i < 14; i++) {
-        //if (paddedText[i] == '_') paddedText[i] = ' ';
-        data[len++] = paddedText[i];
-    }
-
+  // Sanitize and pad text to 14 bytes
+  char paddedText[15] = {0}; // null-terminated buffer
+  strncpy(paddedText, text, 14);
+  for (uint8_t i = 0; i < 14; i++)
+  {
+    // if (paddedText[i] == '_') paddedText[i] = ' ';
+    data[len++] = paddedText[i];
+  }
 
   return affa3_send(0x151, data, len);
   // Possibly allows longer or formatted text
@@ -620,19 +477,19 @@ void showConfirmBoxWithOffsets(
   Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
 }
 
-//menuit 41 44 48 77 AUX__AUTO AFAUTO SPEED_0
+// menuit 41 44 48 77 AUX__AUTO AFAUTO SPEED_0
 void showInfoMenu(
     const char *item1,
     const char *item2,
     const char *item3,
-    uint8_t offset1,// 0x41
-    uint8_t offset2,// 0x44
-    uint8_t offset3,// 0x48 -- dont know what changing, maybe itr constants
-    uint8_t infoPrefix)  //same as with text, 
-    // 19-3f 5symbols + point + 2sym + channel.  (19 for ✔️),59-7F plain 8 sym + Channel ascii
-  // so if you send 19-3f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
-  // if you send 59-7f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
-  //  its also shows somechannel symbol based on asccii code, for example to show 9 you need send 39 or 79, for show # - 23 or 63
+    uint8_t offset1,    // 0x41
+    uint8_t offset2,    // 0x44
+    uint8_t offset3,    // 0x48 -- dont know what changing, maybe itr constants
+    uint8_t infoPrefix) // same as with text,
+// 19-3f 5symbols + point + 2sym + channel.  (19 for ✔️),59-7F plain 8 sym + Channel ascii
+// so if you send 19-3f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
+// if you send 59-7f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
+//  its also shows somechannel symbol based on asccii code, for example to show 9 you need send 39 or 79, for show # - 23 or 63
 {
   Serial.println("[showInfoMenu] --- Sending Info Menu ---");
 
@@ -660,18 +517,17 @@ void showInfoMenu(
   sendMenuItem(offset3, item3, "Item3");
 
   Serial.println("[showInfoMenu] --- Done ---");
-} 
- 
+}
+
 AffaCommon::AffaError Affa3NavDisplay::setState(bool enabled)
 {
   Affa3Nav::DisplayCtrl state = enabled ? Affa3Nav::DisplayCtrl::Enable : Affa3Nav::DisplayCtrl::Disable;
-  
-		uint8_t data[] = {
-			0x3, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};// sc 151 3 52 9 0 0 0 0 0
 
-		return affa3_send(Affa3Nav::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
+  uint8_t data[] = {
+      0x3, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF}; // sc 151 3 52 9 0 0 0 0 0
+
+  return affa3_send(Affa3Nav::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
-
 
 AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
 {
@@ -693,174 +549,93 @@ AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
   Serial.println(clock);
   return AffaCommon::AffaError::NoError;
 }
+AffaCommon::AffaError Affa3NavDisplay::highlightItem(uint8_t id)
+{
+  CAN_FRAME frame;
+  frame.id = 0x151;
+  frame.length = 8;
+  frame.extended = 0;
 
+  frame.data.uint8[0] = 0x07;
+  frame.data.uint8[1] = 0x29;
+  frame.data.uint8[2] = 0x01;
+  frame.data.uint8[3] = id == 0 ? 0x7E : 0x7F;
+  frame.data.uint8[4] = 0x80;
+  frame.data.uint8[5] = 0x00;
+  frame.data.uint8[6] = 0x00;
+  frame.data.uint8[7] = 0x00;
 
-//SCROLL LOCK INDICATOR
-// 0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNAffa3Nav::ScrollLockIndicator scrollLockIndicator
-AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2,   uint8_t scrollLockIndicator)
-{ 
-    Serial.println("[showMenu] --- Building Menu ---");
-    Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
-    // uint8_t selectionItem1 = 0x00;//unknown, to test
-    // uint8_t selectionItem2 = 0x01;//unknown, to test
-  
-    uint8_t payload[96] = {0};
-    int idx = 0;
-  
-    payload[idx++] = 0x10;// First ISO-TP frame
-    payload[idx++] = 0x5A; 
-    payload[idx++] = 0x21;
-    payload[idx++] = 0x01;
-    payload[idx++] = 0x7E;
-    payload[idx++] = 0x80;
+  CanUtils::sendFrame(frame);
+  Serial.print(">> Highlight item: ");
+  Serial.println(id);
+  return AffaCommon::AffaError::NoError;
+}
+
+// SCROLL LOCK INDICATOR
+//  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNAffa3Nav::ScrollLockIndicator scrollLockIndicator
+AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
+{
+  Serial.println("[showMenu] --- Building Menu ---");
+  Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
+  // uint8_t selectionItem1 = 0x00;//unknown, to test
+  // uint8_t selectionItem2 = 0x01;//unknown, to test
+
+  uint8_t payload[96] = {0};
+  int idx = 0;
+
+  payload[idx++] = 0x10; // First ISO-TP frame
+  payload[idx++] = 0x5A;
+  payload[idx++] = 0x21;
+  payload[idx++] = 0x01;
+  payload[idx++] = 0x7E;
+  payload[idx++] = 0x80;
+  payload[idx++] = 0x00;
+  payload[idx++] = 0x00;
+
+  payload[idx++] = 0x82;
+  payload[idx++] = 0xFF;
+  payload[idx++] = scrollLockIndicator;
+
+  int h = 0;
+  for (; h < 26 && header[h]; ++h)
+  {
+    payload[idx++] = header[h];
+  }
+
+  while (idx < 37)
     payload[idx++] = 0x00;
-    payload[idx++] = 0x00;
-   
-   
-    payload[idx++] = 0x82;
-    payload[idx++] = 0xFF;
-    payload[idx++] = scrollLockIndicator;
-   
-    int h = 0;
-    for (; h < 26 && header[h]; ++h) {
-        payload[idx++] = header[h];
-    }
- 
-    while (idx < 37) payload[idx++] = 0x00;
-  
-    // Item 1
-    payload[idx++] = 0x00;
-    payload[idx++] = 0x7E;  
 
-    while (*item1 && idx < 64) payload[idx++] = *item1++;
-    // Padding to reach item2
-    while (idx < 64) payload[idx++] = 0x00; 
-  
-    payload[idx++] = 0x01;
-    payload[idx++] = 0x7F;
-    while (*item2 && idx < 96) payload[idx++] = *item2++;
-    while (idx < 96) payload[idx++] = 0x00;
-  
-    // Final length check
-    int totalLen = idx;
+  // Item 1
+  payload[idx++] = 0x00;
+  payload[idx++] = 0x7E;
 
-    Serial.printf("[CAN] do_send totalLen: %d  \n", totalLen ); 
-    return affa3_send(0x151, payload, totalLen);
-  
+  while (*item1 && idx < 64)
+    payload[idx++] = *item1++;
+  // Padding to reach item2
+  while (idx < 64)
+    payload[idx++] = 0x00;
+
+  payload[idx++] = 0x01;
+  payload[idx++] = 0x7F;
+  while (*item2 && idx < 96)
+    payload[idx++] = *item2++;
+  while (idx < 96)
+    payload[idx++] = 0x00;
+
+  // Final length check
+  int totalLen = idx;
+
+  Serial.printf("[CAN] do_send totalLen: %d  \n", totalLen);
+  return affa3_send(0x151, payload, totalLen);
 }
 
 AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)
 {
-    return AffaCommon::AffaError();
+  return AffaCommon::AffaError();
 }
 
 AffaCommon::AffaError Affa3NavDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
 {
-    return AffaCommon::AffaError();
+  return AffaCommon::AffaError();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// void drawMenu() {
-//   const char* header = "MeganeCan";
-//   int total = mainMenu.size();
-
-//   int topIndex = constrain(selectedIndex - 1, 0, total - 1);
-//   int midIndex = constrain(selectedIndex, 0, total - 1);
-
-//   const char* item1 = (topIndex == selectedIndex) ? "" : mainMenu[topIndex].label;
-//   const char* item2 = mainMenu[midIndex].label;
-
-//   uint8_t indicator = 0x00;
-//   if (selectedIndex > 0 && selectedIndex < total - 1) indicator = 0x0C;
-//   else if (selectedIndex > 0) indicator = 0x07;
-//   else if (selectedIndex < total - 1) indicator = 0x0B;
-
-//   Affa3NavDisplay::showMenu(header, item1, item2, indicator);
-// }
-
-// std::vector<MenuItem> timeMenu = {
-//   {
-//     "Hour", MenuItemType::Range,
-//     []() -> String { return String(hour); },
-//     [](int8_t delta) { hour = (hour + delta + 13) % 13; },
-//     nullptr
-//   },
-//   {
-//     "Minute", MenuItemType::Range,
-//     []() -> String { return String(minute); },
-//     [](int8_t delta) { minute = (minute + delta + 60) % 60; },
-//     nullptr
-//   }
-// };
-
-void Affa3NavDisplay::cycleColor(int8_t delta) {
-    static const char* colors[] = {"Red", "Green", "Blue"};
-    int currentIndex = 0;
-    for (int i = 0; i < 3; i++) {
-        if (currentColor.equalsIgnoreCase(colors[i])) {
-            currentIndex = i;
-            break;
-        }
-    }
-    currentIndex = (currentIndex + delta + 3) % 3;
-    currentColor = colors[currentIndex];
-    drawMenu();
-}
-
-void Affa3NavDisplay::cycleEffect(int8_t delta) {
-    static const char* effects[] = {"Lighting", "Strobe", "Wave"};
-    int currentIndex = 0;
-    for (int i = 0; i < 3; i++) {
-        if (currentEffect.equalsIgnoreCase(effects[i])) {
-            currentIndex = i;
-            break;
-        }
-    }
-    currentIndex = (currentIndex + delta + 3) % 3;
-    currentEffect = effects[currentIndex];
-    drawMenu();
-}
-
-void Affa3NavDisplay::openTimeSubmenu() {
-    // static Menu timeMenu;
-    // timeMenu.items = {
-    //     MenuItem{
-    //         .label = "Hour",
-    //         .getValue = [this]() {
-    //             return String(hour).c_str();
-    //         },
-    //         .onInput = [this](int8_t delta) {
-    //             hour = (hour + delta + 24) % 24;
-    //             drawMenu();
-    //         },
-    //         .type = MenuItemType::CHOICE
-    //     },
-    //     MenuItem{
-    //         .label = "Minute",
-    //         .getValue = [this]() {
-    //             return String(minute).c_str();
-    //         },
-    //         .onInput = [this](int8_t delta) {
-    //             minute = (minute + delta + 60) % 60;
-    //             drawMenu();
-    //         },
-    //         .type = MenuItemType::CHOICE
-    //     }
-    // };
-    // timeMenu.parent = currentMenu;
-    // currentMenu = &timeMenu;
-    // selectedIndex = 0;
-    // drawMenu();
-}
+ 

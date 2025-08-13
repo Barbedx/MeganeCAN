@@ -12,6 +12,7 @@ public:
     virtual AffaCommon::AffaError setTime(const char *clock) = 0;   
 
     virtual AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator=0x0B)=0;
+    virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 
 
     //AFFA3NavDisplay specific methods 

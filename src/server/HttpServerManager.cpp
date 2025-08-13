@@ -42,6 +42,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
 </head>
 <body>
+    <h1>Display Control v0.3</h1>
   <h2>display type</h2>
 
     <form action="/setDisplay" method="POST">
@@ -54,10 +55,13 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
   <h2>Auto-restore text</h2>
     <form action="/config/restore" method="GET">
-    <label>
+    <label>    
+    
         <input type="checkbox" name="enable"  id="autoRestoreCheckbox"  value="1"  />
         Auto-Restore texts on startup
     </label>
+        <!-- Hidden input to force sending value when checkbox is unchecked -->
+        <input type="hidden" name="enable" value="0" />
     <input type="submit" value="Save" />
     </form>
 
@@ -87,6 +91,10 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
     <input type="submit" value="Set Time" />
     </form>
+    <hr>
+    <h2>OTA Update</h2>
+    <p>Use the <a href="/update">OTA Update</a> link to upload new firmware.</p>
+ 
 </body>
 </html>
 )rawliteral";
@@ -265,41 +273,74 @@ _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
     )rawliteral";
     return request->reply(200, "text/html", page); });
 
-    // // Endpoint for setMenu
-    // _server.on("/affa3/setMenu", HTTP_GET, [](PsychicRequest *request)
-    //            {
-    // if (request->hasParam("caption") && request->hasParam("name1") && request->hasParam("name2")) {
-    //     String caption = request->getParam("caption")->value();
-    //     String name1 = request->getParam("name1")->value();
-    //     String name2 = request->getParam("name2")->value();
+    _server.on("/emulate", HTTP_GET, [this](PsychicRequest *request){
 
-    //     Affa3Display::display_Control(1);
-    //     Affa3Display::showMenu(caption.c_str(), name1.c_str(), name2.c_str());
+        const char * page = R"rawliteral(
+        <!DOCTYPE html>
+        <html><head><title>Affa3 Display Button Test</title></head><body>
+        <h2>Emulate Buttons</h2>
 
-    //     String text = "Menu set: " + caption + ", " + name1 + ", " + name2;
-    //     return request->reply(200, "text/plain", text.c_str());
-    // } else {
-    //     return request->reply(400, "text/plain", "Missing parameters");
-    // } });
+        <form onsubmit="return false">
+        <button onclick="sendKey(0x0000, 0)">Load</button>
+        <button onclick="sendKey(0x0000, 1)">Load (Hold)</button><br>
 
-    // // Endpoint for setAux
-    // _server.on("/affa3/setAux", HTTP_GET, [](PsychicRequest *request)
-    //            {
-    // setAux();
-    // return request->reply(200, "text/plain", "AUX set"); });
+        <button onclick="sendKey(0x0001, 0)">SrcRight</button>
+        <button onclick="sendKey(0x0001, 1)">SrcRight (Hold)</button><br>
 
-    // // Endpoint for setTextBig
-    // _server.on("/affa3/setTextBig", HTTP_GET, [](PsychicRequest *request)
-    //            {
-    // if (request->hasParam("caption") && request->hasParam("row1") && request->hasParam("row2")) {
-    //     String caption = request->getParam("caption")->value();
-    //     String row1 = request->getParam("row1")->value();
-    //     String row2 = request->getParam("row2")->value();
+        <button onclick="sendKey(0x0002, 0)">SrcLeft</button>
+        <button onclick="sendKey(0x0002, 1)">SrcLeft (Hold)</button><br>
 
-    //     Affa3Display::showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
-    //     String response = "Text set to big: " + caption + ", " + row1 + ", " + row2;
-    //     return request->reply(200, "text/plain", response.c_str());
-    // } else {
-    //     return request->reply(400, "text/plain", "Missing parameters");
-    // } });
+        <button onclick="sendKey(0x0003, 0)">Vol+</button>
+        <button onclick="sendKey(0x0003, 1)">Vol+ (Hold)</button><br>
+
+        <button onclick="sendKey(0x0004, 0)">Vol-</button>
+        <button onclick="sendKey(0x0004, 1)">Vol- (Hold)</button><br>
+
+        <button onclick="sendKey(0x0005, 0)">Pause</button>
+        <button onclick="sendKey(0x0005, 1)">Pause (Hold)</button><br>
+
+        <button onclick="sendKey(0x0101, 0)">RollUp</button>
+        <button onclick="sendKey(0x0101, 1)">RollUp (Hold)</button><br>
+
+        <button onclick="sendKey(0x0141, 0)">RollDown</button>
+        <button onclick="sendKey(0x0141, 1)">RollDown (Hold)</button><br>
+        </form>
+
+        <script>
+        async function sendKey(key, hold) {
+            const formData = new URLSearchParams();
+            formData.append("key", key);
+            formData.append("hold", hold ? "1" : "0");
+
+            const res = await fetch("/emulate/key", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: formData
+            });
+
+            const txt = await res.text();
+            console.log("Response:", txt);
+        }
+        </script>
+                </body></html>
+    )rawliteral";
+
+        return request->reply(200, "text/html", page);
+    });
+
+    _server.on("/emulate/key", HTTP_POST, [this](PsychicRequest *request) {
+        if (!request->hasParam("key") || !request->hasParam("hold")) {
+            return request->reply(400, "text/plain", "Missing key or hold");
+        }
+
+        uint16_t keyCode = request->getParam("key")->value().toInt();
+        bool isHold = request->getParam("hold")->value() == "1";
+
+        AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(keyCode);
+        _commands.OnKeyPressed(key, isHold); 
+
+        String msg = String("Emulated key 0x") + String(keyCode, HEX) + (isHold ? " (Hold)" : " (Press)");
+        return request->reply(200, "text/plain", msg.c_str());
+    });
+ 
 }

@@ -21,6 +21,7 @@ public:
     void showMenu(const char *caption, const char *name1, const char *name2, uint8_t scrollLockIndicator);
     void setAux();
     void setTextBig(const String& caption, const String& row1, const String& row2);
+    void OnKeyPressed(AffaCommon::AffaKey key, bool isHold);
 
 private:
     IDisplay& _display;
