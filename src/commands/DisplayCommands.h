@@ -16,6 +16,7 @@ public:
     void scrollText(const String& arg);
     void setWelcomeText(const String& arg);
     void setTime(const String& arg);
+    void setVoltage(int arg);
     
     // New commands for Affa3NAVDisplay  
     void showMenu(const char *caption, const char *name1, const char *name2, uint8_t scrollLockIndicator);

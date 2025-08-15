@@ -42,7 +42,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
 </head>
 <body>
-    <h1>Display Control v0.3</h1>
+    <h1>Display Control v0.4</h1>
   <h2>display type</h2>
 
     <form action="/setDisplay" method="POST">
@@ -91,10 +91,24 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
     <input type="submit" value="Set Time" />
     </form>
+ 
+  <hr>
+
+    <h2>Set Time</h2>
+    <form action="/setVoltage" method="GET">
+    <label>Voltage :</label>
+    <input type="text" name="voltage" required />
+    <input type="submit" value="Set Voltage" />
+    </form>
+    <hr> 
+ 
     <hr>
     <h2>OTA Update</h2>
     <p>Use the <a href="/update">OTA Update</a> link to upload new firmware.</p>
  
+    <hr>
+    <h2>Button emulation</h2>
+    <p>Use the <a href="/emulate">Button emulation</a> link to debug menu.</p>
 </body>
 </html>
 )rawliteral";
@@ -178,6 +192,7 @@ void HttpServerManager::setupRoutes()
         String welcomeText = _prefs.getString("welcomeText", "");
         _prefs.end();
         return request->reply(200, "text/plain", welcomeText.c_str()); });
+        
     _server.on("/settime", HTTP_GET, [this](PsychicRequest *request)
                {
         if (!request->hasParam("time")) {
@@ -191,6 +206,21 @@ void HttpServerManager::setupRoutes()
 
         _commands.setTime(timeStr);
         String response = "Time set to: " + timeStr;
+        return request->reply(200, "text/plain", response.c_str()); });
+
+    _server.on("/setVoltage", HTTP_GET, [this](PsychicRequest *request)
+               {
+        if (!request->hasParam("voltage")) {
+            return request->reply(400, "text/plain", "Missing 'voltage' parameter");
+        }
+        String str = request->getParam("voltage")->value();
+
+        if (str.length() <= 0 ) {
+            return request->reply(400, "text/plain", "Invalid voltage format. input is empty");
+        }
+
+        _commands.setVoltage(str.toInt());
+        String response = "voltage set to: " + str;
         return request->reply(200, "text/plain", response.c_str()); });
 
     _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {

@@ -13,11 +13,8 @@ public:
 
     virtual AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator=0x0B)=0;
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
-
-
-    //AFFA3NavDisplay specific methods 
-                                          
     
+    virtual bool isAffa3Nav() const { return false; }
 
 };
 

@@ -65,6 +65,27 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
         Serial.println("Definitely AUX");
         return true;
     }
+    // Check if the text clearly indicates RENAULT
+    if (text[1] == 'R' && text[2] == 'E' && text[3] == 'N'
+    && text[4] == 'A'
+    && text[5] == 'U'
+    && text[6] == 'L'
+    && text[7] == 'T')
+    {
+        Serial.println("Definitely AUX");
+        return true;
+    }
+    
+    if (text[1] == 'A' && text[2] == 'U' && text[3] == 'X'
+    && text[4] == ' '
+    && text[5] == ' '
+    && text[6] == ' '
+    && text[7] == ' ' 
+    
+    ) {
+        Serial.println("Definitely AUX");
+        return true;
+    }
 
     // Check for CD mode (TR [0-9] CD [0-9])
     if (text[1] == 'T' && text[2] == 'R' && text[3] == ' ' &&

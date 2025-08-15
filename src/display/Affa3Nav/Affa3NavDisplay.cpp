@@ -101,28 +101,21 @@ namespace
 
 void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 {
-  if (isHold && key == AffaCommon::AffaKey::Load)
+    Serial.print("onKeyPressed fired, key:");
+    Serial.println(static_cast<uint16_t>(key), HEX);
+  if (isHold && key == AffaCommon::AffaKey::Load )
   {
-    Serial.println(">> Load (hold) pressed - activating menu");
+    Serial.println(">> Load (hold) pressed - doing stuff");
     setState(true);
     tracker.SetAuxMode(true);
-    mainMenu->show(); // Show main menu
-    //mainMenu.show(); // Show main menu
-    // menuActive = true;       // no menu!
-    // selectedIndex = 0;       // maybne leave it as is, to reenter menu at the same position?
-    // currentMenu = &mainMenu; // 🔁 Don't forget this
-    highlightItem(mainMenu->getCurrentViewBox().selectedRow);
-    return;
+ 
   }
 
-  if (tracker.isInAuxMode())
-  {
-    //if (mainMenu.isActive())
-    //{
-      // Handle menu navigation
-      //mainMenu.handleKey(key, isHold);
-    //}
-    //else
+  
+  mainMenu.handleKey(key, isHold);
+
+  if (!mainMenu.isActive()  && tracker.isInAuxMode())
+  { 
     {
       // Not in menu, but AUX mode: BLE media control
       Serial.println("Key in AUX mode:");

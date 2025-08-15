@@ -2,26 +2,48 @@
 #include <cstdio>
 #include <algorithm> // for std::clamp
 
+bool Menu::updateFieldExternally(const String &label, size_t fieldIndex, int newValue)
+{
+
+    for (size_t idx = 0; idx < items.size(); ++idx) {
+        MenuItem &item = items[idx];
+        if (item.label != label) continue;
+        if (fieldIndex >= item.fields.size()) return false;
+
+        Field &f = item.fields[fieldIndex];
+        //int clamped = std::clamp(newValue, f.minValue, f.maxValue);
+         // if (f.intValue == clamped) return true;
+
+        f.intValue = newValue;
+
+        // call field-level listener if assigned
+        if (f.onChange) f.onChange(f);
+
+        // call item-level callback if assigned
+        if (item.onChange) item.onChange(item);
+
+        // Only refresh display if menu is active **and item is visible**
+        if (active) {
+            // Determine the top and bottom item indices in the sliding window
+            int topIndex = (selectedRow == 0) ? selectedIndex : selectedIndex - 1;
+            int bottomIndex = topIndex + 1;
+
+            if (idx == topIndex || idx == bottomIndex) {
+                show(); // refresh display
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
 // ===== Add item =====
-void Menu::addItem(const MenuItem &item)
+MenuItem&  Menu::addItem(const MenuItem &item)
 {
     items.push_back(item);
+    return items.back();
 }
-void Menu::updateViewBox() {
-    if (items.size() < 2) return; // minimal requirement
-
-    int topIndex = (selectedRow == 0) ? selectedIndex : selectedIndex - 1;
-    int bottomIndex = topIndex + 1;
-
-    uint8_t scrollIndicator = 0x0C; // both arrows
-    if (selectedIndex == 0) scrollIndicator = 0x0B; // bottom only
-    else if (selectedIndex == (int)items.size() - 1) scrollIndicator = 0x07; // top only
-
-    currentViewBox.header = header;
-    currentViewBox.line1 = getItemString(items[topIndex]);
-    currentViewBox.line2 = getItemString(items[bottomIndex]);
-    currentViewBox.scrollIndicator = scrollIndicator;
-}
+ 
 // ===== Show menu =====
 void Menu::show()
 {
@@ -30,8 +52,17 @@ void Menu::show()
         Serial.println("Menu is empty!");
         return;
     }
-    updateViewBox();
+    
 
+    int topIndex = (selectedRow == 0) ? selectedIndex : selectedIndex - 1;
+    int bottomIndex = topIndex + 1;
+
+     
+
+    refreshMenu(header, getItemString(topIndex), getItemString(bottomIndex), getScrollIndicator());
+    HighlightCurrentSelection(); // Highlight correct item dynamically
+
+    // Update view box
 
 
     // int topIndex = (selectedRow == 0) ? selectedIndex : selectedIndex - 1;
@@ -42,11 +73,10 @@ void Menu::show()
     // showMenu(header, topItem, bottomItem, getScrollIndicator());
 
    // display.showMenu(header.c_str(), getItemString(topItem).c_str(), getItemString(bottomItem).c_str(), getScrollIndicator() );
-   // HighlightSelection(selectedRow); // Highlight correct item dynamically
-    
+   // HighlightSelection(selectedRow); // Highlight correct item dynamically 
 
 } 
-void Menu::printMenuToSerial(String header, MenuItem item1, MenuItem item2, uint8_t scrollLockIndicator, uint8_t selectedRow)
+void Menu::printMenuToSerial(String header, int item1, int item2, uint8_t scrollLockIndicator, uint8_t selectedRow)
 { 
   const auto &menu = items;
   const int total = menu.size();
@@ -83,10 +113,10 @@ if (scrollLockIndicator == 0x0B || scrollLockIndicator == 0x0C)
 
 
 
-String Menu::getItemString(const MenuItem &item) const
-{
-
-    String out = (editing ? "*" : "") + item.label;
+String Menu::getItemString(size_t index) const
+{ 
+    const MenuItem &item = items[index]; 
+    String out = (editing && index == selectedIndex ? "*" : "") + item.label;
 
     if (!item.fields.empty())
     {
@@ -123,7 +153,7 @@ String Menu::getItemString(const MenuItem &item) const
         }
 
         // Show edit mode formatting if needed
-        if (editing && editingFieldIndex == (int)i)
+        if (editing && index == selectedIndex && editingFieldIndex == (int)i)
         {
             val = "<" + val + ">";
         }
@@ -136,31 +166,27 @@ String Menu::getItemString(const MenuItem &item) const
 
 uint8_t Menu::getScrollIndicator()
 {
-    uint8_t scrollLockIndicator = 0x0C; // both arrows
-    // int selectedRow = 1;
-    // int selectedIndex = 1;
-    if ((selectedRow == 0 && selectedIndex == 0) || (selectedRow == 1 && selectedIndex == 1))
-    {
-        scrollLockIndicator = 0x0B; // bottom arrow only
-    }
 
-    if ((selectedRow == 0 && selectedIndex == items.size() - 2) || (selectedRow == 1 && selectedIndex == items.size() - 1))
-    {
-        scrollLockIndicator = scrollLockIndicator == 0x0B ? 0x00 : 0x07; // top arrow only
-    }
-    return scrollLockIndicator;
+    uint8_t scrollIndicator = 0x0C; // both arrows
+    if (selectedIndex == 0 ||
+        (selectedIndex == 1 && selectedRow == 1))
+     scrollIndicator = 0x0B; // bottom only
+    else if (selectedIndex == (int)items.size() - 1 
+        || (selectedIndex == (int)items.size() - 2 && selectedRow == 0 )
+        ) scrollIndicator = 0x07; // top only
+    return scrollIndicator;
 }
 
 void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
 {
     if (!active)
-    {
+    { 
         if (isHold && key == AffaCommon::AffaKey::Load)
         {
-            active = true;
-            show(); // show menu at current selectedIndex
+          active = true;
+            show(); // refresh display
         }
-        return;
+        return ; // not active, do nothing //maybew add another menus later?(by catching new keys)
     }
 
     switch (key)
@@ -169,7 +195,7 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
     case AffaCommon::AffaKey::RollUp:
         if (editing)
         {
-            editFieldValue(isHold ? 10 : 1);
+            editFieldValue(1,isHold );
         }
         else
         {
@@ -181,7 +207,7 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
     case AffaCommon::AffaKey::RollDown:
         if (editing)
         {
-            editFieldValue(isHold ? -10 : -1);
+            editFieldValue(-1,isHold);
         }
         else
         {
@@ -194,63 +220,83 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
         if (isHold)
         {
             active = false; // exit menu
+            closeMenu(); // call close callback
+            Serial.println("Menu closed");
                             // closeMenu(); TODO: Implement closeMenu Maybe with just set aux text?
         }
         else
         {
-            if (editing)
+            if (editing){
                 nextFieldOrExit(); // go to next field or exit edit mode
-
-            else
-                enterEditMode();
-            // enter edit mode if item editable
+                return ; // refresh display
+            }
+            else  
+                enterEditMode(); 
         }
         break;
     default:
         break;
     }
+    return ;
 }
 
-void Menu::editFieldValue(int delta)
+void  Menu::editFieldValue(int delta, bool isHold)
 {
     MenuItem &current = items[selectedIndex];
     Field &field = current.fields[editingFieldIndex];
 
     if (field.type == FieldType::Integer)
     {
-        field.intValue += delta * field.step;
-        if (field.intValue < field.minValue)
-            field.intValue = field.minValue;
-        if (field.intValue > field.maxValue)
-            field.intValue = field.maxValue;
+
+        delta *= isHold ? field.stepMultiplier : 1; // 1 or 10
+
+        int newValue = field.intValue + delta * field.step;
+        if (newValue < field.minValue) newValue = field.minValue;
+        if( newValue > field.maxValue) newValue = field.maxValue;
+         
+        if(field.intValue == newValue) return; // no change
+
+        field.intValue = newValue;
     }
     else if (field.type == FieldType::List)
-    {
-        field.listIndex += delta;
-        if (field.listIndex < 0)
-            field.listIndex = 0;
-        if (field.listIndex >= (int)field.list.size())
-            field.listIndex = field.list.size() - 1;
+    { 
+        int newIndex = field.listIndex + delta;
+        Serial.println("List index: " + String(newIndex) + " of " + String(field.list.size()));
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= (int)field.list.size()-1) newIndex = field.list.size()-1; // no wrap around
+        
+        if (newIndex == field.listIndex) return; // no change  
+        field.listIndex = newIndex;
+        Serial.println("New list index: " + String(field.listIndex)); 
     }
 
-    if (field.onChange)
+    if (field.onChange) //refresh like that????!!!!!!
     {
         field.onChange(field);
     }
+        // Item-level callback
+    if (items[selectedIndex].onChange) {
+        Serial.println("Cal,ling callback Item changed: " + items[selectedIndex].label);
+        items[selectedIndex].onChange(items[selectedIndex]);
+    }
+
     show(); // refresh display
 }
 
-void Menu::HighlightCurrentSelection(int row)
+void Menu::HighlightCurrentSelection()
 {
    // display.highlightItem(row);
-    printMenuToSerial(header, items[selectedIndex], items[selectedIndex + 1], getScrollIndicator(), row);
+   // currentViewBox.selectedRow = row; // Update selected row in view box
+//just hack to show in log as well 
+    int topIndex = (selectedRow == 0) ? selectedIndex : selectedIndex - 1;
+    int bottomIndex = topIndex + 1; 
+    printMenuToSerial(header, topIndex, bottomIndex, getScrollIndicator(), selectedRow);
+    if (highlightItem)
+    {
+        highlightItem(selectedRow); // Call the highlight callback
+    }
 }
-
-void Menu::HighlightSelection(int row)
-{
-   // display.highlightItem(row);
-    printMenuToSerial(header, items[selectedIndex], items[selectedIndex + 1], getScrollIndicator(), row);
-}
+ 
 
 bool Menu::isActive() const
 {
@@ -265,7 +311,7 @@ void Menu::selectNext()
         if (selectedRow == 0)
         {
             selectedRow = 1;
-            HighlightSelection(selectedRow);
+            HighlightCurrentSelection();
         }
         else
         {
@@ -282,7 +328,7 @@ void Menu::selectPrev()
         if (selectedRow == 1)
         {
             selectedRow = 0;
-            HighlightSelection(selectedRow);
+            HighlightCurrentSelection();
         }
         else
         {
@@ -294,9 +340,12 @@ void Menu::selectPrev()
 // ===== Edit mode control =====
 void Menu::enterEditMode()
 {
-    editingFieldIndex = 0;
-    editing = true;
-    show(); // refresh display
+    if(items[selectedIndex].editable){
+
+        editingFieldIndex = 0;
+        editing = true;
+        show();
+    }
 }
 
 void Menu::exitEditMode()

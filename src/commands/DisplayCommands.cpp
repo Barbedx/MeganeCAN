@@ -1,6 +1,7 @@
 #include "DisplayCommands.h"
 // Update the path if "ScrollEffect.h" is in a subfolder, e.g.:
-#include "../effects/ScrollEffect.h"
+#include "../effects/ScrollEffect.h" 
+#include <display/Affa3Nav/Affa3NavDisplay.h>
 
 namespace DisplayCommands
 {
@@ -18,7 +19,7 @@ namespace DisplayCommands
     }
     void Manager::scrollText(const String &arg)
     {
-        _display.setState(true); 
+        _display.setState(true);
         ScrollEffect(&_display, ScrollDirection::Left, arg.c_str(), 250);
 
         _prefs.begin("display", false);
@@ -45,8 +46,15 @@ namespace DisplayCommands
         _display.setTime(timeStr.c_str());
     }
 
+    void Manager::setVoltage(int arg)
+    {
+        if (_display.isAffa3Nav()) {
+            static_cast<Affa3NavDisplay*>(&_display)->getMenu().updateFieldExternally("Voltage", 0, arg);
+        } 
+    }
+
     void Manager::showMenu(const char *caption, const char *name1, const char *name2, uint8_t scrollLockIndicator)
-    { 
+    {
         _display.showMenu(caption, name1, name2, scrollLockIndicator);
         // If you have a display object, call its showMenu method.
         // Example: _display.showMenu(caption, name1, name2, scrollLockIndicator);
@@ -58,7 +66,8 @@ namespace DisplayCommands
         //  _display.showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
     } // namespace DisplayCommands
 
-    void Manager::OnKeyPressed(AffaCommon::AffaKey key, bool isHold){
+    void Manager::OnKeyPressed(AffaCommon::AffaKey key, bool isHold)
+    {
         _display.onKeyPressed(key, isHold);
         // Forward the key press to the display
         // Example: _display.onKeyPressed(key, isHold);

@@ -151,14 +151,14 @@ void initSerial(){
 void restoreDisplay(IDisplay& display, Preferences& prefs) {
     
     
+    prefs.begin("display", true);  // read-only
     bool autoRestore = prefs.getBool("autoRestore", true); // default true
     if (!autoRestore) {
         prefs.end();
         Serial.println("Auto restore disabled by setting.");
         return;
     }
-
-    prefs.begin("display", true);  // read-only
+    Serial.println("Auto restore getted and is true.");
     String savedText = prefs.getString("lastText", "");
     String welcomeText = prefs.getString("welcomeText", "");
     prefs.end();
