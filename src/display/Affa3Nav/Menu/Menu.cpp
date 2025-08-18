@@ -195,7 +195,7 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
     case AffaCommon::AffaKey::RollUp:
         if (editing)
         {
-            editFieldValue(1,isHold );
+            editFieldValue(-1,isHold );
         }
         else
         {
@@ -207,7 +207,7 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
     case AffaCommon::AffaKey::RollDown:
         if (editing)
         {
-            editFieldValue(-1,isHold);
+            editFieldValue(1,isHold);
         }
         else
         {
