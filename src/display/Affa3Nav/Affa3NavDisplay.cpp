@@ -10,12 +10,12 @@
 
 inline void AFFA3_PRINT(const char *fmt, ...)
 {
-//#ifdef DEBUG
+  // #ifdef DEBUG
   va_list args;
   va_start(args, fmt);
   vprintf(fmt, args);
   va_end(args);
-//#endif
+  // #endif
 }
 
 BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
@@ -107,7 +107,7 @@ void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
   if (isHold && key == AffaCommon::AffaKey::Load)
   {
     Serial.println(">> Load (hold) pressed - doing stuff");
-    //setState(true);
+    // setState(true);
     tracker.SetAuxMode(true);
   }
 
@@ -232,8 +232,13 @@ void ShowMyInfoMenu()
 
   // showMenu("MeganeCAN", row1, "Color: ORANGE");
 }
-struct Event {
-  enum Type { KeyPress, Other } type;
+struct Event
+{
+  enum Type
+  {
+    KeyPress,
+    Other
+  } type;
   AffaCommon::AffaKey key;
   bool isHold;
 };
@@ -309,24 +314,20 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  bool answerNeeded = false;
+  bool answerNeeded = false;//TODO:move to settings
 
-  if(answerNeeded){
+  if (answerNeeded)
+  {
     struct CAN_FRAME reply;
     /* Wysyłamy odpowiedź */
     reply.id = packet->id | Affa3Nav::PACKET_REPLY_FLAG;
     reply.length = AffaCommon::PACKET_LENGTH;
     i = 0;
     reply.data.uint8[i++] = 0x74;
-  
     for (; i < AffaCommon::PACKET_LENGTH; i++)
       reply.data.uint8[i] = Affa3Nav::PACKET_FILLER;
-   
     CanUtils::sendFrame(reply);
-
   }
-
-
 
   if (packet->id == Affa3Nav::PACKET_ID_KEYPRESSED) // TODO CHECK IT
   {
@@ -363,23 +364,26 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
 
     // // Detect hold status
     // bool isHold = (rawKey & AffaCommon::KEY_HOLD_MASK) != 0;
-      eventQueue.push({Event::KeyPress, key, isHold});
-      //onKeyPressed(key, isHold);
+    eventQueue.push({Event::KeyPress, key, isHold});
+    // onKeyPressed(key, isHold);
   }
 }
 
-void Affa3NavDisplay::processEvents() {
-  while (!eventQueue.empty()) {
-      Event e = eventQueue.front();
-      eventQueue.pop();
+void Affa3NavDisplay::processEvents()
+{
+  while (!eventQueue.empty())
+  {
+    Event e = eventQueue.front();
+    eventQueue.pop();
 
-      switch (e.type) {
-          case Event::KeyPress:
-               
-               Affa3NavDisplay::onKeyPressed(e.key, e.isHold);   // safe to call affa3_send here
-              break;
-          // future: other event types
-      }
+    switch (e.type)
+    {
+    case Event::KeyPress:
+
+      Affa3NavDisplay::onKeyPressed(e.key, e.isHold); // safe to call affa3_send here
+      break;
+      // future: other event types
+    }
   }
 }
 /**
