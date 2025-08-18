@@ -31,8 +31,8 @@ public:
     BleKeyboard bleKeyboard;
     void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
     void recv(CAN_FRAME *frame) override;
+    void processEvents();
     void tick() override;
-
 
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;

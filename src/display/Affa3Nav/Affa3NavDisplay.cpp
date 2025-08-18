@@ -6,15 +6,16 @@
 #include <vector>
 
 #include "Menu/MenuTypes.h"
+#include <queue>
 
 inline void AFFA3_PRINT(const char *fmt, ...)
 {
-#ifdef DEBUG
+//#ifdef DEBUG
   va_list args;
   va_start(args, fmt);
   vprintf(fmt, args);
   va_end(args);
-#endif
+//#endif
 }
 
 BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
@@ -101,21 +102,19 @@ namespace
 
 void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 {
-    Serial.print("onKeyPressed fired, key:");
-    Serial.println(static_cast<uint16_t>(key), HEX);
-  if (isHold && key == AffaCommon::AffaKey::Load )
+  Serial.print("onKeyPressed fired, key:");
+  Serial.println(static_cast<uint16_t>(key), HEX);
+  if (isHold && key == AffaCommon::AffaKey::Load)
   {
     Serial.println(">> Load (hold) pressed - doing stuff");
-    setState(true);
+    //setState(true);
     tracker.SetAuxMode(true);
- 
   }
 
-  
   mainMenu.handleKey(key, isHold);
 
-  if (!mainMenu.isActive()  && tracker.isInAuxMode())
-  { 
+  if (!mainMenu.isActive() && tracker.isInAuxMode())
+  {
     {
       // Not in menu, but AUX mode: BLE media control
       Serial.println("Key in AUX mode:");
@@ -233,6 +232,13 @@ void ShowMyInfoMenu()
 
   // showMenu("MeganeCAN", row1, "Color: ORANGE");
 }
+struct Event {
+  enum Type { KeyPress, Other } type;
+  AffaCommon::AffaKey key;
+  bool isHold;
+};
+
+std::queue<Event> eventQueue;
 
 void Affa3NavDisplay::recv(CAN_FRAME *packet)
 {
@@ -287,22 +293,6 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     }
     return;
   }
-  if (packet->id == Affa3Nav::PACKET_ID_KEYPRESSED) // TODO CHECK IT
-  {
-    if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] != 0x89)) /* Błędny pakiet */
-      return;
-
-    // Extract full key
-    uint16_t rawKey = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
-
-    // Mask out hold bits for key comparison
-    AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(rawKey & ~AffaCommon::KEY_HOLD_MASK);
-
-    // Detect hold status
-    bool isHold = (rawKey & AffaCommon::KEY_HOLD_MASK) != 0;
-
-    onKeyPressed(key, isHold);
-  }
   if (packet->id == Affa3Nav::PACKET_ID_SETTEXT)
   { /* Pakiet z danymi text */
     tracker.onCanMessage(*packet);
@@ -319,19 +309,79 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  struct CAN_FRAME reply;
-  /* Wysyłamy odpowiedź */
-  reply.id = packet->id | Affa3Nav::PACKET_REPLY_FLAG;
-  reply.length = AffaCommon::PACKET_LENGTH;
-  i = 0;
-  reply.data.uint8[i++] = 0x74;
+  bool answerNeeded = false;
 
-  for (; i < AffaCommon::PACKET_LENGTH; i++)
-    reply.data.uint8[i] = Affa3Nav::PACKET_FILLER;
+  if(answerNeeded){
+    struct CAN_FRAME reply;
+    /* Wysyłamy odpowiedź */
+    reply.id = packet->id | Affa3Nav::PACKET_REPLY_FLAG;
+    reply.length = AffaCommon::PACKET_LENGTH;
+    i = 0;
+    reply.data.uint8[i++] = 0x74;
+  
+    for (; i < AffaCommon::PACKET_LENGTH; i++)
+      reply.data.uint8[i] = Affa3Nav::PACKET_FILLER;
+   
+    CanUtils::sendFrame(reply);
 
-  CanUtils::sendFrame(reply);
+  }
+
+
+
+  if (packet->id == Affa3Nav::PACKET_ID_KEYPRESSED) // TODO CHECK IT
+  {
+    if (!((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] == 0x89))) /* Błędny pakiet */
+      return;
+
+    // Extract full key
+    //% uint16_t rawKey = (packet->data.uint8[2] << 8) | packet->data.uint8[3];
+
+    uint8_t highByte = packet->data.uint8[2];
+    uint8_t lowByte = packet->data.uint8[3];
+    // Combine into rawKey
+    uint16_t rawKey = (highByte << 8) | lowByte;
+
+    bool isHold = false;
+    uint16_t maskedKey = rawKey;
+
+    // Only apply hold masking for non-encoder keys
+    if (!(rawKey == 0x0101 || rawKey == 0x0141))
+    {
+      isHold = (lowByte & AffaCommon::KEY_HOLD_MASK) != 0;
+      maskedKey = rawKey & ~AffaCommon::KEY_HOLD_MASK;
+    }
+
+    // Debug log
+    Serial.printf(
+        "[KEY DEBUG] raw=0x%04X masked=0x%04X isHold=%d\n",
+        rawKey, maskedKey, isHold);
+    // Cast to enum after masking
+    AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(maskedKey);
+
+    // // Mask out hold bits for key comparison
+    // AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(rawKey & ~AffaCommon::KEY_HOLD_MASK);
+
+    // // Detect hold status
+    // bool isHold = (rawKey & AffaCommon::KEY_HOLD_MASK) != 0;
+      eventQueue.push({Event::KeyPress, key, isHold});
+      //onKeyPressed(key, isHold);
+  }
 }
 
+void Affa3NavDisplay::processEvents() {
+  while (!eventQueue.empty()) {
+      Event e = eventQueue.front();
+      eventQueue.pop();
+
+      switch (e.type) {
+          case Event::KeyPress:
+               
+               Affa3NavDisplay::onKeyPressed(e.key, e.isHold);   // safe to call affa3_send here
+              break;
+          // future: other event types
+      }
+  }
+}
 /**
  * Sends a text string to the car display over CAN bus.
  *
@@ -631,4 +681,3 @@ AffaCommon::AffaError Affa3NavDisplay::showInfoMenu(const char *item1, const cha
 {
   return AffaCommon::AffaError();
 }
- 

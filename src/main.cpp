@@ -34,8 +34,8 @@ void gotFrame(CAN_FRAME *frame)
 
     
 
-    
-    CanUtils::printCanFrame(*frame, false);
+    if(frame->id != 0x3CF && frame->id !=0x3AF && frame->id != 0x7AF)
+        CanUtils::printCanFrame(*frame, false);
     display->recv(frame);
     // Echo or other processing can be added here
 }
@@ -247,6 +247,7 @@ void loop()
 {
     serialCommands.ReadSerial();
     ElegantOTA.loop();
+    display->processEvents();
     uint32_t now = millis();
     if (now - last_sync > SYNC_INTERVAL_MS)
     {

@@ -10,6 +10,7 @@ public:
     Affa3Display() { initializeFuncs(); } // ✅ Ensure init logic runs
     void tick() override;
     void recv(CAN_FRAME *frame) override;
+    void processEvents() override {};
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255 /* 0-9, or anything else for none */) override;
     AffaCommon::AffaError setState(bool enabled) override;
     AffaCommon::AffaError setTime(const char *clock) override;
