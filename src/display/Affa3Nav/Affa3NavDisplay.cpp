@@ -300,6 +300,7 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
   if (packet->id == Affa3Nav::PACKET_ID_SETTEXT)
   { /* Pakiet z danymi text */
     tracker.onCanMessage(*packet);
+    mainMenu.handleMessage(*packet);
     if (packet->data.uint8[0] == 0x21) // Start of the text payload
     {
       if (packet->data.uint8[1] == 0x20 && packet->data.uint8[2] == 0x20 && packet->data.uint8[3] == 0xB0 && packet->data.uint8[4] == 0x30 && packet->data.uint8[5] == 0x30 && packet->data.uint8[6] == 0x30 && packet->data.uint8[7] == 0x20)

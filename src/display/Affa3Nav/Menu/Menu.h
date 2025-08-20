@@ -110,7 +110,7 @@ public:
     void show(); // Display menu
     
     void handleKey(AffaCommon::AffaKey key, bool isHold); // everything passes through this
-    
+    void handleMessage(const CAN_FRAME& frame);
     bool isActive() const; 
     
     //const MenuViewBox& getCurrentViewBox() const { return currentViewBox; }
