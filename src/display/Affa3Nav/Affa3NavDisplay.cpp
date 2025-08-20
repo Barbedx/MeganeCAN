@@ -4,8 +4,7 @@
 #include "AuxModeTracker.h"
 #include <NimBLEDevice.h>
 #include <vector>
-
-#include "Menu/MenuTypes.h"
+ 
 #include <queue>
 
 inline void AFFA3_PRINT(const char *fmt, ...)
