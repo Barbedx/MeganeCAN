@@ -9,6 +9,7 @@
 // #include <PsychicHttp.h>
 
 
+#include "ElmManager/MyELMManager.h"
 #include "display/Affa3/Affa3Display.h"
 #include "display/Affa3Nav/Affa3NavDisplay.h"
  
@@ -22,11 +23,14 @@ unsigned long lastPingTime = 0;
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
 HttpServerManager* serverManager = nullptr;
+MyELMManager * elmManager = nullptr;
 
 
 // Enter your WIFI credentials in secret.h
 const char *ssid = Soft_AP_WIFI_SSID;
 const char *password = Soft_AP_WIFI_PASS;
+
+const char* ELM_SSID = "Vgate"; 
 
 void gotFrame(CAN_FRAME *frame)
 {
@@ -200,6 +204,7 @@ void initDisplay() {
     
     display->begin();    // ✅ Only initializes BLE if needed
     serverManager = new HttpServerManager(*display, preferences);  // ✅ Moved here
+    elmManager = new MyELMManager(*display);
     Serial.println("[Display Init] HttpServerManager initialized");
 
     // Optionally call init method if needed
@@ -226,7 +231,7 @@ void setup()
 
 
   // Start the access point
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(ssid, password);
 
     serverManager->begin();
@@ -238,15 +243,41 @@ void setup()
 
     delay(2000); // Wait for CAN bus to stabilize
     restoreDisplay(*display, preferences); // Restore display state and text from NVS TODO:Fix parameter ui
+
+
+ 
 }
 
 #define SYNC_INTERVAL_MS 500
 static uint32_t last_sync = 0;
 
+bool elmConnected = false;
+
 void loop()
 {
     serialCommands.ReadSerial();
     ElegantOTA.loop();
+     // 1️⃣ Try to connect to ELM WiFi if not connected
+    if (!elmConnected) {
+        if (WiFi.status() != WL_CONNECTED) {
+            WiFi.begin(ELM_SSID);
+            Serial.print("Connecting to ELM WiFi...");
+            delay(500); // short delay, non-blocking is possible with millis()
+        } else {
+            Serial.println("\nConnected to ELM WiFi");
+            Serial.print("ESP32 IP in ELM network: ");
+            Serial.println(WiFi.localIP());
+
+            // Initialize ELM manager only after WiFi is ready
+            elmManager->setup();
+            elmConnected = true;
+        }
+    }
+    // 2️⃣ If connected, run ELM tick
+    if (elmConnected) {
+        elmManager->tick();
+    }
+    elmManager->tick();
     display->processEvents();
     uint32_t now = millis();
     if (now - last_sync > SYNC_INTERVAL_MS)
