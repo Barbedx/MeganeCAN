@@ -8,54 +8,52 @@
 #include <SerialCommands.h> // Assuming this is already included in your project
 // #include <PsychicHttp.h>
 
-
 #include "ElmManager/MyELMManager.h"
 #include "display/Affa3/Affa3Display.h"
 #include "display/Affa3Nav/Affa3NavDisplay.h"
- 
 
 // SerialCommand sCmd;   // The SerialCommand object
 // Affa3NavDisplay display; // Create an instance of Affa3Display
-AffaDisplayBase* display = nullptr;
+AffaDisplayBase *display = nullptr;
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
-
+// ---- Static IP for V-LINK (STA) ----
+IPAddress ELM_STA_IP(192,168,0,151);     // choose a free IP (NOT 0.150)
+IPAddress ELM_GATEWAY(192,168,0,10);     // from your info
+IPAddress ELM_SUBNET(255,255,255,0);     // likely /24
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
-HttpServerManager* serverManager = nullptr;
-MyELMManager * elmManager = nullptr;
-
+HttpServerManager *serverManager = nullptr;
+MyELMManager *elmManager = nullptr;
 
 // Enter your WIFI credentials in secret.h
 const char *ssid = Soft_AP_WIFI_SSID;
 const char *password = Soft_AP_WIFI_PASS;
 
-const char* ELM_SSID = "Vgate"; 
+const char *ELM_SSID = "V-LINK";
 
 void gotFrame(CAN_FRAME *frame)
 {
 
-
-    
-
-    if(frame->id != 0x3CF && frame->id !=0x3AF && frame->id != 0x7AF)
+    if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
     display->recv(frame);
     // Echo or other processing can be added here
 }
 
-void cmd_enable(SerialCommands* sender) { 
+void cmd_enable(SerialCommands *sender)
+{
     Serial.println("Enabling display");
-    display->setState(true); 
+    display->setState(true);
 }
-void cmd_disable(SerialCommands* sender) { display->setState(false); }
+void cmd_disable(SerialCommands *sender) { display->setState(false); }
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
 //  void cmd_messageTestold6() { displayManager.messageTest6(); }
 //  void cmd_messageTestold(){ displayManager.messageTest2(); }
 //   void cmd_mgwelcome(){ displayManager.messageWelcome(); }
-void cmd_scrollmtx(SerialCommands* sender)
+void cmd_scrollmtx(SerialCommands *sender)
 {
     const char *text = sender->Next();
     const char *delayStr = sender->Next();
@@ -80,7 +78,7 @@ void cmd_scrollmtx(SerialCommands* sender)
     // display.scrollText(text, delayMs);
 }
 
-void cmd_scrollmtxl(SerialCommands* sender)
+void cmd_scrollmtxl(SerialCommands *sender)
 {
     const char *text = sender->Next();
     const char *delayStr = sender->Next();
@@ -101,7 +99,7 @@ void cmd_scrollmtxl(SerialCommands* sender)
     ScrollEffect(display, ScrollDirection::Left, text, delayMs);
 }
 
-void cmd_setTime(SerialCommands* sender)
+void cmd_setTime(SerialCommands *sender)
 {
 
     char *timeStr = sender->Next(); // e.g., "0930"
@@ -127,16 +125,16 @@ SerialCommand cmd_st("st", cmd_setTime);
 SerialCommand cmd_msr("msr", cmd_scrollmtx);
 SerialCommand cmd_msl("msl", cmd_scrollmtxl);
 
-
 // Create SerialCommands manager
 char serial_command_buffer[64];
 char serial_delim[] = " \r\n";
 SerialCommands serialCommands(&Serial, serial_command_buffer, sizeof(serial_command_buffer), serial_delim);
 
-void initSerial(){
-    
+void initSerial()
+{
+
     // Initialize random seed (run only once)
-    
+
     Serial.begin(115200);
     delay(2000);
     Serial.println("------------------------");
@@ -151,13 +149,13 @@ void initSerial(){
     serialCommands.AddCommand(&cmd_msl);
 }
 
+void restoreDisplay(IDisplay &display, Preferences &prefs)
+{
 
-void restoreDisplay(IDisplay& display, Preferences& prefs) {
-    
-    
-    prefs.begin("display", true);  // read-only
+    prefs.begin("display", true);                          // read-only
     bool autoRestore = prefs.getBool("autoRestore", true); // default true
-    if (!autoRestore) {
+    if (!autoRestore)
+    {
         prefs.end();
         Serial.println("Auto restore disabled by setting.");
         return;
@@ -168,25 +166,34 @@ void restoreDisplay(IDisplay& display, Preferences& prefs) {
     prefs.end();
 
     display.setState(true);
-    if (welcomeText.length() > 0) {
+    if (welcomeText.length() > 0)
+    {
         ScrollEffect(&display, ScrollDirection::Left, welcomeText.c_str(), 250);
-    } else {
+    }
+    else
+    {
         ScrollEffect(&display, ScrollDirection::Left, "                  Welcome to MEGANE 2", 250);
     }
 
-    if (savedText.length() > 0) {
+    if (savedText.length() > 0)
+    {
         display.setText(savedText.c_str());
-    } else {
-        if (random(0, 2) == 0) {
+    }
+    else
+    {
+        if (random(0, 2) == 0)
+        {
             display.setText("MEGANE");
-        } else {
+        }
+        else
+        {
             display.setText("RENAULT");
         }
-   }
+    }
 }
 
-
-void initDisplay() {
+void initDisplay()
+{
     Preferences prefs;
     prefs.begin("config", true);
     String displayType = prefs.getString("display_type", "affa3");
@@ -194,29 +201,48 @@ void initDisplay() {
 
     Serial.println("[Display Init] Display type from config: " + displayType);
 
-    if (displayType == "affa3nav") {
+    if (displayType == "affa3nav")
+    {
         Serial.println("[Display Init] Instantiating Affa3NavDisplay");
         display = new Affa3NavDisplay();
-    } else {
+    }
+    else
+    {
         Serial.println("[Display Init] Instantiating Affa3Display (default)");
         display = new Affa3Display();
     }
-    
-    display->begin();    // ✅ Only initializes BLE if needed
-    serverManager = new HttpServerManager(*display, preferences);  // ✅ Moved here
+
+    display->begin();                                             // ✅ Only initializes BLE if needed
+    serverManager = new HttpServerManager(*display, preferences); // ✅ Moved here
     elmManager = new MyELMManager(*display);
     Serial.println("[Display Init] HttpServerManager initialized");
 
     // Optionally call init method if needed
-    // display->init(); 
+    // display->init();
     // Serial.println("[Display Init] Display initialized");
+}
+static bool wifiBeginIssued = false;
+// One-time connect helper
+void connectToElm() {
+  WiFi.mode(WIFI_STA);
+  WiFi.persistent(false);
+  WiFi.setAutoReconnect(true);
+  //WiFi.setSleep(false);
+
+  WiFi.disconnect(true, true);           // clean state
+  //WiFi.config(ELM_STA_IP, ELM_GATEWAY, ELM_SUBNET); // STATIC IP
+  Serial.println("Connecting to ELM WiFi (STA, static IP)...");
+  WiFi.begin("V-LINK");                  // open network (no password)
+
+  // ✅ Important: mark as issued so we don't retry every loop
+  wifiBeginIssued = true;
 }
 
 void setup()
 {
 
     // Initialize random seed (run only once)
-     
+
     delay(2000);
     initDisplay();
     initSerial();
@@ -229,55 +255,116 @@ void setup()
     CAN0.watchFor();
     Serial.println(" CAN...............INIT");
 
-
-  // Start the access point
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.softAP(ssid, password);
+    // Start the access point
+    // WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_STA);
+    WiFi.setAutoReconnect(true); // check and if not available - run ap
+    // WiFi.softAP(ssid, password);
 
     serverManager->begin();
- 
-        
+
     Serial.println(" all............inited"); // Serve the commands via HTTP GET requests
- 
+
     Serial.println("RESTAPI........done");
 
-    delay(2000); // Wait for CAN bus to stabilize
+    delay(2000);                           // Wait for CAN bus to stabilize
     restoreDisplay(*display, preferences); // Restore display state and text from NVS TODO:Fix parameter ui
-
-
- 
 }
 
 #define SYNC_INTERVAL_MS 500
 static uint32_t last_sync = 0;
 
-bool elmConnected = false;
-
+static bool elmSetupDone = false;
+static bool elmConnected = false;
+// Helper to print human-readable WiFi status
+const char *wlStr(wl_status_t s)
+{
+    switch (s)
+    {
+    case WL_IDLE_STATUS:
+        return "IDLE";
+    case WL_NO_SSID_AVAIL:
+        return "NO_SSID";
+    case WL_SCAN_COMPLETED:
+        return "SCAN_DONE";
+    case WL_CONNECTED:
+        return "CONNECTED";
+    case WL_CONNECT_FAILED:
+        return "FAILED";
+    case WL_CONNECTION_LOST:
+        return "LOST";
+    case WL_DISCONNECTED:
+        return "DISCONNECTED";
+    default:
+        return "UNKNOWN";
+    }
+}
 void loop()
 {
     serialCommands.ReadSerial();
     ElegantOTA.loop();
-     // 1️⃣ Try to connect to ELM WiFi if not connected
-    if (!elmConnected) {
-        if (WiFi.status() != WL_CONNECTED) {
-            WiFi.begin(ELM_SSID);
-            Serial.print("Connecting to ELM WiFi...");
-            delay(500); // short delay, non-blocking is possible with millis()
-        } else {
-            Serial.println("\nConnected to ELM WiFi");
-            Serial.print("ESP32 IP in ELM network: ");
-            Serial.println(WiFi.localIP());
 
-            // Initialize ELM manager only after WiFi is ready
-            elmManager->setup();
+    // 1) Start connecting ONCE
+    if (!wifiBeginIssued)
+    {
+      connectToElm() ;
+    }
+
+    // 2) Check status
+    wl_status_t st = WiFi.status();
+    // (avoid %zu; cast to unsigned long if you print size_t anywhere)
+    // Serial.printf("WiFi status: %s\n", wlStr(st));
+
+    if (!elmConnected)
+    {
+        if (st == WL_CONNECTED)
+        {Serial.println("STA connected to V-LINK");
+Serial.print("STA IP: ");      Serial.println(WiFi.localIP());
+Serial.print("Gateway: ");     Serial.println(WiFi.gatewayIP());
+Serial.print("Subnet : ");     Serial.println(WiFi.subnetMask());
+Serial.print("DNS    : ");     Serial.println(WiFi.dnsIP());
+Serial.print("Channel: ");     Serial.println(WiFi.channel());
+ 
+           
+
+            // Now start AP on the SAME channel
+            // WiFi.mode(WIFI_AP_STA); // enable both
+            // WiFi.softAP(ssid, password, ch /*channel*/, 0 /*hidden*/, 4 /*max conn*/);
+            // Serial.print("AP started on channel: ");
+            // Serial.println(ch);
+
+            if (!elmSetupDone)
+            {
+                elmManager->setup();
+                elmSetupDone = true;
+            }
             elmConnected = true;
         }
+        else if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL)
+        {
+            // Retry after a short backoff
+            static uint32_t lastRetry = 0;
+            uint32_t now = millis();
+            if (now - lastRetry > 3000)
+            {
+                Serial.printf("STA status: %s. Retrying begin...\n", wlStr(st));
+            connectToElm() ;
+                lastRetry = now;
+            }
+        }
+        else
+        {
+            // still connecting; small yield
+            delay(25);
+        }
     }
-    // 2️⃣ If connected, run ELM tick
-    if (elmConnected) {
+
+    // 3) Only tick when ready
+    if (elmConnected && elmSetupDone && elmManager)
+    {
         elmManager->tick();
     }
-    elmManager->tick();
+
     display->processEvents();
     uint32_t now = millis();
     if (now - last_sync > SYNC_INTERVAL_MS)
