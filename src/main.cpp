@@ -18,9 +18,9 @@ AffaDisplayBase *display = nullptr;
 bool sessionStarted = false;
 unsigned long lastPingTime = 0;
 // ---- Static IP for V-LINK (STA) ----
-IPAddress ELM_STA_IP(192,168,0,151);     // choose a free IP (NOT 0.150)
-IPAddress ELM_GATEWAY(192,168,0,10);     // from your info
-IPAddress ELM_SUBNET(255,255,255,0);     // likely /24
+IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
+IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
+IPAddress ELM_SUBNET(255, 255, 255, 0); // likely /24
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
 HttpServerManager *serverManager = nullptr;
@@ -223,19 +223,20 @@ void initDisplay()
 }
 static bool wifiBeginIssued = false;
 // One-time connect helper
-void connectToElm() {
-  WiFi.mode(WIFI_STA);
-  WiFi.persistent(false);
-  WiFi.setAutoReconnect(true);
-  //WiFi.setSleep(false);
+void connectToElm()
+{
+    WiFi.mode(WIFI_STA);
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(true);
+    // WiFi.setSleep(false);
 
-  WiFi.disconnect(true, true);           // clean state
-  //WiFi.config(ELM_STA_IP, ELM_GATEWAY, ELM_SUBNET); // STATIC IP
-  Serial.println("Connecting to ELM WiFi (STA, static IP)...");
-  WiFi.begin("V-LINK");                  // open network (no password)
+    WiFi.disconnect(true, true); // clean state
+    // WiFi.config(ELM_STA_IP, ELM_GATEWAY, ELM_SUBNET); // STATIC IP
+    Serial.println("Connecting to ELM WiFi (STA, static IP)...");
+    WiFi.begin("V-LINK"); // open network (no password)
 
-  // ✅ Important: mark as issued so we don't retry every loop
-  wifiBeginIssued = true;
+    // ✅ Important: mark as issued so we don't retry every loop
+    wifiBeginIssued = true;
 }
 
 void setup()
@@ -273,9 +274,7 @@ void setup()
 
 #define SYNC_INTERVAL_MS 500
 static uint32_t last_sync = 0;
-
-static bool elmSetupDone = false;
-static bool elmConnected = false;
+  
 // Helper to print human-readable WiFi status
 const char *wlStr(wl_status_t s)
 {
@@ -307,7 +306,7 @@ void loop()
     // 1) Start connecting ONCE
     if (!wifiBeginIssued)
     {
-      connectToElm() ;
+        connectToElm();
     }
 
     // 2) Check status
@@ -315,52 +314,16 @@ void loop()
     // (avoid %zu; cast to unsigned long if you print size_t anywhere)
     // Serial.printf("WiFi status: %s\n", wlStr(st));
 
-    if (!elmConnected)
-    {
-        if (st == WL_CONNECTED)
-        {Serial.println("STA connected to V-LINK");
-Serial.print("STA IP: ");      Serial.println(WiFi.localIP());
-Serial.print("Gateway: ");     Serial.println(WiFi.gatewayIP());
-Serial.print("Subnet : ");     Serial.println(WiFi.subnetMask());
-Serial.print("DNS    : ");     Serial.println(WiFi.dnsIP());
-Serial.print("Channel: ");     Serial.println(WiFi.channel());
- 
-           
-
-            // Now start AP on the SAME channel
-            // WiFi.mode(WIFI_AP_STA); // enable both
-            // WiFi.softAP(ssid, password, ch /*channel*/, 0 /*hidden*/, 4 /*max conn*/);
-            // Serial.print("AP started on channel: ");
-            // Serial.println(ch);
-
-            if (!elmSetupDone)
-            {
-                elmManager->setup();
-                elmSetupDone = true;
-            }
-            elmConnected = true;
-        }
-        else if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL)
-        {
-            // Retry after a short backoff
-            static uint32_t lastRetry = 0;
-            uint32_t now = millis();
-            if (now - lastRetry > 3000)
-            {
-                Serial.printf("STA status: %s. Retrying begin...\n", wlStr(st));
-            connectToElm() ;
-                lastRetry = now;
-            }
-        }
-        else
-        {
-            // still connecting; small yield
-            delay(25);
-        }
+    // If Wi-Fi joined the V-LINK AP, let the ELM manager build/keep TCP+init
+    if (st == WL_CONNECTED && elmManager) {
+        // This will no-op if everything is already good,
+        // or reconnect with backoff if it isn't.
+        elmManager->ensureTcpAndElm();
     }
+     
 
     // 3) Only tick when ready
-    if (elmConnected && elmSetupDone && elmManager)
+    if ( elmManager)
     {
         elmManager->tick();
     }

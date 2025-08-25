@@ -1,0 +1,73 @@
+Identified ECU [BCM/UCH]@26 : UCH_84_J84_05_00.json DIAGVERSION [76]SUPPLIER [001] SOFT [0322] VERSION [0460] {3097}
+Identified ECU [ABS/ESC]@01 : Esp_X84_Bosch8.0_F05_Vdiag_0A.json DIAGVERSION [10]SUPPLIER [037] SOFT [8F0C] VERSION [0C13] {8040}
+Identified ECU [ECM/Injection]@7A : S3000_A791_Can_1_X84.json DIAGVERSION [68]SUPPLIER [213] SOFT [00A7] VERSION [9100] {7268}
+Found ECU [Cluster/TDB] (not perfect match) :Tdb_BCEKL84_serie_4emeRev DIAGVERSION [4] SUPPLIER [ANC] SOFT [0008] VERSION [0905 instead 0812]
+Found ECU [Power steering] (not perfect match) :DAE_X84_Serie V1 DIAGVERSION [8] SUPPLIER [DZ9] SOFT [8341] VERSION [0013 instead 0012]
+Identified ECU [HVAC]@29 : Climatisation_regulee_Redesign_P0_X84_SERIE.json DIAGVERSION [68]SUPPLIER [042] SOFT [0011] VERSION [0201] {1922}
+Found ECU [TCU] (not perfect match) :UCT E84 SERIE 3 DIAGVERSION [4] SUPPLIER [330] SOFT [0005] VERSION [0004 instead 0002]
+Identified ECU [UPC-EMM]@27 : UPC_84_(v4.1).json DIAGVERSION [68]SUPPLIER [001] SOFT [0202] VERSION [2A00] {2476}
+Identified ECU [Airbag]@2C : ACU4_X84_MK2.json DIAGVERSION [8]SUPPLIER [219] SOFT [0019] VERSION [1200] {3240}
+ECU uses SDS 10C0
+Sending ELM request :17FF00
+ELM response : 57 06 06 38 DE 25 02 2E 02 35 C5 02 43 DF 02 43 61 02 43 62 
+Sending ELM request :17FFFF
+Bad ELM response : WRONG RESPONSE : NR: SubFunction Not Supported(7F1712)
+ELM response : WRONG RESPONSE : NR: SubFunction Not Supported(7F1712)
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :21A0
+ELM response : 61 A0 B3 BE 65 0D 7A 0D 02 EB 02 F0 00 00 00 3C 70 5F 00 03 1C 00 00 00 00 00 
+Sending ELM request :21A4
+ELM response : 61 A4 07 00 00 00 00 00 00 4A 05 E2 00 00 00 00 1B 1E 00 00 00 00 00 00 00 00 
+Sending ELM request :21A3
+ELM response : 61 A3 02 25 00 00 00 00 00 FB 21 91 99 25 A1 78 D6 00 00 00 00 00 00 00 00 00 
+Sending ELM request :21A9
+ELM response : 61 A9 00 4C 57 58 91 99 00 00 21 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :21A0
+ELM response : 61 A0 B1 BF 65 0D 6A 0D 02 EE 02 F0 00 00 00 3C 80 61 00 03 1C 00 00 00 00 00 
+Sending ELM request :21A4
+ELM response : 61 A4 4A 00 00 00 00 00 00 49 05 E2 00 00 00 00 28 8E 00 00 00 00 00 00 00 00 
+Sending ELM request :21A3
+ELM response : 61 A3 02 1F 00 00 00 00 00 FB 2E 91 99 24 9E 78 0A 00 00 00 00 00 00 00 00 00 
+Sending ELM request :21A9
+ELM response : 61 A9 00 4C 58 58 91 99 00 00 20 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 
+Sending ELM request :3E
+ELM response : 7E 

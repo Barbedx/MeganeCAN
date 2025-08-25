@@ -1,0 +1,307 @@
+More details at https://bit.ly/pio-monitor-filters
+--- Quit: Ctrl+C | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+------------------------
+   MEGANE CAN BUS
+------------------------
+ CAN...............INIT
+HTTP Server: routes initialized.
+ all............inited
+RESTAPI........done
+Auto restore disabled by setting.
+Connecting to ELM WiFi (STA, static IP)...
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+Timeout detected with overflow of 0ms
+Clearing input serial buffer
+Sending the following command/query: AT Z
+        Received char: A
+        Received char: T
+        Received char: _
+        Received char: Z
+        Received char: \r
+        Received char: \r
+        Received char: \r
+        Received char: E
+        Received char: L
+        Received char: M
+        Received char: 3
+        Received char: 2
+        Received char: 7
+        Received char: _
+        Received char: v
+        Received char: 2
+        Received char: .
+        Received char: 3
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+ELM327v2.3received: ATZ
+Clearing input serial buffer
+Sending the following command/query: AT E0
+        Received char: A
+        Received char: T
+        Received char: _
+        Received char: E
+        Received char: 0
+        Received char: \r
+        Received char: O
+        Received char: K
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+OKl chars received: ATE0
+Clearing input serial buffer
+Sending the following command/query: AT S0
+        Received char: O
+        Received char: K
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+        Received char: O
+        Received char: K
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+        Received char: O
+        Received char: K
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+        Received char: O
+        Received char: K
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: OK
+Elm INITIALIZED!!!
+[Flow] Sending header for ECU 7E0
+[Header-SEND] AT SH 7E0
+Clearing input serial buffer
+Sending the following command/query: AT SH 7E0
+        Received char: O
+        Received char: K
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: OK
+[Header->OK] ECU 7E0 acknowledged header
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: E
+        Received char: A
+        Received char: R
+        Received char: C
+        Received char: H
+        Received char: I
+        Received char: N
+        Received char: G
+        Received char: .
+        Received char: .
+        Received char: .
+        Received char: \r
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: T
+        Received char: O
+        Received char: P
+        Received char: P
+        Received char: E
+        Received char: D
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: STOPPED
+ELM responded with error "STOPPED"
+Status is: =6
+[ERR] Session 10C0 failed or timed out (state=6)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: E
+        Received char: A
+        Received char: R
+        Received char: C
+        Received char: H
+        Received char: I
+        Received char: N
+        Received char: G
+        Received char: .
+        Received char: .
+        Received char: .
+        Received char: \r
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: T
+        Received char: O
+        Received char: P
+        Received char: P
+        Received char: E
+        Received char: D
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: STOPPED
+ELM responded with error "STOPPED"
+Status is: =6
+[ERR] Session 10C0 failed or timed out (state=6)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: E
+        Received char: A
+        Received char: R
+        Received char: C
+        Received char: H
+        Received char: I
+        Received char: N
+        Received char: G
+        Received char: .
+        Received char: .
+        Received char: .
+        Received char: \r
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: T
+        Received char: O
+        Received char: P
+        Received char: P
+        Received char: E
+        Received char: D
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: STOPPED
+ELM responded with error "STOPPED"
+Status is: =6
+[ERR] Session 10C0 failed or timed out (state=6)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: E
+        Received char: A
+        Received char: R
+        Received char: C
+        Received char: H
+        Received char: I
+        Received char: N
+        Received char: G
+        Received char: .
+        Received char: .
+        Received char: .
+        Received char: \r
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: T
+        Received char: O
+        Received char: P
+        Received char: P
+        Received char: E
+        Received char: D
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: STOPPED
+ELM responded with error "STOPPED"
+Status is: =6
+[ERR] Session 10C0 failed or timed out (state=6)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: E
+        Received char: A
+        Received char: R
+        Received char: C
+        Received char: H
+        Received char: I
+        Received char: N
+        Received char: G
+        Received char: .
+        Received char: .
+        Received char: .
+        Received char: \r
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+        Received char: S
+        Received char: T
+        Received char: O
+        Received char: P
+        Received char: P
+        Received char: E
+        Received char: D
+        Received char: \r
+        Received char: \r
+        Received char: >
+Delimiter found.
+All chars received: STOPPED
+ELM responded with error "STOPPED"
+Status is: =6
+[ERR] Session 10C0 failed or timed out (state=6)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+Timeout detected with overflow of 0ms
+Status is: =7
+[ERR] Session 10C0 failed or timed out (state=7)
+[Flow] Opening diagnostic session: 10C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+============================================= [SUCCESS] Took 95.38 seconds =============================================
+ *  Terminal will be reused by tasks, press any key to close it. 
