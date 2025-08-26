@@ -36,7 +36,7 @@ void MyELMManager::disconnectTcp()
 bool MyELMManager::initElmOnce()
 {
     // Lock protocol to ISO15765-4 (11bit, 500k)
-    elm.begin(wifiClient, /*debug*/ true, /*timeout*/ 5000,
+    elm.begin(wifiClient, /*debug*/ false, /*timeout*/ 5000,
               ISO_15765_11_BIT_500_KBAUD, /*rxBuf*/ 256, /*dataTimeout*/ 225);
     Serial.println("Elm.begin done");
 
@@ -44,9 +44,9 @@ bool MyELMManager::initElmOnce()
     elm.sendCommand_Blocking("AT SP 6");
 
     // Start with engine header + SDS (works for your S3000)
-     elm.sendCommand_Blocking("ATSH 7E0");
-     delay(100);
-     elm.sendCommand_Blocking("10C0"); // expect 50 C0 (we won’t block here again)
+    elm.sendCommand_Blocking("ATSH 7E0");
+    delay(100);
+    elm.sendCommand_Blocking("10C0"); // expect 50 C0 (we won’t block here again)
 
     Serial.println("Elm init commands done");
     elmReady = true;
@@ -237,17 +237,32 @@ std::vector<uint8_t> MyELMManager::decodeToUdsData(const char *ascii, size_t len
     // Strip UDS service+PID if present (e.g., 61 A0 ...)
     return diag::udsDataOnly(raw);
 }
+// ---- debug print switch ----
+#ifndef LOG_PID_VALUES
+#define LOG_PID_VALUES 1 // set to 0 to silence value logs
+#endif
 
+static inline void dumpHex(const std::vector<uint8_t> &v)
+{
+#if LOG_PID_VALUES
+    Serial.print("[DATA] ");
+    for (uint8_t b : v)
+        Serial.printf("%02X ", b);
+    Serial.printf("(%u bytes)\n", (unsigned)v.size());
+#endif
+}
 // ----------------- main state machine -----------------
 void MyELMManager::tick()
 {
     // Bring up TCP + ELM init with backoff; no-ops if already good
     // 0) ensure connectivity and ELM
-    if (!ensureTcpAndElm()){
+    if (!ensureTcpAndElm())
+    {
         Serial.println("ensureTcpAndElm failed");
         return;
     }
-    if (plan.empty()){
+    if (plan.empty())
+    {
         Serial.println("plan is empty");
         return;
     }
@@ -256,14 +271,14 @@ void MyELMManager::tick()
     // Enforce a minimum spacing between commands
     if (waiting)
     {
-       // Serial.println("waiting for response ...");
+        // Serial.println("waiting for response ...");
         elm.get_response();
-        
+
         if (elm.nb_rx_state == ELM_GETTING_MSG)
-            {
-              //  Serial.println("still getting message ...");
-                return; // check if ping needed?
-            }
+        {
+            //  Serial.println("still getting message ...");
+            return; // check if ping needed?
+        }
 
         if (elm.nb_rx_state == ELM_SUCCESS)
         {
@@ -309,14 +324,29 @@ void MyELMManager::tick()
                 // Parse payload -> UDS data (strip 61 xx if present)
                 auto data = decodeToUdsData(elm.payload, elm.PAYLOAD_LEN);
 
-                // Evaluate metrics for this plan node
                 const auto &node = plan[planIndex];
+#if LOG_PID_VALUES
+                Serial.printf("[RECV] header=%s pid=%s  ->  decoded UDS payload\n",
+                              currentHeader.c_str(), node.modePid);
+                dumpHex(data);
+#endif
+                // Evaluate metrics for this plan node
+ 
                 for (const auto &m : node.metrics)
                 {
                     if (!m.eval)
                         continue;
                     float v = m.eval(data);
                     valueCache[String(m.shortName)] = v; // cache latest value
+
+#if LOG_PID_VALUES
+                    // pretty print: Name (Short) = value [unit]
+                    const char *name = (m.name && m.name[0]) ? m.name : m.shortName;
+                    const char *unit = (m.units && m.units[0]) ? m.units : "";
+                    Serial.printf("  %-32s (%-8s) = %8.3f %s\n",
+                                  name ? name : "-", m.shortName ? m.shortName : "-",
+                                  v, unit);
+#endif
                 }
 
                 sessions[currentHeader].lastMs = now;
@@ -335,18 +365,26 @@ void MyELMManager::tick()
         waiting = waitingHeaderOK = waitingSDS = waitingPing = waitingPid = false;
         Serial.printf("[ELM] rx error state=%d\n", elm.nb_rx_state);
         planIndex = (planIndex + 1) % plan.size();
+#if LOG_PID_VALUES
+        Serial.printf("[ELM][PID ERR] header=%s pid=%s state=%d\n",
+                      currentHeader.c_str(),
+                      plan.empty() ? "-" : plan[planIndex].modePid,
+                      (int)elm.nb_rx_state);
+#endif
+
         return;
     }
 
     // not waiting:
 
     // B) Not waiting: throttle a bit between commands
-    if ((now - lastCmdMs) < kCmdIntervalMs){
-       // Serial.println("throttling between commands ...");
+    if ((now - lastCmdMs) < kCmdIntervalMs)
+    {
+        // Serial.println("throttling between commands ...");
         return;
     }
-//Serial.println("ready to send next command ...");
-    // C) Choose current plan node
+    // Serial.println("ready to send next command ...");
+    //  C) Choose current plan node
     const auto &node = plan[planIndex];
 
     // D) Ensure correct header is selected

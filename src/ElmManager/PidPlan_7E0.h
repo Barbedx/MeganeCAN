@@ -349,21 +349,21 @@ inline std::vector<diag::PidPlan> buildS3000_Plan_7E0() {
         [](const std::vector<uint8_t>& b){ return 20.0f*(float)U8(b,'K'); }},
     };
     plan.push_back(p);
-  }
+  // }
 
-  // 21AF ---------------------------------------------------------------------
-  {
-    diag::PidPlan p; p.header = "7E0"; p.modePid = "21AF"; p.needsSession = true;
-    p.metrics = {
-      {"ST_ВВОД КОДА ВЫПОЛНЕН","ET006","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',5); }},
-      {"ST_ИМОБИЛАЙЗЕР","ET003","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',6); }},
-      {"ST_УДАР ОБНАРУЖЕН","ET077","", 0, 255,
-        [](const std::vector<uint8_t>& b){ return (float)U8(b,'E'); }},
-    };
-    plan.push_back(p);
-  }
+  // // 21AF ---------------------------------------------------------------------
+  // {
+  //   diag::PidPlan p; p.header = "7E0"; p.modePid = "21AF"; p.needsSession = true;
+  //   p.metrics = {
+  //     {"ST_ВВОД КОДА ВЫПОЛНЕН","ET006","", 0, 1,
+  //       [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',5); }},
+  //     {"ST_ИМОБИЛАЙЗЕР","ET003","", 0, 1,
+  //       [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',6); }},
+  //     {"ST_УДАР ОБНАРУЖЕН","ET077","", 0, 255,
+  //       [](const std::vector<uint8_t>& b){ return (float)U8(b,'E'); }},
+  //   };
+  //   plan.push_back(p);
+  // }
 
   // 21C1 ---------------------------------------------------------------------
   {
@@ -383,43 +383,43 @@ inline std::vector<diag::PidPlan> buildS3000_Plan_7E0() {
     plan.push_back(p);
   }
 
-  // 21C7 ---------------------------------------------------------------------
-  {
-    diag::PidPlan p; p.header = "7E0"; p.modePid = "21C7"; p.needsSession = true;
-    p.metrics = {
-      {"ST_ЗАПУСК","ET076","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',2); }},
-    };
-    plan.push_back(p);
-  }
+  // // 21C7 ---------------------------------------------------------------------
+  // {
+  //   diag::PidPlan p; p.header = "7E0"; p.modePid = "21C7"; p.needsSession = true;
+  //   p.metrics = {
+  //     {"ST_ЗАПУСК","ET076","", 0, 1,
+  //       [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',2); }},
+  //   };
+  //   plan.push_back(p);
+  // }
 
-  // 21D1 ---------------------------------------------------------------------
-  {
-    diag::PidPlan p; p.header = "7E0"; p.modePid = "21D1"; p.needsSession = true;
-    p.metrics = {
-      {"ST_ПЕДАЛЬ ТОРМОЗА","ET039","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'I',0); }},
-      {"ST_КОНТАКТ № 1 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА","ET704","", 0, 255,
-        [](const std::vector<uint8_t>& b){ return (float)U8(b,'B'); }},
-      {"ST_КОНТАКТ № 2 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА","ET705","", 0, 255,
-        [](const std::vector<uint8_t>& b){ return (float)U8(b,'I'); }},
-      {"ST_РЕГУЛЯТОР СКОРОСТИ","LC120","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'K',3); }},
-      {"ST_ОГРАНИЧИТЕЛЬ СКОРОСТИ","LC121","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'K',4); }},
-    };
-    plan.push_back(p);
-  }
+  // // 21D1 ---------------------------------------------------------------------
+  // {
+  //   diag::PidPlan p; p.header = "7E0"; p.modePid = "21D1"; p.needsSession = true;
+  //   p.metrics = {
+  //     {"ST_ПЕДАЛЬ ТОРМОЗА","ET039","", 0, 1,
+  //       [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'I',0); }},
+  //     {"ST_КОНТАКТ № 1 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА","ET704","", 0, 255,
+  //       [](const std::vector<uint8_t>& b){ return (float)U8(b,'B'); }},
+  //     {"ST_КОНТАКТ № 2 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА","ET705","", 0, 255,
+  //       [](const std::vector<uint8_t>& b){ return (float)U8(b,'I'); }},
+  //     {"ST_РЕГУЛЯТОР СКОРОСТИ","LC120","", 0, 1,
+  //       [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'K',3); }},
+  //     {"ST_ОГРАНИЧИТЕЛЬ СКОРОСТИ","LC121","", 0, 1,
+  //       [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'K',4); }},
+  //   };
+  //   plan.push_back(p);
+  // }
 
-  // 2182 ---------------------------------------------------------------------
-  {
-    diag::PidPlan p; p.header = "7E0"; p.modePid = "2182"; p.needsSession = true;
-    p.metrics = {
-      {"ST_ВЕРСИЯ ДИАГНОСТИКИ","MAS2","", 0, 255,
-        [](const std::vector<uint8_t>& b){ return (float)U8(b,'M'); }},
-    };
-    plan.push_back(p);
-  }
+  // // 2182 ---------------------------------------------------------------------
+  // {
+  //   diag::PidPlan p; p.header = "7E0"; p.modePid = "2182"; p.needsSession = true;
+  //   p.metrics = {
+  //     {"ST_ВЕРСИЯ ДИАГНОСТИКИ","MAS2","", 0, 255,
+  //       [](const std::vector<uint8_t>& b){ return (float)U8(b,'M'); }},
+  //   };
+  //   plan.push_back(p);
+  // }
 
   return plan;
 }
