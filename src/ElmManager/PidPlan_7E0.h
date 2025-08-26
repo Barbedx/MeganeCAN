@@ -3,7 +3,7 @@
 #include <string>
 #include <functional>
 #include <stdint.h>
-
+#include "DiagPlanCommon.h"
 // ---------------------- Helpers to read bytes ----------------------
 // Positive response layout for Renault UDS 0x21 PID reads is:
 //   byte0 = 0x61 (positive resp to 0x21)
@@ -57,7 +57,7 @@ static inline int16_t S16x(const std::vector<uint8_t>& b, const char* hi, const 
   return (int16_t)((h << 8) | U8x(b, lo));
 }
 
-static inline uint8_t BITT(const std::vector<uint8_t>& b, char L, uint8_t n) {
+static inline uint8_t getBIT(const std::vector<uint8_t>& b, char L, uint8_t n) {
   return (U8(b, L) >> n) & 0x01;
 }
 
@@ -65,30 +65,13 @@ static inline uint8_t BITS(const std::vector<uint8_t>& b, char L, uint8_t shift,
   return (U8(b, L) >> shift) & mask;
 }
 
-// ---------------------- Plan structures ----------------------
-struct MetricDef {
-  const char* name;       // human name (ru)
-  const char* shortName;  // short id
-  const char* units;      // text units
-  float minVal;           // scale hint
-  float maxVal;           // scale hint
-  std::function<float(const std::vector<uint8_t>&)> eval;
-};
-
-struct PidPlan {
-  const char* header;     // e.g. "7E0"
-  const char* modePid;    // e.g. "21A0"
-  bool needsSession;      // true for 10 C0
-  std::vector<MetricDef> metrics; // all values extracted from this PID
-};
-
 // ---------------------- Build plan for ECU 7E0 (S3000) ----------------------
-inline std::vector<PidPlan> buildS3000_Plan_7E0() {
-  std::vector<PidPlan> plan;
-
+inline std::vector<diag::PidPlan> buildS3000_Plan_7E0() { 
   // 21A0 ---------------------------------------------------------------------
+  std::vector<diag::PidPlan> plan;
+  
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A0"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A0"; p.needsSession = true;
     p.metrics = {
       {"PR_НАПРЯЖЕНИЕ ПИТАНИЯ КОМПЬЮТЕРА","PR071","V", 8, 16,
         [](const std::vector<uint8_t>& b){ return 0.03215f*U8(b,'A') + 8.0f; }},
@@ -122,20 +105,20 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21A1 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A1"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A1"; p.needsSession = true;
     p.metrics = {
       {"ST_+ ПОСЛЕ ВКЛ. ЗАЖИГ. НА КОМПЬЮТЕРЕ","ET001","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',7); }},
       {"ST_ЦЕПЬ УПРАВЛЕНИЯ БЕНЗОНАСОСА","ET047","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'F',6); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'F',6); }},
       {"ST_КОМАНДА ПРИВОДА","ET048","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'F',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'F',7); }},
       {"ST_КОМАНДА ВОДЯНОГО НАСОСА","ET543","", 0, 1,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'G',2,0x01); }},
       {"ST_КОМАНДА РЕЛЕ ВОЗДУШНОГО НАСОСА","ET049","", 0, 1,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'G',1,0x01); }},
       {"ST_ПЕДАЛЬ ПОЛН. ОТПУЩ. И ДРОСС. КЛАПАН ЗАКР.","ET075","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',4); }},
       {"ST_НАГРЕВ ВЕРХНЕГО ДАТЧИКА КИСЛОРОДА","ET052","", 0, 1,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'G',3,0x01); }},
       {"ST_ПОДОГРЕВ НИЖНЕГО КИСЛОРОДНОГО ДАТЧИКА","ET053","", 0, 1,
@@ -143,34 +126,34 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
       {"ST_РАЗРЕШЕНИЕ РАБОТЫ КОНДИЦИОНЕРА","ET004","", 0, 1,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'H',2,0x01); }},
       {"ST_УПРАВЛЕНИЕ ЭЛЕКТРОВЕНТИЛЯТОРА 1","ET014","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'F',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'F',5); }},
       {"ST_УПРАВЛЕНИЕ ЭЛЕКТРОВЕНТИЛЯТОРА 2","ET015","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'F',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'F',4); }},
       {"ST_ПОЛОЖЕНИЕ ПАРК / НЕЙТРАЛЬ.","ET063","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',3); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',3); }},
       {"ST_СЖ. ГАЗ В СОСТ. НЕИСПРАВНОСТИ","ET066","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'L',2); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'L',2); }},
       {"ST_ГОТОВНОСТЬ СЖ. ГАЗА","ET067","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'L',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'L',1); }},
       {"ST_БАК СЖ. ГАЗА ПУСТОЙ","ET068","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'L',3); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'L',3); }},
       {"ST_ФУНКЦИОНИРОВАНИЕ В РЕЖИМЕ СЖ. ГАЗА","ET069","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'L',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'L',7); }},
       {"ST_ПЕРЕХОД ИЗ РЕЖИМА БЕНЗ. В РЕЖ. СЖ. ГАЗА","ET071","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'L',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'L',4); }},
       {"ST_ПЕРЕХОД ИЗ РЕЖ. СЖ. ГАЗА В РЕЖИМ БЕНЗИНА","ET072","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'L',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'L',5); }},
       {"ST_УСЛОВИЯ ПЕРЕХОДА В РЕЖИМ СЖ. ГАЗА","ET073","", 0, 3,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'L',0,0x01); }},
       {"ST_ИНДИКАТОР OBD ВКЛЮЧЕН АВТ. ТРАНСМИССИЕЙ","ET074","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',1); }},
     };
     plan.push_back(p);
   }
 
   // 21A2 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A2"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A2"; p.needsSession = true;
     p.metrics = {
       {"PR_ПОЛОЖЕНИЕ ПЕДАЛИ АКСЕЛЕРАТОРА","PR030","%", 0, 100,
         [](const std::vector<uint8_t>& b){ return 100.0f*((float)U8(b,'J')/256.0f); }},
@@ -206,7 +189,7 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21A3 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A3"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A3"; p.needsSession = true;
     p.metrics = {
       {"PR_ЗНАЧЕНИЕ ВВОДА ПАРАМЕТРОВ РЕГУЛ. Х. ХОДА","PR090","%", -12, 12,
         [](const std::vector<uint8_t>& b){ return ((float)S16(b,'H','I'))/100.0f; }},
@@ -234,7 +217,7 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21A4 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A4"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A4"; p.needsSession = true;
     p.metrics = {
       {"PR_НАПРЯЖЕНИЕ ВЕРХН. ДАТЧ. КИСЛОРОДА","PR098","mV", 19, 1395,
         [](const std::vector<uint8_t>& b){ return 9.76f*U8(b,'A'); }},
@@ -250,7 +233,7 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21A5 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A5"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A5"; p.needsSession = true;
     p.metrics = {
       {"PR_КРУТЯЩИЙ МОМЕНТ ДВИГАТЕЛЯ","PR015","Nm", -50, 200,
         [](const std::vector<uint8_t>& b){ return 2.0f*U8(b,'A') - 100.0f; }},
@@ -266,95 +249,95 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21A6 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A6"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A6"; p.needsSession = true;
     p.metrics = {
       {"PR_СЧЕТЧИК ПРОБЕГА С ВКЛ. ИНДИК. НЕИСПР. OBD","PR105","km", 0, 0,
         [](const std::vector<uint8_t>& b){ return (float)U16(b,'O','P'); }},
       {"ST_ХОД ТЕСТА","ET099","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'D',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'D',5); }},
       {"ST_ХОД ВЫПОЛНЕНИЯ ИСПЫТАНИЯ","ET100","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'D',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'D',7); }},
       {"ST_РЕЗУЛЬТАТ ТЕСТА","ET092","", 0, 255,
         [](const std::vector<uint8_t>& b){ return (float)U8(b,'X'); }},
       {"ST_РЕЗУЛЬТАТ ИСПЫТАНИЯ","ET101","", 0, 255,
         [](const std::vector<uint8_t>& b){ return (float)U8(b,'Z'); }},
       {"ST_ETAT PRIVE 2","ET091","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',7); }},
       {"ST_ETAT PRIVE 3","ET096","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',1); }},
       {"ST_ETAT PRIVE 4","ET097","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',5); }},
       {"ST_ETAT PRIVE 5","ET098","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'E',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'E',7); }},
       {"ST_ETAT PRIVE 6","ET103","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'C',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'C',1); }},
       {"ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 1","ET057","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',7); }},
       {"ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 2","ET058","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',6); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',6); }},
       {"ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 3","ET059","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',5); }},
       {"ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 4","ET060","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',4); }},
       {"ST_ПОСЛЕДОВАТ. БОРТ. ДИАГН. КАЛТАЛИЗАТОРА","LC021","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'E',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'E',5); }},
       {"ST_ПОСЛЕДОВАТ. БОРТ. ДИАГН. ПРОПУСКА СГОРАН.","LC022","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'E',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'E',1); }},
       {"ST_ПОСЛЕДОВАТ. БОРТ. ДИАГНОСТИКИ ДАТЧИКОВ","LC023","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'E',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'E',7); }},
     };
     plan.push_back(p);
   }
 
   // 21A7 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A7"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A7"; p.needsSession = true;
     p.metrics = {
       {"ST_ВВОД ПАРАМЕТРОВ КРАЙНИХ ПОЛОЖ. ДРОСС. КЛ.","ET051","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'J',2); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',2); }},
       {"ST_РЕГУЛИРОВКА ХОЛОСТОГО ХОДА","ET054","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'J',6); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',6); }},
       {"ST_КОНТУР СОСТАВА СМЕСИ ВЕРХНЕГО ДАТЧИКА","ET055","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'J',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',7); }},
       {"ST_ДВОЙНОЙ КОНТУР СОСТАВА СМЕСИ","ET056","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'J',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',5); }},
       {"ST_КОНДИЦИОНЕР","LC009","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',4); }},
       {"ST_ТИП СОЕДИНЕНИЯ СКОРОСТИ АВТОМОБИЛЯ","LC001","", 0, 15,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'G',4,0x0F); }},
       {"ST_КОНТРОЛЬ ТРАЕКТОРИИ","LC010","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',2); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',2); }},
       {"ST_ЗАМЫК. КОНТАКТ ТОРМОЗА ПРОВОДН. ТИПА","LC018","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',2); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',2); }},
       {"ST_ВЕРХНИЙ ДАТЧИК КИСЛОРОДА","LC003","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'D',2); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'D',2); }},
       {"ST_НИЖНИЙ ДАТЧИК КИСЛОРОДА","LC004","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'D',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'D',1); }},
       {"ST_УПРАВЛЕНИЕ СИГНАЛОМ ДАВЛЕНИЯ КОНДИЦИОНЕРА","LC016","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'H',0); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'H',0); }},
       {"ST_ТИП КОРОБКИ ПЕРЕДАЧ","LC005","", 0, 7,
         [](const std::vector<uint8_t>& b){ return (float)BITS(b,'D',3,0x07); }},
       {"ST_РАСПОЗНАВАНИЕ ЦИЛИНДРА 1","LC007","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'H',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'H',4); }},
       {"ST_НАГРЕВАТЕЛЬНЫЙ РЕЗИСТОР","LC025","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',0); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',0); }},
       {"ST_СТРАТЕГИЯ РАБОТЫ ВОЗДУШНОГО НАСОСА","LC014","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',0); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',0); }},
       {"ST_СТРАТЕГИЯ РАБОТЫ ВОДЯНОГО НАСОСА","LC015","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'B',1); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'B',1); }},
       {"ST_УПРАВЛЕНИЕ ИНДИКАТОРОМ БОРТ. ДИАГН. OBD","LC024","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'D',6); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'D',6); }},
       {"ST_ВОЗДУШНЫЙ НАСОС","LC164","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'E',7); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'E',7); }},
       {"ST_ЭЛЕКТРИЧЕСКИЙ ВОДЯНОЙ НАСОС","LC170","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'E',6); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'E',6); }},
     };
     plan.push_back(p);
   }
 
   // 21A9 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21A9"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21A9"; p.needsSession = true;
     p.metrics = {
       {"PR_ИНТЕГРАЛЬН. КОРРЕКЦИЯ РЕГУЛИРОВКИ ХОЛОСТОГО Х.","PR141","%", 4.7f, 32.0f,
         [](const std::vector<uint8_t>& b){ return (256.0f * (float)U8(b,'I'))/100.0f; }},
@@ -370,12 +353,12 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21AF ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21AF"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21AF"; p.needsSession = true;
     p.metrics = {
       {"ST_ВВОД КОДА ВЫПОЛНЕН","ET006","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',5); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',5); }},
       {"ST_ИМОБИЛАЙЗЕР","ET003","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'A',6); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'A',6); }},
       {"ST_УДАР ОБНАРУЖЕН","ET077","", 0, 255,
         [](const std::vector<uint8_t>& b){ return (float)U8(b,'E'); }},
     };
@@ -384,14 +367,14 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21C1 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21C1"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21C1"; p.needsSession = true;
     p.metrics = {
       {"PR_ДАВЛЕНИЕ ХЛАДАГЕНТА","PR037","bar", 0, 25,
         [](const std::vector<uint8_t>& b){ return 0.2f*(float)U8(b,'J'); }},
       {"PR_МАКС. ДОПУСТ. МОЩНОСТЬ СОПРОТИВЛ. ОБОГР.","PR127","W", 0, 1200,
         [](const std::vector<uint8_t>& b){ return 100.0f*(float)U8(b,'P'); }},
       {"ST_ЗАПРОС НА ВКЛЮЧЕНИЕ КОМПРЕССОРА","ET088","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'N',0); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'N',0); }},
       {"ST_ЧИСЛО РОС ЗАФИКСИРОВАНО","ET111","", 0, 3,
         [](const std::vector<uint8_t>& b){ return (float)((U8(b,'N') >> 6) & 0x03); }},
       {"ST_ОТКЛЮЧЕНИЕ РОС","ET112","", 0, 3,
@@ -402,35 +385,35 @@ inline std::vector<PidPlan> buildS3000_Plan_7E0() {
 
   // 21C7 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21C7"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21C7"; p.needsSession = true;
     p.metrics = {
       {"ST_ЗАПУСК","ET076","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'J',2); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'J',2); }},
     };
     plan.push_back(p);
   }
 
   // 21D1 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "21D1"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "21D1"; p.needsSession = true;
     p.metrics = {
       {"ST_ПЕДАЛЬ ТОРМОЗА","ET039","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'I',0); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'I',0); }},
       {"ST_КОНТАКТ № 1 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА","ET704","", 0, 255,
         [](const std::vector<uint8_t>& b){ return (float)U8(b,'B'); }},
       {"ST_КОНТАКТ № 2 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА","ET705","", 0, 255,
         [](const std::vector<uint8_t>& b){ return (float)U8(b,'I'); }},
       {"ST_РЕГУЛЯТОР СКОРОСТИ","LC120","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'K',3); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'K',3); }},
       {"ST_ОГРАНИЧИТЕЛЬ СКОРОСТИ","LC121","", 0, 1,
-        [](const std::vector<uint8_t>& b){ return (float)BIT(b,'K',4); }},
+        [](const std::vector<uint8_t>& b){ return (float)getBIT(b,'K',4); }},
     };
     plan.push_back(p);
   }
 
   // 2182 ---------------------------------------------------------------------
   {
-    PidPlan p; p.header = "7E0"; p.modePid = "2182"; p.needsSession = true;
+    diag::PidPlan p; p.header = "7E0"; p.modePid = "2182"; p.needsSession = true;
     p.metrics = {
       {"ST_ВЕРСИЯ ДИАГНОСТИКИ","MAS2","", 0, 255,
         [](const std::vector<uint8_t>& b){ return (float)U8(b,'M'); }},

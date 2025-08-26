@@ -31,7 +31,7 @@ inline uint8_t B(const std::vector<uint8_t>& v, char sym) {
 inline uint16_t W(const std::vector<uint8_t>& v, char hi, char lo) {
   return (uint16_t(B(v, hi)) << 8) | B(v, lo);
 }
-inline float BIT(const std::vector<uint8_t>& v, char sym, int bit) {
+inline float getBIT(const std::vector<uint8_t>& v, char sym, int bit) {
   return (B(v, sym) >> bit) & 0x1;
 }
 
