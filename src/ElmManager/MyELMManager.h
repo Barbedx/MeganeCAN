@@ -10,9 +10,10 @@
 #include "display/IDisplay.h"
 #include "commands/DisplayCommands.h"
 #include "PidPlan_7E0.h"
+#include "PidPlan_74D.h"  
 #include "PidPlan_743.h"  
 #include "PidPlan_744.h"
-#include "PidPlan_74D.h"  
+#include "PidPlan_745.h"
 
 #include "DiagPlanCommon.h"
 // -------- Data structures --------
@@ -40,16 +41,20 @@
 //     std::vector<QueryData> queries; // all PIDs inside this header
 // };
 inline std::vector<PidPlan> buildCombinedPlan() {
-  auto p7e0 = buildS3000_Plan_7E0();
-  auto p744 = buildPlan_743();
+  auto p7e0 = buildPlan_7E0();
+  auto p743 = buildPlan_743();
+  auto p744 = buildPlan_744();
+  auto p745 = buildPlan_745();
   auto p74d = buildPlan_74D();
 
   std::vector<PidPlan> out;
-  out.reserve(p7e0.size() + p744.size() + p74d.size());
+  out.reserve(p7e0.size() + p743.size() + p744.size()+ p745.size()+p74d.size() );
 
   // Group by header → fewer ATSH/10C0 switches:
   out.insert(out.end(), p7e0.begin(), p7e0.end()); // 7E0 (engine)
+  out.insert(out.end(), p743.begin(), p743.end()); // 744 (HVAC)
   out.insert(out.end(), p744.begin(), p744.end()); // 744 (HVAC)
+  out.insert(out.end(), p745.begin(), p745.end()); // 744 (HVAC)
   out.insert(out.end(), p74d.begin(), p74d.end()); // 74D (gear/alt)
   return out;
 }

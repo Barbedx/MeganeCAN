@@ -5,7 +5,7 @@
 #include "DiagPlanCommon.h"
 
 // ---------------------- minimal, useful plan (7E0) ----------------------
-inline std::vector<PidPlan> buildS3000_Plan_7E0() {
+inline std::vector<PidPlan> buildPlan_7E0() {
   std::vector<PidPlan> plan;
 
   // 21A0 — core sensors (everything comes from one PID = fast + reliable)
