@@ -1,0 +1,504 @@
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: 7
+	Received char: F
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: 1
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 7F0111
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: 10C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+got response ...
+[10C0] OPENED
+[SEND] 21A0 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: S
+	Received char: T
+	Received char: O
+	Received char: P
+	Received char: P
+	Received char: E
+	Received char: D
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0STOPPED
+ELM responded with error "STOPPED"
+[ELM] rx error state=6
+[SEND] 21A1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A1
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 1
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 8
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A1F00800001:008000000000002:400020810000003:00040000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A1F0080000
+Response data: 61A1F0080000
+Found line in response: 1:00800000000000
+Response data: 00800000000000
+Found line in response: 2:40002081000000
+Response data: 40002081000000
+Found line in response: 3:00040000000000
+Response data: 00040000000000
+Parsed multiline response: 61A1F00800000080000000000040002081000000000400000000
+got response ...
+[SEND] 21A2 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A2
+	Received char: 0
+	Received char: 2
+	Received char: 8
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 2
+	Received char: 3
+	Received char: 7
+	Received char: 3
+	Received char: 7
+	Received char: 3
+	Received char: 4
+	Received char: 1
+	Received char: C
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: E
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: 7
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 6
+	Received char: 2
+	Received char: 6
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0280:61A23737341C1:E1003700002626
+Found line in response: 028
+totalBytes = 80
+Found line in response: 0:61A23737341C
+Response data: 61A23737341C
+Found line in response: 1:E1003700002626
+Response data: E1003700002626
+Found line in response: 
+Parsed multiline response: 61A23737341CE1003700002626
+got response ...
+[SEND] 21A3 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A3
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: B
+	Received char: 0
+	Received char: E
+	Received char: 9
+	Received char: 1
+	Received char: 9
+	Received char: 9
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 9
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A3000000001:000000FB0E91992:960080000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A300000000
+Response data: 61A300000000
+Found line in response: 1:000000FB0E9199
+Response data: 000000FB0E9199
+Found line in response: 2:96008000000000
+Response data: 96008000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A300000000000000FB0E919996008000000000000000000000
+got response ...
+[SEND] 21A4 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A4
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 4
+	Received char: 2
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: F
+	Received char: 0
+	Received char: 2
+	Received char: 2
+	Received char: C
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A42F0000001:0000002F022C002:000000000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A42F000000
+Response data: 61A42F000000
+Found line in response: 1:0000002F022C00
+Response data: 0000002F022C00
+Found line in response: 2:00000000000000
+Response data: 00000000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A42F0000000000002F022C0000000000000000000000000000
+got response ...
+[SEND] 21A5 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A5
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[SDS] idle >= 2500 ms, re-open 10 C0 (7E0)
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+[ELM] Link looks dead (no good RX). Reconnecting...
+ensureTcpAndElm failed
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+Clearing input serial buffer
+Sending the following command/query: AT Z
