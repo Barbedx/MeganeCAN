@@ -237,6 +237,18 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", "Display type saved. Restart required.");
     }
 });
+// // pseudo (adapt to your web lib)
+// server.on("/api/live", HTTP_GET, [this] (auto* req) {
+//   if (!elmManager) { req->send(503, "application/json", "{}"); return; }
+//   req->send(200, "application/json", elmManager->snapshotJson());
+// });
+
+_server.on("/api/live", HTTP_GET, [this](PsychicRequest* req){
+    if (!elm) { return req->reply(503, "application/json", "{\"error\":\"elm not ready\"}"); return; }
+    req->reply(200, "application/json", elm->snapshotJson().c_str());
+  });
+
+
 
 _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
 {

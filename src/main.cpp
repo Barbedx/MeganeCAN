@@ -213,8 +213,9 @@
         }
 
         display->begin();                                             // ✅ Only initializes BLE if needed
-        serverManager = new HttpServerManager(*display, preferences); // ✅ Moved here
         elmManager = new MyELMManager(*display);
+        serverManager = new HttpServerManager(*display, preferences); // ✅ Moved here
+        serverManager->attachElm(elmManager); // <-- attach ELM manager to server
         Serial.println("[Display Init] HttpServerManager initialized");
 
         // Optionally call init method if needed
