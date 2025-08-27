@@ -41,7 +41,7 @@
 // };
 inline std::vector<diag::PidPlan> buildCombinedPlan() {
   auto p7e0 = buildS3000_Plan_7E0();
-  auto p744 = buildPlan_744();
+  auto p744 = buildPlan_743();
   auto p74d = buildPlan_74D();
 
   std::vector<diag::PidPlan> out;
