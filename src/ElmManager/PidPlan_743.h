@@ -4,36 +4,14 @@
 #include <stdint.h>
 #include "DiagPlanCommon.h"
 
-// Reuse your existing helpers:
-//   uint8_t  U8(const std::vector<uint8_t>&, char L);        // A..Z => data[0..25]
-//   uint16_t U16(const std::vector<uint8_t>&, char hi, char lo);
-//   uint8_t  getBIT(const std::vector<uint8_t>&, char L, uint8_t n);
-// Minimal plan for the cluster @ 0x743 (no SDS by default).
-// If you get NO DATA from this ECU, flip needsSession=true for that block.
-static inline uint8_t _safe_at(const std::vector<uint8_t>& b, size_t idx) {
-  return (idx < b.size()) ? b[idx] : 0;
-}
 
-// single-letter symbol A..Z  (A=0, B=1, ...)
-static inline uint8_t U8(const std::vector<uint8_t>& b, char L) {
-  if (L < 'A') return 0;
-  size_t pos = (size_t)(L - 'A');
-  return _safe_at(b, pos);
-}
 
-static inline uint16_t U16(const std::vector<uint8_t>& b, char hi, char lo) {
-  return (uint16_t(U8(b, hi)) << 8) | U8(b, lo);
-}
-
-static inline uint8_t getBIT(const std::vector<uint8_t>& b, char L, uint8_t n) {
-  return (U8(b, L) >> n) & 0x01;
-}
-inline std::vector<diag::PidPlan> buildCluster_Plan_743() {
-  std::vector<diag::PidPlan> plan;
+inline std::vector<PidPlan> buildCluster_Plan_743() {
+  std::vector<PidPlan> plan;
 
   // --- 2110 ---
   {
-    diag::PidPlan p; p.header = "743"; p.modePid = "2110"; p.needsSession = false;
+    PidPlan p; p.header = "743"; p.modePid = "2110"; p.needsSession = true;
     p.metrics = {
       // PR_РЕЖИМ ДВИГАТЕЛЯ = (F*256+G)/8  [об/мин]
       {"PR_РЕЖИМ ДВИГАТЕЛЯ", "PR116", "об/мин", 0, 0,
@@ -52,7 +30,7 @@ inline std::vector<diag::PidPlan> buildCluster_Plan_743() {
 
   // --- 2112 ---
   {
-    diag::PidPlan p; p.header = "743"; p.modePid = "2112"; p.needsSession = false;
+    PidPlan p; p.header = "743"; p.modePid = "2112"; p.needsSession = true;
     p.metrics = {
       // PR_УРОВЕНЬ ТОПЛИВА = (C*256+D)/1000  [л.]
       {"PR_УРОВЕНЬ ТОПЛИВА", "PR035", "л.", 0, 60,

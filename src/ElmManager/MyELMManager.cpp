@@ -235,7 +235,7 @@ std::vector<uint8_t> MyELMManager::decodeToUdsData(const char *ascii, size_t len
     }
 
     // Strip UDS service+PID if present (e.g., 61 A0 ...)
-    return diag::udsDataOnly(raw);
+    return udsDataOnly(raw);
 }
 // ---- debug print switch ----
 #ifndef LOG_PID_VALUES
@@ -323,12 +323,24 @@ void MyELMManager::tick()
 
                 // Parse payload -> UDS data (strip 61 xx if present)
                 auto data = decodeToUdsData(elm.payload, elm.PAYLOAD_LEN);
-
+                
                 const auto &node = plan[planIndex];
 #if LOG_PID_VALUES
+                Serial.print("[RAW ] ");
+                for (size_t i = 0; i < elm.PAYLOAD_LEN; ++i) {
+                    unsigned char c = static_cast<unsigned char>(elm.payload[i]);
+                    if (c == '\r') Serial.print("\\r");
+                    else if (c == '\n') Serial.print("\\n");
+                    else if (c == '\t') Serial.print("\\t");
+                    else if (c >= 32 && c <= 126) Serial.print((char)c);
+                    else Serial.printf("\\x%02X", c);
+                }
+                Serial.println();
+                
                 Serial.printf("[RECV] header=%s pid=%s  ->  decoded UDS payload\n",
                               currentHeader.c_str(), node.modePid);
                 dumpHex(data);
+                Serial.printf("onmodified payload\n"   ); 
 #endif
                 // Evaluate metrics for this plan node
  
@@ -369,7 +381,7 @@ void MyELMManager::tick()
         Serial.printf("[ELM][PID ERR] header=%s pid=%s state=%d\n",
                       currentHeader.c_str(),
                       plan.empty() ? "-" : plan[planIndex].modePid,
-                      (int)elm.nb_rx_state);
+                      (int)elm.nb_rx_state); 
 #endif
 
         return;

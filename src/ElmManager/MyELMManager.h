@@ -10,9 +10,9 @@
 #include "display/IDisplay.h"
 #include "commands/DisplayCommands.h"
 #include "PidPlan_7E0.h"
-#include "PidPlan_7E0.h"
-#include "PidPlan_743.h"   // HVAC (744) — keep needsSession=true
-#include "PidPlan_74D.h"   // Gear/ALT (74D) — keep needsSession=true
+#include "PidPlan_743.h"  
+#include "PidPlan_744.h"
+#include "PidPlan_74D.h"  
 
 #include "DiagPlanCommon.h"
 // -------- Data structures --------
@@ -39,12 +39,12 @@
 //     const char *header;             // 3-hex CAN ID, e.g. "743"
 //     std::vector<QueryData> queries; // all PIDs inside this header
 // };
-inline std::vector<diag::PidPlan> buildCombinedPlan() {
+inline std::vector<PidPlan> buildCombinedPlan() {
   auto p7e0 = buildS3000_Plan_7E0();
   auto p744 = buildPlan_744();
   auto p74d = buildPlan_74D();
 
-  std::vector<diag::PidPlan> out;
+  std::vector<PidPlan> out;
   out.reserve(p7e0.size() + p744.size() + p74d.size());
 
   // Group by header → fewer ATSH/10C0 switches:
@@ -132,7 +132,7 @@ private:
     size_t currentQuery = 0;                  // index into your plan/queries
     unsigned long lastQueryTime = 0;          // ms timestamp for pacing
 
-    std::vector<diag::PidPlan> plan =  buildCombinedPlan();
+    std::vector<PidPlan> plan =  buildCombinedPlan();
     size_t planIndex = 0;
     bool ensureTcpAndElm(); 
     struct Sess

@@ -243,9 +243,9 @@ void HttpServerManager::setupRoutes()
 //   req->send(200, "application/json", elmManager->snapshotJson());
 // });
 
-_server.on("/api/live", HTTP_GET, [this](PsychicRequest* req){
-    if (!elm) { return req->reply(503, "application/json", "{\"error\":\"elm not ready\"}"); return; }
-    req->reply(200, "application/json", elm->snapshotJson().c_str());
+_server.on("/api/live", HTTP_GET, [this](PsychicRequest *req){
+    if (!elm) { return req->reply(503, "application/json", "{\"error\":\"elm not ready\"}"); }
+    return req->reply(200, "application/json", elm->snapshotJson().c_str());
   });
 
 
