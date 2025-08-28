@@ -52,10 +52,10 @@ inline std::vector<PidPlan> buildCombinedPlan() {
 
   // Group by header → fewer ATSH/10C0 switches:
   out.insert(out.end(), p7e0.begin(), p7e0.end()); // 7E0 (engine)
-  out.insert(out.end(), p743.begin(), p743.end()); // 744 (HVAC)
-  out.insert(out.end(), p744.begin(), p744.end()); // 744 (HVAC)
-  out.insert(out.end(), p745.begin(), p745.end()); // 744 (HVAC)
-  out.insert(out.end(), p74d.begin(), p74d.end()); // 74D (gear/alt)
+  //out.insert(out.end(), p743.begin(), p743.end()); // 744 (HVAC)
+  //out.insert(out.end(), p744.begin(), p744.end()); // 744 (HVAC)
+  //out.insert(out.end(), p745.begin(), p745.end()); // 744 (HVAC)
+  //out.insert(out.end(), p74d.begin(), p74d.end()); // 74D (gear/alt)
   return out;
 }
 // -------- Manager --------
@@ -167,7 +167,7 @@ private:
     static constexpr uint32_t kCmdIntervalMs = 120; // min gap between commands
     static constexpr uint32_t kPingPeriodMs = 1200; // tester present when idle
     static constexpr uint32_t kReopenSdsMs = 2500;  // if idle this long, reopen SDS
-    static constexpr uint32_t kDeadLinkMs = 8000;   // liveness watchdog
+    static constexpr uint32_t kDeadLinkMs = 24000;   // liveness watchdog
 
     // reconnect backoff
     uint32_t nextTcpAttemptMs = 0;

@@ -36,7 +36,7 @@ void MyELMManager::disconnectTcp()
 bool MyELMManager::initElmOnce()
 {
     // Lock protocol to ISO15765-4 (11bit, 500k)
-    elm.begin(wifiClient, /*debug*/ false, /*timeout*/ 5000,
+    elm.begin(wifiClient, /*debug*/ true, /*timeout*/ 5000,
               ISO_15765_11_BIT_500_KBAUD, /*rxBuf*/ 256, /*dataTimeout*/ 225);
     Serial.println("Elm.begin done");
 
@@ -44,9 +44,10 @@ bool MyELMManager::initElmOnce()
     elm.sendCommand_Blocking("AT SP 6");
 
     // Start with engine header + SDS (works for your S3000)
-    elm.sendCommand_Blocking("ATSH 7E0");
+    //elm.sendCommand_Blocking("ATSH 7E0");
     delay(100);
-    elm.sendCommand_Blocking("10C0"); // expect 50 C0 (we won’t block here again)
+    //elm.sendCommand_Blocking("10C0"); // expect 50 C0 (we won’t block here again)
+    //elm.sendCommand_Blocking("3E00"); // expect 50 C0 (we won’t block here again)
 
     Serial.println("Elm init commands done");
     elmReady = true;
@@ -132,12 +133,13 @@ bool MyELMManager::openSessionIfNeeded(const char *header)
     // reopen if idle too long
     if (s.open && (now - s.lastMs) > kReopenSdsMs)
     {
-        Serial.printf("[SDS] idle>=%ums -> re-open 10 C0 (%s)\n", kReopenSdsMs, header);
+        Serial.printf("[SDS] idle>=%ums -> re-open 10C0 (%s)\n", kReopenSdsMs, header);
         s.open = false;
     }
 
     if (!s.open && !waiting)
     {
+         
         elm.sendCommand("10C0");
         waiting = true;
         waitingSDS = true;
@@ -276,7 +278,7 @@ void MyELMManager::tick()
 
         if (elm.nb_rx_state == ELM_GETTING_MSG)
         {
-            //  Serial.println("still getting message ...");
+          //  lastGoodRxMs = now;
             return; // check if ping needed?
         }
 
@@ -305,7 +307,6 @@ void MyELMManager::tick()
                 Serial.printf("[10C0] %s\n", ok ? "OPENED" : "UNEXPECTED");
                 return;
             }
-
             if (waitingPing)
             {
                 waitingPing = false;
@@ -370,7 +371,7 @@ void MyELMManager::tick()
             waiting = false;
             return;
         }
-
+ 
         // error: drop and move on_exit
 
         // TODO: show actual error??
@@ -395,6 +396,8 @@ void MyELMManager::tick()
         // Serial.println("throttling between commands ...");
         return;
     }
+    
+
     // Serial.println("ready to send next command ...");
     //  C) Choose current plan node
     const auto &node = plan[planIndex];
@@ -403,6 +406,7 @@ void MyELMManager::tick()
     if (currentHeader != node.header)
     {
         sendHeaderIfNeeded(node.header);
+        delay(20); // give ELM time to process ATSH//TODO:UNBLOCK
         return;
     }
 
@@ -411,13 +415,13 @@ void MyELMManager::tick()
         Sess &s = sessions[currentHeader];
         if (s.open && (now - s.lastMs) > kReopenSdsMs)
         {
-            Serial.printf("[SDS] idle >= %u ms, re-open 10 C0 (%s)\n", kReopenSdsMs, currentHeader.c_str());
+            Serial.printf("[SDS] idle >= %u ms, re-open 10C0 (%s)\n", kReopenSdsMs, currentHeader.c_str());
             s.open = false;
         }
         if (node.needsSession && !s.open)
         {
-            Serial.println("[SEND] 10 C0");
-            elm.sendCommand("10 C0");
+            Serial.println("[SEND] 10C0");
+            elm.sendCommand("10C0");
             waiting = true;
             waitingSDS = true;
             lastCmdMs = now;
@@ -431,14 +435,14 @@ void MyELMManager::tick()
         if ((now - s.lastMs) > kPingPeriodMs)
         {
             Serial.println("[SEND] 3E 00");
-            elm.sendCommand("3E 00");
+            elm.sendCommand("3E00");
             waiting = true;
             waitingPing = true;
             lastCmdMs = now;
             return;
         }
     }
-
+    
     // G) Send the PID
     Serial.printf("[SEND] %s (%s)\n", node.modePid, node.header);
     elm.sendCommand(node.modePid);
