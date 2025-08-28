@@ -36,12 +36,12 @@ void MyELMManager::disconnectTcp()
 bool MyELMManager::initElmOnce()
 {
     // Lock protocol to ISO15765-4 (11bit, 500k)
-    elm.begin(wifiClient, /*debug*/ true, /*timeout*/ 5000,
+    elm.begin(wifiClient, /*debug*/ false, /*timeout*/ 5000,
               ISO_15765_11_BIT_500_KBAUD, /*rxBuf*/ 256, /*dataTimeout*/ 225);
     Serial.println("Elm.begin done");
 
     // Make sure protocol is locked (ELMduino often does TP, we enforce SP 6 too)
-    elm.sendCommand_Blocking("AT SP 6");
+    // elm.sendCommand_Blocking("AT SP 6");
 
     // Start with engine header + SDS (works for your S3000)
     //elm.sendCommand_Blocking("ATSH 7E0");
@@ -49,7 +49,16 @@ bool MyELMManager::initElmOnce()
     //elm.sendCommand_Blocking("10C0"); // expect 50 C0 (we won’t block here again)
     //elm.sendCommand_Blocking("3E00"); // expect 50 C0 (we won’t block here again)
 
-    Serial.println("Elm init commands done");
+
+// elm.sendCommand_Blocking("ATSH7E0");
+// elm.sendCommand_Blocking("ATCRA7E8");
+// elm.sendCommand_Blocking("ATFCSH7E0");
+elm.sendCommand_Blocking("ATFCSD300000");
+elm.sendCommand_Blocking("ATFCSM1");
+elm.sendCommand_Blocking("ATSP6");
+    // Make sure protocol is locked (ELMduino often does TP, we enforce SP 6 too)
+
+    
     elmReady = true;
     nb_query_state = SEND_COMMAND;
     currentQuery = 0;
