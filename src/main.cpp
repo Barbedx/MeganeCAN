@@ -196,7 +196,7 @@
     {
         Preferences prefs;
         prefs.begin("config", true);
-        String displayType = prefs.getString("display_type", "affa3");
+        String displayType = prefs.getString("display_type", "affa3nav");
         prefs.end();
 
         Serial.println("[Display Init] Display type from config: " + displayType);

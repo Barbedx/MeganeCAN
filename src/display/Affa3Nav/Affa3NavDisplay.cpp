@@ -110,7 +110,7 @@ void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
     tracker.SetAuxMode(true);
   }
 
-  mainMenu.handleKey(key, isHold);
+  mainMenu.handleKey(key, isHold); //TODO: add tracker so manu always know if its opened 
 
   if (!mainMenu.isActive() && tracker.isInAuxMode())
   {
@@ -126,12 +126,12 @@ void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 
       case AffaCommon::AffaKey::RollUp:
         Serial.println("Next Track");
-        bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+        bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
         break;
 
       case AffaCommon::AffaKey::RollDown:
         Serial.println("Previous Track");
-        bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+        bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
         break;
 
       default:
@@ -314,7 +314,16 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  bool answerNeeded = false;//TODO:move to settings
+  bool answerNeeded = true;//TODO:move to settings
+  if(packet->id == Affa3Nav::PACKET_ID_NAV 
+      || packet->id == Affa3Nav::PACKET_ID_SYNC_REPLY
+      || packet->id == Affa3Nav::PACKET_ID_SYNC
+      || packet->id == Affa3Nav::PACKET_ID_SETTEXT
+      || packet->id == Affa3Nav::PACKET_ID_KEYPRESSED//??  Using display with car stereo so its dublicated answers
+  )
+  {
+    answerNeeded = false;
+  } 
 
   if (answerNeeded)
   {

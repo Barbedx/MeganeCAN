@@ -19,7 +19,7 @@ void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t 
 }
 void CanUtils::sendFrame(CAN_FRAME &frame)
 {
-    if (frame.id != 0x3AF)
+    if (frame.id != 0x3AF) //NOT PRINT REGULAR PING/PONG
     {
         Serial.print("Sending CAN frame: ID=0x");
         Serial.print(frame.id, HEX);
