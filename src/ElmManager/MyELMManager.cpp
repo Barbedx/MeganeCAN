@@ -45,17 +45,19 @@ bool MyELMManager::initElmOnce()
 
     // Start with engine header + SDS (works for your S3000)
     //elm.sendCommand_Blocking("ATSH 7E0");
-    delay(100);
     //elm.sendCommand_Blocking("10C0"); // expect 50 C0 (we won’t block here again)
     //elm.sendCommand_Blocking("3E00"); // expect 50 C0 (we won’t block here again)
+    
+    
+     elm.sendCommand_Blocking("ATSH7E0");
+     elm.sendCommand_Blocking("ATCRA7E8");
+     elm.sendCommand_Blocking("ATFCSH7E0");
+    elm.sendCommand_Blocking("ATFCSD300000");
+    elm.sendCommand_Blocking("ATFCSM1");
+    elm.sendCommand_Blocking("ATSP6");
+    delay(10);
+    elm.sendCommand_Blocking("10C0");
 
-
-// elm.sendCommand_Blocking("ATSH7E0");
-// elm.sendCommand_Blocking("ATCRA7E8");
-// elm.sendCommand_Blocking("ATFCSH7E0");
-elm.sendCommand_Blocking("ATFCSD300000");
-elm.sendCommand_Blocking("ATFCSM1");
-elm.sendCommand_Blocking("ATSP6");
     // Make sure protocol is locked (ELMduino often does TP, we enforce SP 6 too)
 
     
@@ -322,7 +324,8 @@ void MyELMManager::tick()
                 waiting = false;
                 // 7F 3E 12 is expected; just keep the session fresh
                 sessions[currentHeader].lastMs = now;
-                // Serial.println("[3E00] tester present ack");
+                Serial.print("[3E00] tester present ack,payload:");
+                Serial.println(elm.payload);
                 return;
             }
 
