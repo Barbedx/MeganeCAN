@@ -1,0 +1,303 @@
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+ ID 0x121
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+scrolled part: 
+affa3_do_send called
+[WiFi] Not connected, connectiong...
+COnfiguring ELM ...
+Connecting to ELM WiFi (STA, static IP)...
+[WiFi] elm connected ...
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+Timeout detected with overflow of 0ms
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: N
+	Received char: O
+	Received char: _
+	Received char: D
+	Received char: A
+	Received char: T
+	Received char: A
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: NODATA
+ELM responded with error "NO DATA"
+[ELM] rx error state=5
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0

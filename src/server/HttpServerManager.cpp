@@ -1,6 +1,7 @@
 #include "HttpServerManager.h"
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
+#include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
                                                                               _display(display),
@@ -41,6 +42,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
 </head>
 <body>
+    <h1>Display Control v0.4</h1>
   <h2>display type</h2>
 
     <form action="/setDisplay" method="POST">
@@ -53,10 +55,13 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
   <h2>Auto-restore text</h2>
     <form action="/config/restore" method="GET">
-    <label>
+    <label>    
+    
         <input type="checkbox" name="enable"  id="autoRestoreCheckbox"  value="1"  />
         Auto-Restore texts on startup
     </label>
+        <!-- Hidden input to force sending value when checkbox is unchecked -->
+        <input type="hidden" name="enable" value="0" />
     <input type="submit" value="Save" />
     </form>
 
@@ -86,6 +91,24 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
     <input type="submit" value="Set Time" />
     </form>
+ 
+  <hr>
+
+    <h2>Set Time</h2>
+    <form action="/setVoltage" method="GET">
+    <label>Voltage :</label>
+    <input type="text" name="voltage" required />
+    <input type="submit" value="Set Voltage" />
+    </form>
+    <hr> 
+ 
+    <hr>
+    <h2>OTA Update</h2>
+    <p>Use the <a href="/update">OTA Update</a> link to upload new firmware.</p>
+ 
+    <hr>
+    <h2>Button emulation</h2>
+    <p>Use the <a href="/emulate">Button emulation</a> link to debug menu.</p>
 </body>
 </html>
 )rawliteral";
@@ -93,6 +116,8 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 void HttpServerManager::begin()
 {
     _server.listen(80);
+
+    ElegantOTA.begin(&_server);
     setupRoutes();
     Serial.println("HTTP Server: routes initialized.");
 }
@@ -167,6 +192,7 @@ void HttpServerManager::setupRoutes()
         String welcomeText = _prefs.getString("welcomeText", "");
         _prefs.end();
         return request->reply(200, "text/plain", welcomeText.c_str()); });
+        
     _server.on("/settime", HTTP_GET, [this](PsychicRequest *request)
                {
         if (!request->hasParam("time")) {
@@ -180,6 +206,21 @@ void HttpServerManager::setupRoutes()
 
         _commands.setTime(timeStr);
         String response = "Time set to: " + timeStr;
+        return request->reply(200, "text/plain", response.c_str()); });
+
+    _server.on("/setVoltage", HTTP_GET, [this](PsychicRequest *request)
+               {
+        if (!request->hasParam("voltage")) {
+            return request->reply(400, "text/plain", "Missing 'voltage' parameter");
+        }
+        String str = request->getParam("voltage")->value();
+
+        if (str.length() <= 0 ) {
+            return request->reply(400, "text/plain", "Invalid voltage format. input is empty");
+        }
+
+        _commands.setVoltage(str.toInt());
+        String response = "voltage set to: " + str;
         return request->reply(200, "text/plain", response.c_str()); });
 
     _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {
@@ -196,6 +237,18 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", "Display type saved. Restart required.");
     }
 });
+// // pseudo (adapt to your web lib)
+// server.on("/api/live", HTTP_GET, [this] (auto* req) {
+//   if (!elmManager) { req->send(503, "application/json", "{}"); return; }
+//   req->send(200, "application/json", elmManager->snapshotJson());
+// });
+
+_server.on("/api/live", HTTP_GET, [this](PsychicRequest *req){
+    if (!elm) { return req->reply(503, "application/json", "{\"error\":\"elm not ready\"}"); }
+    return req->reply(200, "application/json", elm->snapshotJson().c_str());
+  });
+
+
 
 _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
 {
@@ -262,41 +315,74 @@ _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
     )rawliteral";
     return request->reply(200, "text/html", page); });
 
-    // // Endpoint for setMenu
-    // _server.on("/affa3/setMenu", HTTP_GET, [](PsychicRequest *request)
-    //            {
-    // if (request->hasParam("caption") && request->hasParam("name1") && request->hasParam("name2")) {
-    //     String caption = request->getParam("caption")->value();
-    //     String name1 = request->getParam("name1")->value();
-    //     String name2 = request->getParam("name2")->value();
+    _server.on("/emulate", HTTP_GET, [this](PsychicRequest *request){
 
-    //     Affa3Display::display_Control(1);
-    //     Affa3Display::showMenu(caption.c_str(), name1.c_str(), name2.c_str());
+        const char * page = R"rawliteral(
+        <!DOCTYPE html>
+        <html><head><title>Affa3 Display Button Test</title></head><body>
+        <h2>Emulate Buttons</h2>
 
-    //     String text = "Menu set: " + caption + ", " + name1 + ", " + name2;
-    //     return request->reply(200, "text/plain", text.c_str());
-    // } else {
-    //     return request->reply(400, "text/plain", "Missing parameters");
-    // } });
+        <form onsubmit="return false">
+        <button onclick="sendKey(0x0000, 0)">Load</button>
+        <button onclick="sendKey(0x0000, 1)">Load (Hold)</button><br>
 
-    // // Endpoint for setAux
-    // _server.on("/affa3/setAux", HTTP_GET, [](PsychicRequest *request)
-    //            {
-    // setAux();
-    // return request->reply(200, "text/plain", "AUX set"); });
+        <button onclick="sendKey(0x0001, 0)">SrcRight</button>
+        <button onclick="sendKey(0x0001, 1)">SrcRight (Hold)</button><br>
 
-    // // Endpoint for setTextBig
-    // _server.on("/affa3/setTextBig", HTTP_GET, [](PsychicRequest *request)
-    //            {
-    // if (request->hasParam("caption") && request->hasParam("row1") && request->hasParam("row2")) {
-    //     String caption = request->getParam("caption")->value();
-    //     String row1 = request->getParam("row1")->value();
-    //     String row2 = request->getParam("row2")->value();
+        <button onclick="sendKey(0x0002, 0)">SrcLeft</button>
+        <button onclick="sendKey(0x0002, 1)">SrcLeft (Hold)</button><br>
 
-    //     Affa3Display::showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
-    //     String response = "Text set to big: " + caption + ", " + row1 + ", " + row2;
-    //     return request->reply(200, "text/plain", response.c_str());
-    // } else {
-    //     return request->reply(400, "text/plain", "Missing parameters");
-    // } });
+        <button onclick="sendKey(0x0003, 0)">Vol+</button>
+        <button onclick="sendKey(0x0003, 1)">Vol+ (Hold)</button><br>
+
+        <button onclick="sendKey(0x0004, 0)">Vol-</button>
+        <button onclick="sendKey(0x0004, 1)">Vol- (Hold)</button><br>
+
+        <button onclick="sendKey(0x0005, 0)">Pause</button>
+        <button onclick="sendKey(0x0005, 1)">Pause (Hold)</button><br>
+
+        <button onclick="sendKey(0x0101, 0)">RollUp</button>
+        <button onclick="sendKey(0x0101, 1)">RollUp (Hold)</button><br>
+
+        <button onclick="sendKey(0x0141, 0)">RollDown</button>
+        <button onclick="sendKey(0x0141, 1)">RollDown (Hold)</button><br>
+        </form>
+
+        <script>
+        async function sendKey(key, hold) {
+            const formData = new URLSearchParams();
+            formData.append("key", key);
+            formData.append("hold", hold ? "1" : "0");
+
+            const res = await fetch("/emulate/key", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: formData
+            });
+
+            const txt = await res.text();
+            console.log("Response:", txt);
+        }
+        </script>
+                </body></html>
+    )rawliteral";
+
+        return request->reply(200, "text/html", page);
+    });
+
+    _server.on("/emulate/key", HTTP_POST, [this](PsychicRequest *request) {
+        if (!request->hasParam("key") || !request->hasParam("hold")) {
+            return request->reply(400, "text/plain", "Missing key or hold");
+        }
+
+        uint16_t keyCode = request->getParam("key")->value().toInt();
+        bool isHold = request->getParam("hold")->value() == "1";
+
+        AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(keyCode);
+        _commands.OnKeyPressed(key, isHold); 
+
+        String msg = String("Emulated key 0x") + String(keyCode, HEX) + (isHold ? " (Hold)" : " (Press)");
+        return request->reply(200, "text/plain", msg.c_str());
+    });
+ 
 }

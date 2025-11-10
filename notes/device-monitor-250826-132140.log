@@ -1,0 +1,3224 @@
+[  2210][E][Preferences.cpp:50] begin(): nvs_open failed: NOT_FOUND
+------------------------
+   MEGANE CAN BUS       
+------------------------
+ CAN...............INIT
+HTTP Server: routes initialized.
+ all............inited
+RESTAPI........done
+[  6262][E][Preferences.cpp:50] begin(): nvs_open failed: NOT_FOUND
+Auto restore disabled by setting.
+[WiFi] Not connected, connectiong...
+COnfiguring ELM ...
+Connecting to ELM WiFi (STA, static IP)...
+[WiFi] elm connected ...
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: Z
+	Received char: \r
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATZELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: 10C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[ELM][PID ERR] header= pid=21A1 state=7
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+got response ...
+[10C0] OPENED
+[SEND] 21A1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A1
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 1
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 8
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A1F00800001:008000000000002:400020810000003:00040000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A1F0080000
+Response data: 61A1F0080000
+Found line in response: 1:00800000000000
+Response data: 00800000000000
+Found line in response: 2:40002081000000
+Response data: 40002081000000
+Found line in response: 3:00040000000000
+Response data: 00040000000000
+Parsed multiline response: 61A1F00800000080000000000040002081000000000400000000
+got response ...
+[RECV] header=7E0 pid=21A1  ->  decoded UDS payload
+[DATA] F0 08 00 00 00 80 00 00 00 00 00 40 00 20 81 00 00 00 00 04 00 00 00 00 00 04 00 00 00 00 00 (31 bytes)
+  ST_+ ПОСЛЕ ВКЛ. ЗАЖИГ. НА КОМПЬЮТЕРЕ (ET001   ) =    0.000 
+  ST_ЦЕПЬ УПРАВЛЕНИЯ БЕНЗОНАСОСА (ET047   ) =    0.000 
+  ST_КОМАНДА ПРИВОДА (ET048   ) =    0.000 
+  ST_КОМАНДА ВОДЯНОГО НАСОСА (ET543   ) =    0.000 
+  ST_КОМАНДА РЕЛЕ ВОЗДУШНОГО НАСОСА (ET049   ) =    0.000 
+  ST_ПЕДАЛЬ ПОЛН. ОТПУЩ. И ДРОСС. КЛАПАН ЗАКР. (ET075   ) =    0.000 
+  ST_НАГРЕВ ВЕРХНЕГО ДАТЧИКА КИСЛОРОДА (ET052   ) =    0.000 
+  ST_ПОДОГРЕВ НИЖНЕГО КИСЛОРОДНОГО ДАТЧИКА (ET053   ) =    0.000 
+  ST_РАЗРЕШЕНИЕ РАБОТЫ КОНДИЦИОНЕРА (ET004   ) =    0.000 
+  ST_УПРАВЛЕНИЕ ЭЛЕКТРОВЕНТИЛЯТОРА 1 (ET014   ) =    0.000 
+  ST_УПРАВЛЕНИЕ ЭЛЕКТРОВЕНТИЛЯТОРА 2 (ET015   ) =    0.000 
+  ST_ПОЛОЖЕНИЕ ПАРК / НЕЙТРАЛЬ. (ET063   ) =    0.000 
+  ST_СЖ. ГАЗ В СОСТ. НЕИСПРАВНОСТИ (ET066   ) =    0.000 
+  ST_ГОТОВНОСТЬ СЖ. ГАЗА (ET067   ) =    0.000 
+  ST_БАК СЖ. ГАЗА ПУСТОЙ (ET068   ) =    0.000 
+  ST_ФУНКЦИОНИРОВАНИЕ В РЕЖИМЕ СЖ. ГАЗА (ET069   ) =    0.000 
+  ST_ПЕРЕХОД ИЗ РЕЖИМА БЕНЗ. В РЕЖ. СЖ. ГАЗА (ET071   ) =    0.000 
+  ST_ПЕРЕХОД ИЗ РЕЖ. СЖ. ГАЗА В РЕЖИМ БЕНЗИНА (ET072   ) =    1.000 
+  ST_УСЛОВИЯ ПЕРЕХОДА В РЕЖИМ СЖ. ГАЗА (ET073   ) =    0.000 
+  ST_ИНДИКАТОР OBD ВКЛЮЧЕН АВТ. ТРАНСМИССИЕЙ (ET074   ) =    0.000 
+[SEND] 21A2 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A2
+	Received char: 0
+	Received char: 2
+	Received char: 8
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 2
+	Received char: 3
+	Received char: 7
+	Received char: 3
+	Received char: 7
+	Received char: 3
+	Received char: 4
+	Received char: 1
+	Received char: C
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: E
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: 7
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 6
+	Received char: 2
+	Received char: 6
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 1
+	Received char: 3
+	Received char: 2
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: E
+	Received char: 1
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: E
+	Received char: 1
+	Received char: 1
+	Received char: C
+	Received char: 1
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 4
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 7
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 6
+	Received char: B
+	Received char: \r
+	Received char: 5
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 6
+	Received char: B
+	Received char: 4
+	Received char: 0
+	Received char: 3
+	Received char: E
+	Received char: 2
+	Received char: 6
+	Received char: 1
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0280:61A23737341C1:E10037000026262:132600000000E13:E11C19000000004:0000720000006B5:006B403E261300
+Found line in response: 028
+totalBytes = 80
+Found line in response: 0:61A23737341C
+Response data: 61A23737341C
+Found line in response: 1:E1003700002626
+Response data: E1003700002626
+Found line in response: 2:132600000000E1
+Response data: 132600000000E1
+Found line in response: 3:E11C1900000000
+Response data: E11C1900000000
+Found line in response: 4:0000720000006B
+Response data: 0000720000006B
+Found line in response: 5:006B403E261300
+Response data: 006B403E261300
+Parsed multiline response: 61A23737341CE1003700002626132600000000E1E11C19000000000000720000006B006B403E2613
+got response ...
+[RECV] header=7E0 pid=21A2  ->  decoded UDS payload
+[DATA] 37 37 34 1C E1 00 37 00 00 26 26 13 26 00 00 00 00 E1 E1 1C 19 00 00 00 00 00 00 72 00 00 00 6B 00 6B 40 3E 26 13 00 06 00 6B 40 3E 26 13 00 (47 bytes)
+  PR_ПОЛОЖЕНИЕ ПЕДАЛИ АКСЕЛЕРАТОРА (PR030   ) =    7.422 %
+  PR_СЧИТАННОЕ ЗНАЧ. ОТПУЩ. ПЕДАЛИ (PR112   ) =    0.000 %
+  PR_ВВЕД.ЗНАЧ. КРАЙН.ВЕРХН.П. ДР.КЛ. С ПРИВ. (PR096   ) =   22.000 %
+  PR_ВВЕД.ЗНАЧ. КРАЙН.НИЖН.П. ДР.КЛ. С ПРИВ. (PR097   ) =    0.000 %
+  PR_ПОЛОЖЕНИЕ ПЕДАЛИ (ПОЛОСА 1) (PR028   ) =   14.844 %
+  PR_ПОЛОЖЕНИЕ ПЕДАЛИ (ПОЛОСА 2) (PR029   ) =    0.000 %
+  PR_ОЦЕНОЧН. РАСХОД ВОЗДУХА (PR018   ) =  225.000 kg/h
+  PR_СКОРР. ПОЛОЖ. ДРОСС. КЛАПАНА С СЕРВОПРИВ. (PR111   ) =    5.225 %
+  PR_НИЖН. ОГРАН. ДР. КЛАП. ПОСЛЕ ВВЕД. СМЕЩ. (PR113   ) =    0.000 %
+  PR_НИЖНИЙ ОГРАНИЧИТЕЛЬ ДРОССЕЛЬНОГО КЛАПАНА (PR114   ) =   10.449 %
+  PR_УСТАВКА СКОРР. ПОЛОЖ. ДР. КЛ. С СЕРВОПР. (PR116   ) =  803.027 %
+  PR_ВЕРХНИЙ ОГРАНИЧИТЕЛЬ ДРОССЕЛЬНОГО КЛАПАНА (PR115   ) =   11.133 %
+  PR_ИЗМЕРЕННОЕ ПОЛОЖ. ДР. КЛАПАНА. ДОРОЖКА 1 (PR118   ) =   11.200 %
+  PR_ИЗМЕРЕННОЕ ПОЛОЖ. ДР. КЛАПАНА. ДОРОЖКА 2 (PR119   ) =   90.000 %
+[SEND] 21A3 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A3
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: B
+	Received char: 0
+	Received char: E
+	Received char: 9
+	Received char: 1
+	Received char: 9
+	Received char: 9
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 9
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A3000000001:000000FB0E91992:960080000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A300000000
+Response data: 61A300000000
+Found line in response: 1:000000FB0E9199
+Response data: 000000FB0E9199
+Found line in response: 2:96008000000000
+Response data: 96008000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A300000000000000FB0E919996008000000000000000000000
+got response ...
+[RECV] header=7E0 pid=21A3  ->  decoded UDS payload
+[DATA] 00 00 00 00 00 00 00 FB 0E 91 99 96 00 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  PR_ЗНАЧЕНИЕ ВВОДА ПАРАМЕТРОВ РЕГУЛ. Х. ХОДА (PR090   ) = -282.630 %
+  PR_ТЕОРЕТИЧ. ЦИКЛ. ОТН. ОТКР. РЕГУЛИР. Х.Х. (PR091   ) =   50.001 %
+  PR_КОРРЕКЦИЯ СОСТАВА СМЕСИ (PR138   ) =    0.000 %
+  PR_СМЕЩ. ПАРАМ. САМОАД. КОРР. СОСТ. СМЕСИ (PR144   ) =  150.000 
+  PR_УСИЛЕНИЕ ПАР. САМОАД. КОРР. СОСТ. СМЕСИ (PR143   ) =    0.000 
+  PR_ИЗМЕРЕННОЕ ПОЛОЖЕНИЕ РЕГУЛЯТОРА AAC (PR093   ) =    0.000 *V
+  PR_СЦО УПР. СМЕЩ. ФАЗ ГАЗОРАС. ВПУС. КЛ. (PR876   ) =    0.000 %
+  PR_ПРОДОЛЖИТЕЛЬНОСТЬ ВПРЫСКА (PR101   ) =    0.000 ms
+  PR_ОТН. Ц. ОТКР. ЭМ. КЛ. ПР. Ф. ПАРОВ ТОПЛ. (PR102   ) =    0.000 %
+  PR_ЭТАЛ. ПОЛОЖ. ФАЗОРЕГ. РАСП. ВАЛА ВП.КЛАП. (PR745   ) =    0.000 *V
+[SEND] 21A4 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A4
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 4
+	Received char: 2
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: F
+	Received char: 0
+	Received char: 2
+	Received char: 2
+	Received char: C
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A42F0000001:0000002F022C002:000000000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A42F000000
+Response data: 61A42F000000
+Found line in response: 1:0000002F022C00
+Response data: 0000002F022C00
+Found line in response: 2:00000000000000
+Response data: 00000000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A42F0000000000002F022C0000000000000000000000000000
+got response ...
+[RECV] header=7E0 pid=21A4  ->  decoded UDS payload
+[DATA] 2F 00 00 00 00 00 00 2F 02 2C 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  PR_НАПРЯЖЕНИЕ ВЕРХН. ДАТЧ. КИСЛОРОДА (PR098   ) =    0.000 mV
+  PR_НАПРЯЖ. НИЖН. ДАТЧИКА КИСЛОРОДА (PR099   ) =  429.440 mV
+  PR_СРЕДНИЙ ПЕРИОД ВЕРХНЕГО ДАТЧИКА (PR121   ) =    0.000 ms
+  ST_ФАЗОРЕГУЛЯТОР РАСПР. ВАЛА ВПУСК. КЛАПАНОВ (ET084   ) =    0.000 
+[SEND] 21A5 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A5
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[ELM][PID ERR] header=7E0 pid=21A6 state=7
+[SDS] idle >= 2500 ms, re-open 10 C0 (7E0)
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+[ELM] Link looks dead (no good RX). Reconnecting...
+ensureTcpAndElm failed
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: 10C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+got response ...
+[10C0] OPENED
+[SEND] 21A6 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A6
+	Received char: 0
+	Received char: 2
+	Received char: 7
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 6
+	Received char: A
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: A
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 5
+	Received char: 0
+	Received char: 6
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: E
+	Received char: B
+	Received char: 0
+	Received char: 6
+	Received char: E
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: C
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 4
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 5
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0270:61A6A20000001:A2000100FFF5062:EB06E8000016003:0000001C0000004:000000250045005:00000000001300
+Found line in response: 027
+totalBytes = 78
+Found line in response: 0:61A6A2000000
+Response data: 61A6A2000000
+Found line in response: 1:A2000100FFF506
+Response data: A2000100FFF506
+Found line in response: 2:EB06E800001600
+Response data: EB06E800001600
+Found line in response: 3:0000001C000000
+Response data: 0000001C000000
+Found line in response: 4:00000025004500
+Response data: 00000025004500
+Found line in response: 5:00000000001300
+Response data: 00000000001300
+Parsed multiline response: 61A6A2000000A2000100FFF506EB06E8000016000000001C000000000000250045000000000000
+got response ...
+[RECV] header=7E0 pid=21A6  ->  decoded UDS payload
+[DATA] A2 00 00 00 A2 00 01 00 FF F5 06 EB 06 E8 00 00 16 00 00 00 00 1C 00 00 00 00 00 00 25 00 45 00 00 00 00 00 00 50 04 50 00 00 00 00 00 13 00 (47 bytes)
+  PR_СЧЕТЧИК ПРОБЕГА С ВКЛ. ИНДИК. НЕИСПР. OBD (PR105   ) = 5632.000 km
+  ST_ХОД ТЕСТА             (ET099   ) =    0.000 
+  ST_ХОД ВЫПОЛНЕНИЯ ИСПЫТАНИЯ (ET100   ) =    0.000 
+  ST_РЕЗУЛЬТАТ ТЕСТА (ET092   ) =    0.000 
+  ST_РЕЗУЛЬТАТ ИСПЫТАНИЯ (ET101   ) =    0.000 
+  ST_ETAT PRIVE 2                  (ET091   ) =    0.000 
+  ST_ETAT PRIVE 3                  (ET096   ) =    0.000 
+  ST_ETAT PRIVE 4                  (ET097   ) =    0.000 
+  ST_ETAT PRIVE 5                  (ET098   ) =    0.000 
+  ST_ETAT PRIVE 6                  (ET103   ) =    1.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 1 (ET057   ) =    0.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 2 (ET058   ) =    0.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 3 (ET059   ) =    0.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 4 (ET060   ) =    0.000 
+  ST_ПОСЛЕДОВАТ. БОРТ. ДИАГН. КАЛТАЛИЗАТОРА (LC021   ) =    0.000 
+  ST_ПОСЛЕДОВАТ. БОРТ. ДИАГН. ПРОПУСКА СГОРАН. (LC022   ) =    0.000 
+  ST_ПОСЛЕДОВАТ. БОРТ. ДИАГНОСТИКИ ДАТЧИКОВ (LC023   ) =    0.000 
+[SEND] 21A7 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A7
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 7
+	Received char: 1
+	Received char: 7
+	Received char: 0
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 6
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 6
+	Received char: 0
+	Received char: 2
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A7170600461:400010110016022:008200400010003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A717060046
+Response data: 61A717060046
+Found line in response: 1:40001011001602
+Response data: 40001011001602
+Found line in response: 2:00820040001000
+Response data: 00820040001000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A7170600464000101100160200820040001000000000000000
+got response ...
+[RECV] header=7E0 pid=21A7  ->  decoded UDS payload
+[DATA] 17 06 00 46 40 00 10 11 00 16 02 00 82 00 40 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  ST_ВВОД ПАРАМЕТРОВ КРАЙНИХ ПОЛОЖ. ДРОСС. КЛ. (ET051   ) =    0.000 
+  ST_РЕГУЛИРОВКА ХОЛОСТОГО ХОДА (ET054   ) =    0.000 
+  ST_КОНТУР СОСТАВА СМЕСИ ВЕРХНЕГО ДАТЧИКА (ET055   ) =    0.000 
+  ST_ДВОЙНОЙ КОНТУР СОСТАВА СМЕСИ (ET056   ) =    0.000 
+  ST_КОНДИЦИОНЕР        (LC009   ) =    0.000 
+  ST_ТИП СОЕДИНЕНИЯ СКОРОСТИ АВТОМОБИЛЯ (LC001   ) =    0.000 
+  ST_КОНТРОЛЬ ТРАЕКТОРИИ (LC010   ) =    0.000 
+  ST_ЗАМЫК. КОНТАКТ ТОРМОЗА ПРОВОДН. ТИПА (LC018   ) =    1.000 
+  ST_ВЕРХНИЙ ДАТЧИК КИСЛОРОДА (LC003   ) =    0.000 
+  ST_НИЖНИЙ ДАТЧИК КИСЛОРОДА (LC004   ) =    0.000 
+  ST_УПРАВЛЕНИЕ СИГНАЛОМ ДАВЛЕНИЯ КОНДИЦИОНЕРА (LC016   ) =    0.000 
+  ST_ТИП КОРОБКИ ПЕРЕДАЧ (LC005   ) =    0.000 
+  ST_РАСПОЗНАВАНИЕ ЦИЛИНДРА 1 (LC007   ) =    1.000 
+  ST_НАГРЕВАТЕЛЬНЫЙ РЕЗИСТОР (LC025   ) =    0.000 
+  ST_СТРАТЕГИЯ РАБОТЫ ВОЗДУШНОГО НАСОСА (LC014   ) =    0.000 
+  ST_СТРАТЕГИЯ РАБОТЫ ВОДЯНОГО НАСОСА (LC015   ) =    1.000 
+  ST_УПРАВЛЕНИЕ ИНДИКАТОРОМ БОРТ. ДИАГН. OBD (LC024   ) =    0.000 
+  ST_ВОЗДУШНЫЙ НАСОС (LC164   ) =    0.000 
+  ST_ЭЛЕКТРИЧЕСКИЙ ВОДЯНОЙ НАСОС (LC170   ) =    0.000 
+[SEND] 21A9 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A9
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 5
+	Received char: 8
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 9
+	Received char: 1
+	Received char: 9
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A9000000581:9199000000000F2:000000000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A900000058
+Response data: 61A900000058
+Found line in response: 1:9199000000000F
+Response data: 9199000000000F
+Found line in response: 2:00000000000000
+Response data: 00000000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A9000000589199000000000F00000000000000000000000000
+got response ...
+[RECV] header=7E0 pid=21A9  ->  decoded UDS payload
+[DATA] 00 00 00 58 91 99 00 00 00 00 0F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  PR_ИНТЕГРАЛЬН. КОРРЕКЦИЯ РЕГУЛИРОВКИ ХОЛОСТОГО Х. (PR141   ) =   38.400 %
+  PR_ПОТЕРЯ КРУТЯЩЕГО МОМЕНТА (PR100   ) =    0.000 Nm
+  PR_МГНОВЕННЫЙ РАСХОД ТОПЛИВА ЗА ЕД ВРЕМЕНИ (PR103   ) =    0.880 l/h
+  PR_МОЩН.. ПОТРЕБЛ. КОМПРЕССОРОМ КОНД. (PR125   ) =    0.000 W
+[SEND] 21AF (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21AF
+	Received char: 0
+	Received char: 0
+	Received char: B
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: F
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: F
+	Received char: 0
+	Received char: F
+	Received char: C
+	Received char: C
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 00B0:61AF200F00081:0F0FCC0010000F
+Found line in response: 00B
+totalBytes = 22
+Found line in response: 0:61AF200F0008
+Response data: 61AF200F0008
+Found line in response: 1:0F0FCC0010000F
+Response data: 0F0FCC0010000F
+Parsed multiline response: 61AF200F00080F0FCC0010
+got response ...
+[RECV] header=7E0 pid=21AF  ->  decoded UDS payload
+[DATA] 20 0F 00 08 0F 0F CC 00 10 0F CC 00 10 00 0F (15 bytes)
+  ST_ВВОД КОДА ВЫПОЛНЕН (ET006   ) =    0.000 
+  ST_ИМОБИЛАЙЗЕР        (ET003   ) =    0.000 
+  ST_УДАР ОБНАРУЖЕН   (ET077   ) =  204.000 
+[SEND] 21C1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21C1
+	Received char: 0
+	Received char: 1
+	Received char: 2
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: C
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 7
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: C
+	Received char: 4
+	Received char: 0
+	Received char: 1
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0120:61C1010004001:090000020017002:C401500F000000
+Found line in response: 012
+totalBytes = 36
+Found line in response: 0:61C101000400
+Response data: 61C101000400
+Found line in response: 1:09000002001700
+Response data: 09000002001700
+Found line in response: 2:C401500F000000
+Response data: C401500F000000
+Parsed multiline response: 61C10100040009000002001700C401500F00
+got response ...
+[RECV] header=7E0 pid=21C1  ->  decoded UDS payload
+[DATA] 01 00 04 00 09 00 00 02 00 17 00 C4 01 50 0F 00 C4 01 50 0F 00 00 00 (23 bytes)
+  PR_ДАВЛЕНИЕ ХЛАДАГЕНТА (PR037   ) =   39.200 bar
+  PR_МАКС. ДОПУСТ. МОЩНОСТЬ СОПРОТИВЛ. ОБОГР. (PR127   ) =  100.000 W
+  ST_ЗАПРОС НА ВКЛЮЧЕНИЕ КОМПРЕССОРА (ET088   ) =    0.000 
+  ST_ЧИСЛО РОС ЗАФИКСИРОВАНО (ET111   ) =    0.000 
+  ST_ОТКЛЮЧЕНИЕ РОС   (ET112   ) =    0.000 
+[SEND] 21C7 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21C7
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[ELM][PID ERR] header=7E0 pid=21D1 state=7
+[SDS] idle >= 2500 ms, re-open 10 C0 (7E0)
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+[ELM] Link looks dead (no good RX). Reconnecting...
+ensureTcpAndElm failed
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: 10C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+got response ...
+[10C0] OPENED
+[SEND] 21D1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21D1
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: D
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: B
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: E
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0110:61D1010004001:0002000000011B2:000000FE000000
+Found line in response: 011
+totalBytes = 34
+Found line in response: 0:61D101000400
+Response data: 61D101000400
+Found line in response: 1:0002000000011B
+Response data: 0002000000011B
+Found line in response: 2:000000FE000000
+Response data: 000000FE000000
+Parsed multiline response: 61D1010004000002000000011B000000FE
+got response ...
+[RECV] header=7E0 pid=21D1  ->  decoded UDS payload
+[DATA] 01 00 04 00 00 02 00 00 00 01 1B 00 00 00 FE 00 00 00 FE 00 00 00 (22 bytes)
+  ST_ПЕДАЛЬ ТОРМОЗА   (ET039   ) =    1.000 
+  ST_КОНТАКТ № 1 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА (ET704   ) =    0.000 
+  ST_КОНТАКТ № 2 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА (ET705   ) =   27.000 
+  ST_РЕГУЛЯТОР СКОРОСТИ (LC120   ) =    0.000 
+  ST_ОГРАНИЧИТЕЛЬ СКОРОСТИ (LC121   ) =    0.000 
+[SEND] 2182 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 2182
+	Received char: 0
+	Received char: 1
+	Received char: E
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: 8
+	Received char: 2
+	Received char: 8
+	Received char: 4
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: 4
+	Received char: :
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 2
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01E0:6182840400001:00000000FFFFFF2:FFF0FFFFF0FFFF3:FFFFFFFFFF00FF4:FFFFFF25004500
+Found line in response: 01E
+totalBytes = 60
+Found line in response: 0:618284040000
+Response data: 618284040000
+Found line in response: 1:00000000FFFFFF
+Response data: 00000000FFFFFF
+Found line in response: 2:FFF0FFFFF0FFFF
+Response data: FFF0FFFFF0FFFF
+Found line in response: 3:FFFFFFFFFF00FF
+Response data: FFFFFFFFFF00FF
+Found line in response: 4:FFFFFF25004500
+Response data: FFFFFF25004500
+Parsed multiline response: 61828404000000000000FFFFFFFFF0FFFFF0FFFFFFFFFFFFFF00FFFFFFFF
+got response ...
+[RECV] header=7E0 pid=2182  ->  decoded UDS payload
+[DATA] 84 04 00 00 00 00 00 00 FF FF FF FF F0 FF FF F0 FF FF FF FF FF FF FF 00 FF FF FF FF FF FF 00 FF FF FF FF 25 00 45 00 (39 bytes)
+  ST_ВЕРСИЯ ДИАГНОСТИКИ (MAS2    ) =  255.000 
+[SEND] 21A0 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A0
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 0
+	Received char: 7
+	Received char: 7
+	Received char: 5
+	Received char: C
+	Received char: 5
+	Received char: C
+	Received char: 3
+	Received char: C
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: A
+	Received char: 0
+	Received char: 0
+	Received char: D
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: D
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: C
+	Received char: 7
+	Received char: 0
+	Received char: 3
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 1
+	Received char: 7
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A0775C5C3C1:A00D000003D0002:00003C703F00033:170000000000FF
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A0775C5C3C
+Response data: 61A0775C5C3C
+Found line in response: 1:A00D000003D000
+Response data: A00D000003D000
+Found line in response: 2:00003C703F0003
+Response data: 00003C703F0003
+Found line in response: 3:170000000000FF
+Response data: 170000000000FF
+Parsed multiline response: 61A0775C5C3CA00D000003D00000003C703F0003170000000000
+got response ...
+[RECV] header=7E0 pid=21A0  ->  decoded UDS payload
+[DATA] 77 5C 5C 3C A0 0D 00 00 03 D0 00 00 00 3C 70 3F 00 03 17 00 00 00 00 00 17 00 00 00 00 00 FF (31 bytes)
+  PR_НАПРЯЖЕНИЕ ПИТАНИЯ КОМПЬЮТЕРА (PR071   ) =   10.958 V
+  PR_АТМОСФЕРНОЕ ДАВЛЕНИЕ (PR035   ) = 1047.000 мбар
+  PR_ДАВЛЕНИЕ ВПУСКА (PR032   ) =  295.358 мбар
+  PR_ТЕМПЕРАТУРА ВОДЫ (PR064   ) =   -2.500 °C
+  PR_ТЕМПЕРАТУРА ВОЗДУХА (PR058   ) =   60.000 °C
+  PR_СКОРОСТИ АВТОМОБИЛЯ (PR089   ) =   60.000 км/час
+  PR_РЕЖИМ ДВИГАТЕЛЯ (PR055   ) =  976.000 об/мин
+  PR_КОРРЕКЦИЯ РЕЖИМА ХОЛОСТОГО ХОДА (PR014   ) =    0.000 об/мин
+  PR_УСТАНОВКА РЕГУЛИРОВКИ ХОЛ. ХОДА (PR010   ) =    0.000 об/мин
+  PR_ОПЕРЕЖЕНИЕ          (PR001   ) =  -22.500 *V
+  PR_РЕГУЛИРОВКА ДЛЯ УСТР. ДЕТОНАЦИЙ (PR095   ) =    8.625 *V
+  PR_ДАВЛЕНИЕ НАДДУВА (PR041   ) = 1035.400 мбар
+  PR_СЦО ЭЛЕКТРОМАГ. КЛАПАНА РЕГ. ДАВ. НАДДУВ (PR846   ) =    0.000 %
+[SEND] 21A1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A1
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 1
+	Received char: 8
+	Received char: 2
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 8
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A1820800001:008000000000002:400020810000003:000400000000FF
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A182080000
+Response data: 61A182080000
+Found line in response: 1:00800000000000
+Response data: 00800000000000
+Found line in response: 2:40002081000000
+Response data: 40002081000000
+Found line in response: 3:000400000000FF
+Response data: 000400000000FF
+Parsed multiline response: 61A1820800000080000000000040002081000000000400000000
+got response ...
+[RECV] header=7E0 pid=21A1  ->  decoded UDS payload
+[DATA] 82 08 00 00 00 80 00 00 00 00 00 40 00 20 81 00 00 00 00 04 00 00 00 00 00 04 00 00 00 00 FF (31 bytes)
+  ST_+ ПОСЛЕ ВКЛ. ЗАЖИГ. НА КОМПЬЮТЕРЕ (ET001   ) =    0.000 
+  ST_ЦЕПЬ УПРАВЛЕНИЯ БЕНЗОНАСОСА (ET047   ) =    0.000 
+  ST_КОМАНДА ПРИВОДА (ET048   ) =    0.000 
+  ST_КОМАНДА ВОДЯНОГО НАСОСА (ET543   ) =    0.000 
+  ST_КОМАНДА РЕЛЕ ВОЗДУШНОГО НАСОСА (ET049   ) =    0.000 
+  ST_ПЕДАЛЬ ПОЛН. ОТПУЩ. И ДРОСС. КЛАПАН ЗАКР. (ET075   ) =    0.000 
+  ST_НАГРЕВ ВЕРХНЕГО ДАТЧИКА КИСЛОРОДА (ET052   ) =    0.000 
+  ST_ПОДОГРЕВ НИЖНЕГО КИСЛОРОДНОГО ДАТЧИКА (ET053   ) =    0.000 
+  ST_РАЗРЕШЕНИЕ РАБОТЫ КОНДИЦИОНЕРА (ET004   ) =    0.000 
+  ST_УПРАВЛЕНИЕ ЭЛЕКТРОВЕНТИЛЯТОРА 1 (ET014   ) =    0.000 
+  ST_УПРАВЛЕНИЕ ЭЛЕКТРОВЕНТИЛЯТОРА 2 (ET015   ) =    0.000 
+  ST_ПОЛОЖЕНИЕ ПАРК / НЕЙТРАЛЬ. (ET063   ) =    0.000 
+  ST_СЖ. ГАЗ В СОСТ. НЕИСПРАВНОСТИ (ET066   ) =    0.000 
+  ST_ГОТОВНОСТЬ СЖ. ГАЗА (ET067   ) =    0.000 
+  ST_БАК СЖ. ГАЗА ПУСТОЙ (ET068   ) =    0.000 
+  ST_ФУНКЦИОНИРОВАНИЕ В РЕЖИМЕ СЖ. ГАЗА (ET069   ) =    0.000 
+  ST_ПЕРЕХОД ИЗ РЕЖИМА БЕНЗ. В РЕЖ. СЖ. ГАЗА (ET071   ) =    0.000 
+  ST_ПЕРЕХОД ИЗ РЕЖ. СЖ. ГАЗА В РЕЖИМ БЕНЗИНА (ET072   ) =    1.000 
+  ST_УСЛОВИЯ ПЕРЕХОДА В РЕЖИМ СЖ. ГАЗА (ET073   ) =    0.000 
+  ST_ИНДИКАТОР OBD ВКЛЮЧЕН АВТ. ТРАНСМИССИЕЙ (ET074   ) =    0.000 
+[SEND] 21A2 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A2
+	Received char: 0
+	Received char: 2
+	Received char: 8
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 2
+	Received char: 7
+	Received char: 3
+	Received char: 7
+	Received char: 3
+	Received char: 7
+	Received char: 0
+	Received char: 1
+	Received char: C
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: E
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 7
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: C
+	Received char: 7
+	Received char: C
+	Received char: 7
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 6
+	Received char: 3
+	Received char: 2
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: E
+	Received char: 1
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: E
+	Received char: 1
+	Received char: 1
+	Received char: C
+	Received char: 1
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 4
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 7
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 5
+	Received char: C
+	Received char: \r
+	Received char: 5
+	Received char: :
+	Received char: 0
+	Received char: 1
+	Received char: 5
+	Received char: C
+	Received char: 4
+	Received char: 0
+	Received char: 3
+	Received char: E
+	Received char: C
+	Received char: 7
+	Received char: 6
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0280:61A27373701C1:E100730000C7C72:632600000000E13:E11C19000000004:0000720000015C5:015C403EC76300
+Found line in response: 028
+totalBytes = 80
+Found line in response: 0:61A27373701C
+Response data: 61A27373701C
+Found line in response: 1:E100730000C7C7
+Response data: E100730000C7C7
+Found line in response: 2:632600000000E1
+Response data: 632600000000E1
+Found line in response: 3:E11C1900000000
+Response data: E11C1900000000
+Found line in response: 4:0000720000015C
+Response data: 0000720000015C
+Found line in response: 5:015C403EC76300
+Response data: 015C403EC76300
+Parsed multiline response: 61A27373701CE100730000C7C7632600000000E1E11C19000000000000720000015C015C403EC763
+got response ...
+[RECV] header=7E0 pid=21A2  ->  decoded UDS payload
+[DATA] 73 73 70 1C E1 00 73 00 00 C7 C7 63 26 00 00 00 00 E1 E1 1C 19 00 00 00 00 00 00 72 00 00 01 5C 01 5C 40 3E C7 63 00 15 01 5C 40 3E C7 63 00 (47 bytes)
+  PR_ПОЛОЖЕНИЕ ПЕДАЛИ АКСЕЛЕРАТОРА (PR030   ) =   38.672 %
+  PR_СЧИТАННОЕ ЗНАЧ. ОТПУЩ. ПЕДАЛИ (PR112   ) =    0.000 %
+  PR_ВВЕД.ЗНАЧ. КРАЙН.ВЕРХН.П. ДР.КЛ. С ПРИВ. (PR096   ) =   46.000 %
+  PR_ВВЕД.ЗНАЧ. КРАЙН.НИЖН.П. ДР.КЛ. С ПРИВ. (PR097   ) =    0.000 %
+  PR_ПОЛОЖЕНИЕ ПЕДАЛИ (ПОЛОСА 1) (PR028   ) =   14.844 %
+  PR_ПОЛОЖЕНИЕ ПЕДАЛИ (ПОЛОСА 2) (PR029   ) =    0.000 %
+  PR_ОЦЕНОЧН. РАСХОД ВОЗДУХА (PR018   ) =  225.000 kg/h
+  PR_СКОРР. ПОЛОЖ. ДРОСС. КЛАПАНА С СЕРВОПРИВ. (PR111   ) =   16.992 %
+  PR_НИЖН. ОГРАН. ДР. КЛАП. ПОСЛЕ ВВЕД. СМЕЩ. (PR113   ) =    0.000 %
+  PR_НИЖНИЙ ОГРАНИЧИТЕЛЬ ДРОССЕЛЬНОГО КЛАПАНА (PR114   ) =   33.984 %
+  PR_УСТАВКА СКОРР. ПОЛОЖ. ДР. КЛ. С СЕРВОПР. (PR116   ) =  803.027 %
+  PR_ВЕРХНИЙ ОГРАНИЧИТЕЛЬ ДРОССЕЛЬНОГО КЛАПАНА (PR115   ) =   11.133 %
+  PR_ИЗМЕРЕННОЕ ПОЛОЖ. ДР. КЛАПАНА. ДОРОЖКА 1 (PR118   ) =   11.200 %
+  PR_ИЗМЕРЕННОЕ ПОЛОЖ. ДР. КЛАПАНА. ДОРОЖКА 2 (PR119   ) =   90.000 %
+[SEND] 21A3 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A3
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[ELM][PID ERR] header=7E0 pid=21A4 state=7
+[SDS] idle >= 2500 ms, re-open 10 C0 (7E0)
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+[ELM] Link looks dead (no good RX). Reconnecting...
+ensureTcpAndElm failed
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: 10C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+got response ...
+[10C0] OPENED
+[SEND] 21A4 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A4
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 4
+	Received char: 2
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: F
+	Received char: 0
+	Received char: 2
+	Received char: 2
+	Received char: C
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A42F0000001:0000002F022C002:000000000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A42F000000
+Response data: 61A42F000000
+Found line in response: 1:0000002F022C00
+Response data: 0000002F022C00
+Found line in response: 2:00000000000000
+Response data: 00000000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A42F0000000000002F022C0000000000000000000000000000
+got response ...
+[RECV] header=7E0 pid=21A4  ->  decoded UDS payload
+[DATA] 2F 00 00 00 00 00 00 2F 02 2C 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  PR_НАПРЯЖЕНИЕ ВЕРХН. ДАТЧ. КИСЛОРОДА (PR098   ) =    0.000 mV
+  PR_НАПРЯЖ. НИЖН. ДАТЧИКА КИСЛОРОДА (PR099   ) =  429.440 mV
+  PR_СРЕДНИЙ ПЕРИОД ВЕРХНЕГО ДАТЧИКА (PR121   ) =    0.000 ms
+  ST_ФАЗОРЕГУЛЯТОР РАСПР. ВАЛА ВПУСК. КЛАПАНОВ (ET084   ) =    0.000 
+[SEND] 21A5 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A5
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 5
+	Received char: 3
+	Received char: 2
+	Received char: 3
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 3
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A5323200001:320000000000002:000000000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A532320000
+Response data: 61A532320000
+Found line in response: 1:32000000000000
+Response data: 32000000000000
+Found line in response: 2:00000000000000
+Response data: 00000000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A5323200003200000000000000000000000000000000000000
+got response ...
+[RECV] header=7E0 pid=21A5  ->  decoded UDS payload
+[DATA] 32 32 00 00 32 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  PR_КРУТЯЩИЙ МОМЕНТ ДВИГАТЕЛЯ (PR015   ) = -100.000 Nm
+  PR_ОЦЕН. КРУТЯЩ. МОМЕНТ ДВИГ. ПО ЗАД. ВОДИТ. (PR123   ) = -100.000 Nm
+  PR_КРУТ. МОМЕНТ. ПРИНЯТЫЙ ГИДРОТРАНСФ. АКП (PR122   ) =    0.000 Nm
+  PR_КРУТ. МОМ. СОПР. ДВИГ.. ПЕРЕДАННЫЙ НА CAN (PR124   ) = -100.000 Nm
+[SEND] 21A6 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A6
+	Received char: 0
+	Received char: 2
+	Received char: 7
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 6
+	Received char: A
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: A
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 5
+	Received char: 0
+	Received char: 6
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: E
+	Received char: B
+	Received char: 0
+	Received char: 6
+	Received char: E
+	Received char: 8
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: C
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 4
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 5
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 6
+	Received char: 3
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0270:61A6A20000001:A2000100FFF5062:EB06E8000016003:0000001C0000004:000000250045005:00000000006300
+Found line in response: 027
+totalBytes = 78
+Found line in response: 0:61A6A2000000
+Response data: 61A6A2000000
+Found line in response: 1:A2000100FFF506
+Response data: A2000100FFF506
+Found line in response: 2:EB06E800001600
+Response data: EB06E800001600
+Found line in response: 3:0000001C000000
+Response data: 0000001C000000
+Found line in response: 4:00000025004500
+Response data: 00000025004500
+Found line in response: 5:00000000006300
+Response data: 00000000006300
+Parsed multiline response: 61A6A2000000A2000100FFF506EB06E8000016000000001C000000000000250045000000000000
+got response ...
+[RECV] header=7E0 pid=21A6  ->  decoded UDS payload
+[DATA] A2 00 00 00 A2 00 01 00 FF F5 06 EB 06 E8 00 00 16 00 00 00 00 1C 00 00 00 00 00 00 25 00 45 00 00 00 00 00 00 50 04 50 00 00 00 00 00 63 00 (47 bytes)
+  PR_СЧЕТЧИК ПРОБЕГА С ВКЛ. ИНДИК. НЕИСПР. OBD (PR105   ) = 5632.000 km
+  ST_ХОД ТЕСТА             (ET099   ) =    0.000 
+  ST_ХОД ВЫПОЛНЕНИЯ ИСПЫТАНИЯ (ET100   ) =    0.000 
+  ST_РЕЗУЛЬТАТ ТЕСТА (ET092   ) =    0.000 
+  ST_РЕЗУЛЬТАТ ИСПЫТАНИЯ (ET101   ) =    0.000 
+  ST_ETAT PRIVE 2                  (ET091   ) =    0.000 
+  ST_ETAT PRIVE 3                  (ET096   ) =    0.000 
+  ST_ETAT PRIVE 4                  (ET097   ) =    0.000 
+  ST_ETAT PRIVE 5                  (ET098   ) =    0.000 
+  ST_ETAT PRIVE 6                  (ET103   ) =    1.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 1 (ET057   ) =    0.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 2 (ET058   ) =    0.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 3 (ET059   ) =    0.000 
+  ST_ПРОПУСК ЗАЖИГАНИЯ В ЦИЛИНДРЕ 4 (ET060   ) =    0.000 
+  ST_ПОСЛЕДОВАТ. БОРТ. ДИАГН. КАЛТАЛИЗАТОРА (LC021   ) =    0.000 
+  ST_ПОСЛЕДОВАТ. БОРТ. ДИАГН. ПРОПУСКА СГОРАН. (LC022   ) =    0.000 
+  ST_ПОСЛЕДОВАТ. БОРТ. ДИАГНОСТИКИ ДАТЧИКОВ (LC023   ) =    0.000 
+[SEND] 21A7 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A7
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 7
+	Received char: 1
+	Received char: 7
+	Received char: 0
+	Received char: 6
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 6
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 6
+	Received char: 0
+	Received char: 2
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 8
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A7170600461:400010110016022:008200400010003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A717060046
+Response data: 61A717060046
+Found line in response: 1:40001011001602
+Response data: 40001011001602
+Found line in response: 2:00820040001000
+Response data: 00820040001000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A7170600464000101100160200820040001000000000000000
+got response ...
+[RECV] header=7E0 pid=21A7  ->  decoded UDS payload
+[DATA] 17 06 00 46 40 00 10 11 00 16 02 00 82 00 40 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  ST_ВВОД ПАРАМЕТРОВ КРАЙНИХ ПОЛОЖ. ДРОСС. КЛ. (ET051   ) =    0.000 
+  ST_РЕГУЛИРОВКА ХОЛОСТОГО ХОДА (ET054   ) =    0.000 
+  ST_КОНТУР СОСТАВА СМЕСИ ВЕРХНЕГО ДАТЧИКА (ET055   ) =    0.000 
+  ST_ДВОЙНОЙ КОНТУР СОСТАВА СМЕСИ (ET056   ) =    0.000 
+  ST_КОНДИЦИОНЕР        (LC009   ) =    0.000 
+  ST_ТИП СОЕДИНЕНИЯ СКОРОСТИ АВТОМОБИЛЯ (LC001   ) =    0.000 
+  ST_КОНТРОЛЬ ТРАЕКТОРИИ (LC010   ) =    0.000 
+  ST_ЗАМЫК. КОНТАКТ ТОРМОЗА ПРОВОДН. ТИПА (LC018   ) =    1.000 
+  ST_ВЕРХНИЙ ДАТЧИК КИСЛОРОДА (LC003   ) =    0.000 
+  ST_НИЖНИЙ ДАТЧИК КИСЛОРОДА (LC004   ) =    0.000 
+  ST_УПРАВЛЕНИЕ СИГНАЛОМ ДАВЛЕНИЯ КОНДИЦИОНЕРА (LC016   ) =    0.000 
+  ST_ТИП КОРОБКИ ПЕРЕДАЧ (LC005   ) =    0.000 
+  ST_РАСПОЗНАВАНИЕ ЦИЛИНДРА 1 (LC007   ) =    1.000 
+  ST_НАГРЕВАТЕЛЬНЫЙ РЕЗИСТОР (LC025   ) =    0.000 
+  ST_СТРАТЕГИЯ РАБОТЫ ВОЗДУШНОГО НАСОСА (LC014   ) =    0.000 
+  ST_СТРАТЕГИЯ РАБОТЫ ВОДЯНОГО НАСОСА (LC015   ) =    1.000 
+  ST_УПРАВЛЕНИЕ ИНДИКАТОРОМ БОРТ. ДИАГН. OBD (LC024   ) =    0.000 
+  ST_ВОЗДУШНЫЙ НАСОС (LC164   ) =    0.000 
+  ST_ЭЛЕКТРИЧЕСКИЙ ВОДЯНОЙ НАСОС (LC170   ) =    0.000 
+[SEND] 21A9 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A9
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 5
+	Received char: 8
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 9
+	Received char: 1
+	Received char: 9
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A9000000581:9199000000000F2:000000000000003:00000000000000
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A900000058
+Response data: 61A900000058
+Found line in response: 1:9199000000000F
+Response data: 9199000000000F
+Found line in response: 2:00000000000000
+Response data: 00000000000000
+Found line in response: 3:00000000000000
+Response data: 00000000000000
+Parsed multiline response: 61A9000000589199000000000F00000000000000000000000000
+got response ...
+[RECV] header=7E0 pid=21A9  ->  decoded UDS payload
+[DATA] 00 00 00 58 91 99 00 00 00 00 0F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 (31 bytes)
+  PR_ИНТЕГРАЛЬН. КОРРЕКЦИЯ РЕГУЛИРОВКИ ХОЛОСТОГО Х. (PR141   ) =   38.400 %
+  PR_ПОТЕРЯ КРУТЯЩЕГО МОМЕНТА (PR100   ) =    0.000 Nm
+  PR_МГНОВЕННЫЙ РАСХОД ТОПЛИВА ЗА ЕД ВРЕМЕНИ (PR103   ) =    0.880 l/h
+  PR_МОЩН.. ПОТРЕБЛ. КОМПРЕССОРОМ КОНД. (PR125   ) =    0.000 W
+[SEND] 21AF (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21AF
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[ELM][PID ERR] header=7E0 pid=21C1 state=7
+[SDS] idle >= 2500 ms, re-open 10 C0 (7E0)
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+[ELM] Link looks dead (no good RX). Reconnecting...
+ensureTcpAndElm failed
+[ELM] TCP connect 192.168.0.10:35000 ...
+[ELM] TCP connected
+Clearing input serial buffer
+Sending the following command/query: AT D
+	Received char: ?
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 
+Clearing input serial buffer
+Sending the following command/query: AT Z
+	Received char: \r
+	Received char: \r
+	Received char: E
+	Received char: L
+	Received char: M
+	Received char: 3
+	Received char: 2
+	Received char: 7
+	Received char: _
+	Received char: v
+	Received char: 2
+	Received char: .
+	Received char: 3
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ELM327v2.3
+Clearing input serial buffer
+Sending the following command/query: AT E0
+	Received char: A
+	Received char: T
+	Received char: _
+	Received char: E
+	Received char: 0
+	Received char: \r
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: ATE0OK
+Clearing input serial buffer
+Sending the following command/query: AT S0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT AL
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT ST 56
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: AT TP A6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Elm.begin done
+Clearing input serial buffer
+Sending the following command/query: AT SP 6
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+Clearing input serial buffer
+Sending the following command/query: 10C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+Elm init commands done
+Elm init commands done
+[SEND] ATSH 7E0
+Clearing input serial buffer
+Sending the following command/query: ATSH 7E0
+	Received char: O
+	Received char: K
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: OK
+got response ...
+[RECV] OK for ATSH 7E0
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0
+	Received char: 5
+	Received char: 0
+	Received char: C
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 50C0
+got response ...
+[10C0] OPENED
+[SEND] 21C1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21C1
+	Received char: 0
+	Received char: 1
+	Received char: 2
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: C
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 7
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: C
+	Received char: 4
+	Received char: 0
+	Received char: 1
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0120:61C1010004001:090000020017002:C401500F000000
+Found line in response: 012
+totalBytes = 36
+Found line in response: 0:61C101000400
+Response data: 61C101000400
+Found line in response: 1:09000002001700
+Response data: 09000002001700
+Found line in response: 2:C401500F000000
+Response data: C401500F000000
+Parsed multiline response: 61C10100040009000002001700C401500F00
+got response ...
+[RECV] header=7E0 pid=21C1  ->  decoded UDS payload
+[DATA] 01 00 04 00 09 00 00 02 00 17 00 C4 01 50 0F 00 C4 01 50 0F 00 00 00 (23 bytes)
+  PR_ДАВЛЕНИЕ ХЛАДАГЕНТА (PR037   ) =   39.200 bar
+  PR_МАКС. ДОПУСТ. МОЩНОСТЬ СОПРОТИВЛ. ОБОГР. (PR127   ) =  100.000 W
+  ST_ЗАПРОС НА ВКЛЮЧЕНИЕ КОМПРЕССОРА (ET088   ) =    0.000 
+  ST_ЧИСЛО РОС ЗАФИКСИРОВАНО (ET111   ) =    0.000 
+  ST_ОТКЛЮЧЕНИЕ РОС   (ET112   ) =    0.000 
+[SEND] 21C7 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21C7
+	Received char: 0
+	Received char: 0
+	Received char: D
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: C
+	Received char: 7
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 3
+	Received char: 0
+	Received char: 9
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 1
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: C
+	Received char: 4
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 2
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 00D0:61C7010309001:1400C401010012
+Found line in response: 00D
+totalBytes = 26
+Found line in response: 0:61C701030900
+Response data: 61C701030900
+Found line in response: 1:1400C401010012
+Response data: 1400C401010012
+Parsed multiline response: 61C7010309001400C401010012
+got response ...
+[RECV] header=7E0 pid=21C7  ->  decoded UDS payload
+[DATA] 01 03 09 00 14 00 C4 01 01 00 12 01 01 00 12 (15 bytes)
+  ST_ЗАПУСК                  (ET076   ) =    0.000 
+[SEND] 21D1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21D1
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: D
+	Received char: 1
+	Received char: 0
+	Received char: 1
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 2
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 1
+	Received char: 1
+	Received char: B
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: E
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 0110:61D1010004001:0002000000011B2:000000FE000000
+Found line in response: 011
+totalBytes = 34
+Found line in response: 0:61D101000400
+Response data: 61D101000400
+Found line in response: 1:0002000000011B
+Response data: 0002000000011B
+Found line in response: 2:000000FE000000
+Response data: 000000FE000000
+Parsed multiline response: 61D1010004000002000000011B000000FE
+got response ...
+[RECV] header=7E0 pid=21D1  ->  decoded UDS payload
+[DATA] 01 00 04 00 00 02 00 00 00 01 1B 00 00 00 FE 00 00 00 FE 00 00 00 (22 bytes)
+  ST_ПЕДАЛЬ ТОРМОЗА   (ET039   ) =    1.000 
+  ST_КОНТАКТ № 1 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА (ET704   ) =    0.000 
+  ST_КОНТАКТ № 2 ВЫКЛЮЧАТЕЛЯ СТОП-СИГНАЛА (ET705   ) =   27.000 
+  ST_РЕГУЛЯТОР СКОРОСТИ (LC120   ) =    0.000 
+  ST_ОГРАНИЧИТЕЛЬ СКОРОСТИ (LC121   ) =    0.000 
+[SEND] 2182 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 2182
+	Received char: 0
+	Received char: 1
+	Received char: E
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: 8
+	Received char: 2
+	Received char: 8
+	Received char: 4
+	Received char: 0
+	Received char: 4
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: 4
+	Received char: :
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: F
+	Received char: 2
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: 4
+	Received char: 5
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01E0:6182840400001:00000000FFFFFF2:FFF0FFFFF0FFFF3:FFFFFFFFFF00FF4:FFFFFF25004500
+Found line in response: 01E
+totalBytes = 60
+Found line in response: 0:618284040000
+Response data: 618284040000
+Found line in response: 1:00000000FFFFFF
+Response data: 00000000FFFFFF
+Found line in response: 2:FFF0FFFFF0FFFF
+Response data: FFF0FFFFF0FFFF
+Found line in response: 3:FFFFFFFFFF00FF
+Response data: FFFFFFFFFF00FF
+Found line in response: 4:FFFFFF25004500
+Response data: FFFFFF25004500
+Parsed multiline response: 61828404000000000000FFFFFFFFF0FFFFF0FFFFFFFFFFFFFF00FFFFFFFF
+got response ...
+[RECV] header=7E0 pid=2182  ->  decoded UDS payload
+[DATA] 84 04 00 00 00 00 00 00 FF FF FF FF F0 FF FF F0 FF FF FF FF FF FF FF 00 FF FF FF FF FF FF 00 FF FF FF FF 25 00 45 00 (39 bytes)
+  ST_ВЕРСИЯ ДИАГНОСТИКИ (MAS2    ) =  255.000 
+[SEND] 21A0 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A0
+	Received char: 0
+	Received char: 1
+	Received char: A
+	Received char: \r
+	Received char: 0
+	Received char: :
+	Received char: 6
+	Received char: 1
+	Received char: A
+	Received char: 0
+	Received char: 7
+	Received char: 6
+	Received char: 5
+	Received char: C
+	Received char: 5
+	Received char: C
+	Received char: 3
+	Received char: C
+	Received char: \r
+	Received char: 1
+	Received char: :
+	Received char: A
+	Received char: 0
+	Received char: 0
+	Received char: D
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: D
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: \r
+	Received char: 2
+	Received char: :
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: C
+	Received char: 7
+	Received char: 0
+	Received char: 3
+	Received char: F
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 3
+	Received char: \r
+	Received char: 3
+	Received char: :
+	Received char: 1
+	Received char: 7
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: 0
+	Received char: F
+	Received char: F
+	Received char: \r
+	Received char: \r
+	Received char: >
+Delimiter found.
+All chars received: 01A0:61A0765C5C3C1:A00D000003D0002:00003C703F00033:170000000000FF
+Found line in response: 01A
+totalBytes = 52
+Found line in response: 0:61A0765C5C3C
+Response data: 61A0765C5C3C
+Found line in response: 1:A00D000003D000
+Response data: A00D000003D000
+Found line in response: 2:00003C703F0003
+Response data: 00003C703F0003
+Found line in response: 3:170000000000FF
+Response data: 170000000000FF
+Parsed multiline response: 61A0765C5C3CA00D000003D00000003C703F0003170000000000
+got response ...
+[RECV] header=7E0 pid=21A0  ->  decoded UDS payload
+[DATA] 76 5C 5C 3C A0 0D 00 00 03 D0 00 00 00 3C 70 3F 00 03 17 00 00 00 00 00 17 00 00 00 00 00 FF (31 bytes)
+  PR_НАПРЯЖЕНИЕ ПИТАНИЯ КОМПЬЮТЕРА (PR071   ) =   10.958 V
+  PR_АТМОСФЕРНОЕ ДАВЛЕНИЕ (PR035   ) = 1047.000 мбар
+  PR_ДАВЛЕНИЕ ВПУСКА (PR032   ) =  295.358 мбар
+  PR_ТЕМПЕРАТУРА ВОДЫ (PR064   ) =   -2.500 °C
+  PR_ТЕМПЕРАТУРА ВОЗДУХА (PR058   ) =   60.000 °C
+  PR_СКОРОСТИ АВТОМОБИЛЯ (PR089   ) =   60.000 км/час
+  PR_РЕЖИМ ДВИГАТЕЛЯ (PR055   ) =  976.000 об/мин
+  PR_КОРРЕКЦИЯ РЕЖИМА ХОЛОСТОГО ХОДА (PR014   ) =    0.000 об/мин
+  PR_УСТАНОВКА РЕГУЛИРОВКИ ХОЛ. ХОДА (PR010   ) =    0.000 об/мин
+  PR_ОПЕРЕЖЕНИЕ          (PR001   ) =  -22.500 *V
+  PR_РЕГУЛИРОВКА ДЛЯ УСТР. ДЕТОНАЦИЙ (PR095   ) =    8.625 *V
+  PR_ДАВЛЕНИЕ НАДДУВА (PR041   ) = 1035.400 мбар
+  PR_СЦО ЭЛЕКТРОМАГ. КЛАПАНА РЕГ. ДАВ. НАДДУВ (PR846   ) =    0.000 %
+[SEND] 21A1 (7E0)
+Clearing input serial buffer
+Sending the following command/query: 21A1
+Timeout detected with overflow of 0ms
+[ELM] rx error state=7
+[ELM][PID ERR] header=7E0 pid=21A2 state=7
+[SDS] idle >= 2500 ms, re-open 10 C0 (7E0)
+[SEND] 10 C0
+Clearing input serial buffer
+Sending the following command/query: 10 C0

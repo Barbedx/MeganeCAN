@@ -1,5 +1,4 @@
 #include "CanUtils.h"
- 
 
 void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
                        uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7)
@@ -16,26 +15,31 @@ void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t 
     frame.data.uint8[6] = d6;
     frame.data.uint8[7] = d7;
 
-     CanUtils::sendFrame(frame);
+    CanUtils::sendFrame(frame);
 }
-void CanUtils::sendFrame(CAN_FRAME &frame){
-    Serial.print("Sending CAN frame: ID=0x");
-    Serial.print(frame.id, HEX); 
-    Serial.print(" Data: ");
-    for (int i = 0; i < frame.length; i++) {
-        Serial.print(frame.data.uint8[i], HEX);
-        if (i < frame.length - 1) {
-            Serial.print(" ");
-        }   
-
-    }
-    Serial.println();
-
-     CAN0.sendFrame(frame); 
-}
-void CanUtils::sendMsgBuf(uint32_t id, const uint8_t* data, uint8_t len)
+void CanUtils::sendFrame(CAN_FRAME &frame)
 {
-    if (len != 8) return;
+    if (frame.id != 0x3AF)
+    {
+        Serial.print("Sending CAN frame: ID=0x");
+        Serial.print(frame.id, HEX);
+        Serial.print(" Data: ");
+        for (int i = 0; i < frame.length; i++)
+        {
+            Serial.print(frame.data.uint8[i], HEX);
+            if (i < frame.length - 1)
+            {
+                Serial.print(" ");
+            }
+        }
+        Serial.println();
+    }
+    CAN0.sendFrame(frame);
+}
+void CanUtils::sendMsgBuf(uint32_t id, const uint8_t *data, uint8_t len)
+{
+    if (len != 8)
+        return;
     sendCan(id, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
 }
 
