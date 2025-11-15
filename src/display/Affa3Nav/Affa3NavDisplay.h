@@ -1,37 +1,47 @@
 #pragma once
 #include <vector>
+#include "apple_media_service.h"
 #include "Affa3NavConstants.h"
+#include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
-#include <BleKeyboard.h>
+#include <Arduino.h>
 class Affa3NavDisplay : public AffaDisplayBase
 {
 public:
     Affa3NavDisplay()
-    : mainMenu(
-        "Main Menu",
-        [this](const String &h, const String &t, const String &b, uint8_t scroll) {
-            this->showMenu(h.c_str(), t.c_str(), b.c_str(), scroll);
-        },
-        [this](uint8_t row) {
-            this->highlightItem(row);
-        },
-        
-        [this]() {
-            this->setText("RENAULT", 0); // set defdault  text on close"));
-        }
-        
-    )
+        : mainMenu(
+              "Main Menu",
+              [this](const String &h, const String &t, const String &b, uint8_t scroll)
+              {
+                  this->showMenu(h.c_str(), t.c_str(), b.c_str(), scroll);
+              },
+              [this](uint8_t row)
+              {
+                  this->highlightItem(row);
+              },
+
+              [this]()
+              {
+                  this->setText("RENAULT", 0); // set defdault  text on close"));
+              }
+
+          )
     {
+
         initializeFuncs();
         initializeMenu();
-    } // ✅ Ensure init logic runs
-    Menu& getMenu()  { return mainMenu; }
+    }
+    using KeyHandler = std::function<bool(AffaCommon::AffaKey, bool)>;
 
-    BleKeyboard bleKeyboard;
+    Menu &getMenu() { return mainMenu; }
+
+    void setKeyHandler(KeyHandler handler) { keyHandler = handler; }
+   
     void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
     void recv(CAN_FRAME *frame) override;
     void processEvents();
+    void setMediaInfo(const AppleMediaService::MediaInformation& info) override;
     void tick() override;
 
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
@@ -45,45 +55,43 @@ public:
     AffaCommon::AffaError showInfoMenu(const char *item1, const char *item2, const char *item3,
                                        uint8_t offset1 = 0x41, uint8_t offset2 = 0x44, uint8_t offset3 = 0x48,
                                        uint8_t infoPrefix = 0x70); // Show info menu with items and offsets
-    
-     bool isAffa3Nav() const override { return true; }
+
+    bool isAffa3Nav() const override { return true; }
 
     void begin() override
     {
-        bleKeyboard.begin();
+      
     }
-protected: 
+    void tickMedia() override;   // 🔥 новий публічний метод
 
+protected:
     Menu mainMenu; // pointer instead of object
     void initializeMenu()
-    { 
+    {
         mainMenu.addItem(MenuItem("Voltage", Field(142, "V"), false));
-        mainMenu.addItem(MenuItem("Color",   {"Red", "Green", "Blue", "White"},1));
-        mainMenu.addItem(MenuItem("Effect",  {"Static", "Blink", "Fade"},2));
-        mainMenu.addItem(MenuItem("Power",  Field(163, 0, 500, 1,2, "HP")));
-        mainMenu.addItem(MenuItem("Mileage",  Field(250345, 0, 500000, 1,100, "km")));
-        mainMenu.addItem(MenuItem("Brightness", Field(50, 0, 100, 5,2, "%")));
+        mainMenu.addItem(MenuItem("Color", {"Red", "Green", "Blue", "White"}, 1));
+        mainMenu.addItem(MenuItem("Effect", {"Static", "Blink", "Fade"}, 2));
+        mainMenu.addItem(MenuItem("Power", Field(163, 0, 500, 1, 2, "HP")));
+        mainMenu.addItem(MenuItem("Mileage", Field(250345, 0, 500000, 1, 100, "km")));
+        mainMenu.addItem(MenuItem("Brightness", Field(50, 0, 100, 5, 2, "%")));
 
-        //MenuItem timeItem("Time", { Field(12, 0, 23, 1), Field(34, 0, 59, 1) }); 
+        // MenuItem timeItem("Time", { Field(12, 0, 23, 1), Field(34, 0, 59, 1) });
 
         // timeItem.fields[0].onChange = [](Field &f) {
 
         auto &timeItem = mainMenu.addItem(MenuItem(
             "Time",
-            { Field(12, 0, 23, 1,3), Field(34, 0, 59, 1,5) }
-        ));
- 
+            {Field(12, 0, 23, 1, 3), Field(34, 0, 59, 1, 5)}));
 
-        timeItem.onChange = [&](const MenuItem &item) {
+        timeItem.onChange = [&](const MenuItem &item)
+        {
             char buf[5];
             snprintf(buf, sizeof(buf), "%02d%02d",
-                item.fields[0].intValue,
-                item.fields[1].intValue
-            );
-            Serial.printf("Time changed to: %s\n", buf); 
+                     item.fields[0].intValue,
+                     item.fields[1].intValue);
+            Serial.printf("Time changed to: %s\n", buf);
             setTime(buf);
         };
- 
     }
 
     uint8_t getPacketFiller() const override
@@ -98,4 +106,23 @@ protected:
             {Affa3Nav::PACKET_ID_SETTEXT, AffaCommon::FuncStatus::IDLE},
             {Affa3Nav::PACKET_ID_NAV, AffaCommon::FuncStatus::IDLE}};
     }
+
+private:
+    KeyHandler keyHandler;
+    AppleMediaService::MediaInformation _mediaInfo;
+    String _mediaLine2Full;      // повний "Artist - Title"
+    String _mediaPlayerName ;      
+    size_t _mediaScrollPos = 0;  // позиція скролу
+    ///unsigned long _lastScrollMs = 0;
+    uint32_t _lastMediaRenderMs = 0;
+    uint32_t _lastScrollStepMs = 0;
+    uint16_t _scrollPos = 0;
+
+    static constexpr uint16_t MEDIA_SCROLL_INTERVAL_MS = 400; // швидкість скролу
+    static constexpr uint8_t MEDIA_VISIBLE_CHARS = 18;        // видима довжина 2-го рядка (підженеш по факту)
+
+    void renderMediaScreen(bool forceRedraw = false);
+    String buildProgressLine() const;
+    String buildScrollingTitle();
+
 };

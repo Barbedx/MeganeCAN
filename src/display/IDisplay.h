@@ -2,6 +2,7 @@
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 #include "AffaCommonConstants.h" /* Constants related to Affa3 */
 #include <utils/CanUtils.h>
+#include <Arduino.h>
 
 class IDisplay {
 public:

@@ -3,6 +3,7 @@
 #pragma once
 #include "Affa3Constants.h"     /* Constants related to Affa3 */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
+#include <Arduino.h>
 
 class Affa3Display : public AffaDisplayBase
 {
