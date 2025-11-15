@@ -803,7 +803,7 @@ String transliterateToAscii(const String &in)
       case 0x017B: out += "Z"; break; // Ż
       case 0x017C: out += "z"; break; // ż
 
-      // --- Russian / Ukrainian Cyrillic ---
+      // ---  Cyrillic ---
       // Базові
       case 0x0410: out += "A";   break; // А
       case 0x0430: out += "a";   break; // а
@@ -882,9 +882,10 @@ String transliterateToAscii(const String &in)
       case 0x0490: out += "G";   break; // Ґ
       case 0x0491: out += "g";   break; // ґ
 
+
       default:
         // Невідомі не-ASCII: або пропускаємо, або ставимо '?'
-        // out += '?';
+        out += '?';
         break;
     }
   }
@@ -913,7 +914,7 @@ String Affa3NavDisplay::buildScrollingTitle()
   {
     full += ": ";
   }
-  full += String(_mediaInfo.mTitle.c_str());
+  full += String(_mediaInfo.mTitle.c_str()) +"    "; // додаємо пробіли в кінець для відступу при скролі
   // 🔤 привести до чистого ASCII
   full = normalizeTitle(full);
   const int MAX_VISIBLE = 16; // підженеш під реальну ширину рядка
