@@ -7,10 +7,12 @@
     #include <ElegantOTA.h>
     #include <SerialCommands.h> // Assuming this is already included in your project
     // #include <PsychicHttp.h>
-    #define trace
     #include "ElmManager/MyELMManager.h"
     #include "display/Affa3/Affa3Display.h"
     #include "display/Affa3Nav/Affa3NavDisplay.h"
+    #define trace
+    //#define ELM
+    
 
     // SerialCommand sCmd;   // The SerialCommand object
     // Affa3NavDisplay display; // Create an instance of Affa3Display
@@ -268,8 +270,13 @@
         Serial.println(" CAN...............INIT");
 
         // Start the access point
-         WiFi.mode(WIFI_AP_STA);
-        // WiFi.softAP(ssid, password); 
+        #ifdef ELM
+            WiFi.mode(WIFI_AP_STA);
+            WiFi.softAP(ssid, password); 
+        #else
+        WiFi.mode(WIFI_AP_STA);    
+        #endif
+        
         serverManager->begin();
 
         Serial.println(" all............inited"); // Serve the commands via HTTP GET requests
@@ -311,7 +318,7 @@
         serialCommands.ReadSerial();
          
         ElegantOTA.loop();
-         
+    #ifdef ELM
         // 1) Start connecting ONCE
         if (!wifiBeginIssued)
         {
@@ -330,20 +337,15 @@
         // bail out of loop() for now
         return;
         }
-        //  else {
-        // connected
-        //   if (!sessionStarted) {
-        //     Serial.println("[WiFi] Connected to ELM WiFi");
-        //     sessionStarted = true;
-        //   }
-        // }
-
-
-        ElegantOTA.loop();
-    // 2) When Wi-Fi is up, let the ELM manager build/maintain TCP+session
-    if (WiFi.status() == WL_CONNECTED && elmManager) {
+            if (WiFi.status() == WL_CONNECTED && elmManager) {
         elmManager->tick();            // tick() calls ensureTcpAndElm() internally
     }
+#endif
+         
+ 
+    // 2) When Wi-Fi is up, let the ELM manager build/maintain TCP+session
+   
+
     
 
         display->processEvents();

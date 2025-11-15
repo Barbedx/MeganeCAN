@@ -36,7 +36,7 @@ void MyELMManager::disconnectTcp()
 bool MyELMManager::initElmOnce()
 {
     // Lock protocol to ISO15765-4 (11bit, 500k)
-    elm.begin(wifiClient, /*debug*/ false, /*timeout*/ 5000,
+    elm.begin(wifiClient, /*debug*/ true, /*timeout*/ 5000,
               ISO_15765_11_BIT_500_KBAUD, /*rxBuf*/ 256, /*dataTimeout*/ 225);
     Serial.println("Elm.begin done");
 
@@ -49,13 +49,14 @@ bool MyELMManager::initElmOnce()
     //elm.sendCommand_Blocking("3E00"); // expect 50 C0 (we won’t block here again)
     
     
-     elm.sendCommand_Blocking("ATSH7E0");
-     elm.sendCommand_Blocking("ATCRA7E8");
-     elm.sendCommand_Blocking("ATFCSH7E0");
-    elm.sendCommand_Blocking("ATFCSD300000");
-    elm.sendCommand_Blocking("ATFCSM1");
-    elm.sendCommand_Blocking("ATSP6");
+    // elm.sendCommand_Blocking("AT CRA 7E8");
+    // elm.sendCommand_Blocking("AT FCSH 7E0");
+    elm.sendCommand_Blocking("AT FCSD 300000");
+    elm.sendCommand_Blocking("AT FC SM 0");
+    elm.sendCommand_Blocking("AT SP 6");
     delay(10);
+    elm.sendCommand_Blocking("AT SH 7E0");
+    delay(3);
     elm.sendCommand_Blocking("10C0");
 
     // Make sure protocol is locked (ELMduino often does TP, we enforce SP 6 too)
@@ -312,7 +313,7 @@ void MyELMManager::tick()
                 waitingSDS = false;
                 waiting = false;
                 auto uds = decodeToUdsData(elm.payload, elm.PAYLOAD_LEN);
-                bool ok = true;                    // assume always for now// uds.size() >= 2 && uds[0] == 0x50 && uds[1] == 0xC0;
+                bool ok = uds.size() >= 2 && uds[0] == 0x50 && uds[1] == 0xC0;
                 sessions[currentHeader].open = ok; // open if positive
                 sessions[currentHeader].lastMs = now;
                 Serial.printf("[10C0] %s\n", ok ? "OPENED" : "UNEXPECTED");
