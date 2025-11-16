@@ -68,7 +68,8 @@ namespace DisplayCommands
 
     void Manager::OnKeyPressed(AffaCommon::AffaKey key, bool isHold)
     {
-        _display.onKeyPressed(key, isHold);
+        _display.ProcessKey(key, isHold);
+        _display.processEvents();
         // Forward the key press to the display
         // Example: _display.onKeyPressed(key, isHold);
     }

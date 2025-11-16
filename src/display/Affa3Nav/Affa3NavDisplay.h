@@ -1,11 +1,11 @@
 #pragma once
 #include <vector>
+#include <Arduino.h>
 #include "apple_media_service.h"
 #include "Affa3NavConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
-#include <Arduino.h>
 class Affa3NavDisplay : public AffaDisplayBase
 {
 public:
@@ -32,13 +32,13 @@ public:
         initializeFuncs();
         initializeMenu();
     }
-    using KeyHandler = std::function<bool(AffaCommon::AffaKey, bool)>;
+    // using KeyHandler = std::function<bool(AffaCommon::AffaKey, bool)>;
 
     Menu &getMenu() { return mainMenu; }
+    void  ProcessKey(AffaCommon::AffaKey key, bool isHold) override;
 
-    void setKeyHandler(KeyHandler handler) { keyHandler = handler; }
-   
-    void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
+    //void setKeyHandler(KeyHandler handler) { keyHandler = handler; }
+ 
     void recv(CAN_FRAME *frame) override;
     void processEvents();
     void setMediaInfo(const AppleMediaService::MediaInformation& info) override;
@@ -65,7 +65,8 @@ public:
     void tickMedia() override;   // 🔥 новий публічний метод
 
 protected:
-    Menu mainMenu; // pointer instead of object
+    Menu mainMenu; // pointer instead of object 
+    void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
     void initializeMenu()
     {
         mainMenu.addItem(MenuItem("Voltage", Field(142, "V"), false));
@@ -108,7 +109,7 @@ protected:
     }
 
 private:
-    KeyHandler keyHandler;
+   // KeyHandler keyHandler;
     AppleMediaService::MediaInformation _mediaInfo;
     String _mediaLine2Full;      // повний "Artist - Title"
     String _mediaPlayerName ;      

@@ -1,8 +1,7 @@
 #pragma once
 
 #include "IDisplay.h"
-#include "AffaCommonConstants.h"
-#include <functional>   
+#include "AffaCommonConstants.h" 
 #include <Arduino.h>   
 
 
@@ -17,11 +16,15 @@ public:
     using SyncStatus = AffaCommon::SyncStatus;
     using FuncStatus = AffaCommon::FuncStatus;
     using AffaError  = AffaCommon::AffaError;
-    using KeyHandler = std::function<bool(AffaCommon::AffaKey, bool)>;
-    void setMediaInfo();
-    void setKeyHandler(KeyHandler handler) {
-        keyHandler = std::move(handler);
-    }
+   // using KeyHandler = std::function<bool(AffaCommon::AffaKey, bool)>;
+     using KeyHandler = bool (*)(AffaCommon::AffaKey, bool);
+    //void setMediaInfo();
+void setKeyHandler(KeyHandler handler)
+{
+    Serial.print("[AffaDisplayBase] setKeyHandler = ");
+    Serial.println(((uint32_t)keyHandler), HEX);
+    keyHandler = handler;
+}
     // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS
     virtual void setMediaInfo(const AppleMediaService::MediaInformation& info) {
         (void)info;
@@ -29,6 +32,7 @@ public:
     virtual void tickMedia(){
 
     }
+    virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) =0;
 
 protected: 
     static constexpr int SYNC_TIMEOUT = 5;

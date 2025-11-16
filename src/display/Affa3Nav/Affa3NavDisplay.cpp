@@ -386,10 +386,15 @@ void Affa3NavDisplay::processEvents()
     {
 
       Affa3NavDisplay::onKeyPressed(e.key, e.isHold);
-      Serial.println("runs callback:");
-     // bool result = keyHandler(e.key, e.isHold);
-      if (!menuIsOpen && aux && keyHandler)
+      // if (!menuIsOpen && aux && keyHandler)
+      Serial.println("check callback");
+      if (keyHandler)
       {
+        Serial.println("runs callback:");
+        bool result = keyHandler(e.key, e.isHold);
+        Serial.println("calbeck runned, res:");
+        Serial.println(result);
+
         // bool result = keyHandler(e.key, e.isHold);
       }
       break;
@@ -581,6 +586,11 @@ void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
     //_lastScrollMs = millis(); // оновити таймер
   }
   eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
+}
+
+void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold){
+ 
+  eventQueue.push({Event::KeyPress, key,isHold});
 }
 String Affa3NavDisplay::buildProgressLine() const
 {
@@ -1034,8 +1044,8 @@ AffaCommon::AffaError Affa3NavDisplay::highlightItem(uint8_t id)
 //  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNAffa3Nav::ScrollLockIndicator scrollLockIndicator
 AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
 {
-  Serial.println("[showMenu] --- Building Menu ---");
-  Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
+  // Serial.println("[showMenu] --- Building Menu ---");
+  // Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
   // uint8_t selectionItem1 = 0x00;//unknown, to test
   // uint8_t selectionItem2 = 0x01;//unknown, to test
 

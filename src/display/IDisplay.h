@@ -13,11 +13,13 @@ public:
     virtual AffaCommon::AffaError setText(const char* text, uint8_t digit =255 /* 0-9, or anything else for none */) =0; 
     virtual AffaCommon::AffaError setState(bool enabled) = 0; 
     virtual AffaCommon::AffaError setTime(const char *clock) = 0;   
+    virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) =0;
 
     virtual AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator=0x0B)=0;
-    virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
     
     virtual bool isAffa3Nav() const { return false; }
+protected:
+    virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 
 };
 

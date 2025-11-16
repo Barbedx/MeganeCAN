@@ -293,6 +293,17 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nome
                 //  bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
                 break;
 
+            case AffaCommon::AffaKey::VolumeUp:
+                if (isHold)
+                {
+                    /* code */
+                    
+                    Serial.println("Volume Up");
+                    for(int i =0; i<10; i++) // send multiple times to set MAX volume
+                    AppleMediaService::VolumeUp(); 
+                    // bleKeyboard.write(KEY_MEDIA_VOLUME_UP);
+                    break;
+                }
             default:
                 Serial.print("Unhandled key: 0x");
                 Serial.println(static_cast<uint16_t>(key), HEX);
