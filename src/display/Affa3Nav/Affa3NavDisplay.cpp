@@ -386,9 +386,11 @@ void Affa3NavDisplay::processEvents()
     {
 
       Affa3NavDisplay::onKeyPressed(e.key, e.isHold);
+      Serial.println("runs callback:");
+     // bool result = keyHandler(e.key, e.isHold);
       if (!menuIsOpen && aux && keyHandler)
       {
-        bool result = keyHandler(e.key, e.isHold);
+        // bool result = keyHandler(e.key, e.isHold);
       }
       break;
     }
@@ -692,19 +694,19 @@ void Affa3NavDisplay::renderMediaScreen(bool forceRedraw)
   {
   case AppleMediaService::MediaInformation::PlaybackState::Playing:
   {
-    status_icon = "▶️";
+    status_icon = ">";
     break;
   }
   case AppleMediaService::MediaInformation::PlaybackState::Paused:
   {
 
-    status_icon = "⏸️";
+    status_icon = "||";
     break;
   }
   default:
   {
 
-    status_icon = "■";
+    status_icon = "D";
     break;
   }
   }

@@ -37,8 +37,8 @@ const char *ELM_SSID = "V-LINK";
 void gotFrame(CAN_FRAME *frame)
 {
 
-    if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
-        CanUtils::printCanFrame(*frame, false);
+   // if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
+    //    CanUtils::printCanFrame(*frame, false);
     display->recv(frame);
     // Echo or other processing can be added here
 }
@@ -198,7 +198,7 @@ void initDisplay()
 {
     Preferences prefs;
     prefs.begin("config", true);
-    String displayType = prefs.getString("display_type", "affa3");
+    String displayType = prefs.getString("display_type", "affa3Nav");
     prefs.end();
 
     Serial.println("[Display Init] Display type from config: " + displayType);
@@ -255,8 +255,10 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nome
     // тут твій AUX + Bluetooth + AMS
 
     // 2) Якщо немає BT – не робимо нічого
-    if (!Bluetooth::IsConnected())
+    if (!Bluetooth::IsConnected()){
+    Serial.println("Bt not connected");
         return false;
+    }
 
     // 3) Якщо не в AUX режимі – теж нічого
     // if (!g_tracker.isInAuxMode())
@@ -265,9 +267,7 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nome
     Serial.print("[AMS] Key in AUX mode: 0x");
     Serial.println(static_cast<uint16_t>(key), HEX);
     if (true /*send ble siignals */)
-    {
-        {
-            // Not in menu, but AUX mode: BLE media control
+    {        // Not in menu, but AUX mode: BLE media control
             Serial.println("Key in AUX mode:");
             switch (key)
             {
@@ -299,40 +299,11 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nome
                 break;
             }
         }
-    }
-    //   if (!mainMenu.isActive() && tracker.isInAuxMode())
-    //   {
-    //     {
-    //       // Not in menu, but AUX mode: BLE media control
-    //       Serial.println("Key in AUX mode:");
-    //       switch (key)
-    //       {
-    //       case AffaCommon::AffaKey::Pause:
-    //         Serial.println("Pause/Play");
-    //         bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-    //         break;
-
-    //       case AffaCommon::AffaKey::RollUp:
-    //         Serial.println("Next Track");
-    //         bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-    //         break;
-
-    //       case AffaCommon::AffaKey::RollDown:
-    //         Serial.println("Previous Track");
-    //         bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-    //         break;
-
-    //       default:
-    //         Serial.print("Unhandled key: 0x");
-    //         Serial.println(static_cast<uint16_t>(key), HEX);
-    //         break;
-    //       }
-    //     }
-
+    
     // приклад: AUX-режим блокує стандартну логіку
     if (false)
     {
-        return false; // не викликати onKeyPressed
+        return false; //  
     }
 
     return true; // стандартна логіка активна
