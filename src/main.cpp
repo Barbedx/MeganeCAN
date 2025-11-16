@@ -251,9 +251,10 @@ void connectToElm()
 }
 
 bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nomenu mode
-{
-    // тут твій AUX + Bluetooth + AMS
+{ 
+    //TODO: add regular bleKeyboard support, for android etc, swtichable via settings page
 
+    
     // 2) Якщо немає BT – не робимо нічого
     if (!Bluetooth::IsConnected()){
     Serial.println("Bt not connected");
@@ -299,7 +300,7 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nome
                     /* code */
                     
                     Serial.println("Volume Up");
-                    for(int i =0; i<10; i++) // send multiple times to set MAX volume
+                    for(int i =0; i<15; i++) // send multiple times to set MAX volume
                     AppleMediaService::VolumeUp(); 
                     // bleKeyboard.write(KEY_MEDIA_VOLUME_UP);
                     break;
