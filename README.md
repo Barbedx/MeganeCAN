@@ -4,6 +4,9 @@ ESP32-based CAN-bus companion for Renault infotainment / multimedia displays.
 
 This project connects an **ESP32** to the car’s **CAN bus** and acts like a “smart head unit sidecar”: it can **emulate button presses**, **render custom screens/menus** on the OEM display, and **bridge your phone media controls** (Apple Media Service) back into the car experience. It also exposes a **web UI** for configuration and **OTA updates**.
 
+🇺🇦 When you use this project, you automatically support Ukraine — keep that in mind. If that’s forbidden in your country, remove yourself from this page, at least.
+
+
 > ⚠️ Safety: this is a hobby project for off-road / testing use. Don’t interact with menus while driving.
 
 ---
