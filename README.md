@@ -25,7 +25,7 @@ This project connects an **ESP32** to the carâ€™s **CAN bus** and acts like a â€
   - Control **music playback** (play/pause/next/prev).
   - Control **volume**.
   - Read **now playing text** (track/artist/etc.) and show it on the display (where supported).
-  - Sync **time** from the phone (useful if the car time is off or missing).
+  - Sync **time** from the phone.
 
 ### Web UI + OTA
 - Built-in web server with HTML configuration pages.
