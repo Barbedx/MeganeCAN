@@ -60,7 +60,7 @@ Minimum typical setup:
 - Wiring to **CAN-H / CAN-L** and **GND** (and power, ideally fused)
 
 Optional:
-- Dedicated power supply / buck converter for stable 5V → 3.3V
+- Dedicated power supply / buck converter for stable 5V → 3.3V (ESP32 boards usually provides) 
 - Case + automotive-grade connectors
 
 > Tip: Use proper termination only where appropriate. Don’t double-terminate an already-terminated bus.
