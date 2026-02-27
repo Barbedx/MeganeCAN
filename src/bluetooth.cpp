@@ -132,17 +132,16 @@ namespace Bluetooth
                 return;
                 }
 
-                // 3) (Опційно) Додатково звузити по serviceUUID its spotify id????
+                // 3) Додатково звузити по serviceUUID (Spotify UUID — надійний фільтр)
                 static const NimBLEUUID kMyService("3e1d50cd-7e3e-427d-8e1c-b78aa87fe624");
 
                 if (dev->haveServiceUUID() && dev->isAdvertisingService(kMyService))
                 {
-                    Serial.println("  -> mfg prefix + my serviceUUID match, selecting target");
+                    Serial.println("  -> mfg prefix + serviceUUID match, selecting target");
                 }
                 else
                 {
-   //                 Serial.println("  -> mfg prefix ok but serviceUUID mismatch, but continue");
-                   return;// return;
+                    return;
                 }
 
                 Serial.print("AMS candidate founded: ");
