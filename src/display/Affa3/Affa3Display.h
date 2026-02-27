@@ -3,6 +3,7 @@
 #pragma once
 #include "Affa3Constants.h"     /* Constants related to Affa3 */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
+#include <Arduino.h>
 
 class Affa3Display : public AffaDisplayBase
 {
@@ -23,7 +24,10 @@ public:
         Serial.println("[WARN] showMenu() called on Affa3Display — not supported.");
         return AffaCommon::AffaError::NoError;
     }
-
+    
+    void ProcessKey(AffaCommon::AffaKey key, bool isHold) override{
+        Serial.println("[WARN] ProcessKey() called on Affa3Display — not supported.");
+    };
 protected:
     void initializeFuncs() override
     {

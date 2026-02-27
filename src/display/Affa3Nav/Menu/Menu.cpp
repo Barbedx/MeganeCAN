@@ -179,7 +179,7 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
             active = true;
             show(); // refresh display
         }
-        return; // not active, do nothing //maybew add another menus later?(by catching new keys)
+        return; // not active, do nothing //maybe add another menus later?(by catching new keys)
     }
 
     switch (key)

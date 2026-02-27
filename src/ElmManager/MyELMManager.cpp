@@ -1,4 +1,5 @@
 #include "MyELMManager.h"
+#include <Arduino.h>
 using std::vector;
 
 // ----------------- WIFI/TCP/ELM -----------------

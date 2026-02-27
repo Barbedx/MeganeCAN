@@ -3,6 +3,7 @@
 #include <PsychicHttp.h> 
 #include "display/IDisplay.h"
 #include <Preferences.h>
+#include <Arduino.h>
 
 #include "commands/DisplayCommands.h" // Include the DisplayCommands manager    
 #include <ElmManager/MyELMManager.h>

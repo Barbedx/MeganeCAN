@@ -1,11 +1,14 @@
 #include "Affa3NavDisplay.h"
-// #include "Affa3Display.h"  //   (false) -> Ensure this is included if emulateKey is from there NO,
-// we dont need that file here, Affa3NavDisplay is a separate display class
+
 #include "AuxModeTracker.h"
 #include <NimBLEDevice.h>
 #include <vector>
- 
+#include <Arduino.h>
 #include <queue>
+#include <Preferences.h>
+
+// _autoTime is defined in main.cpp; flipped by the Auto-time menu item onChange
+extern bool _autoTime;
 
 inline void AFFA3_PRINT(const char *fmt, ...)
 {
@@ -16,8 +19,6 @@ inline void AFFA3_PRINT(const char *fmt, ...)
   va_end(args);
   // #endif
 }
-
-BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
 
 int windowFirstItemIndex = 0;
 
@@ -99,48 +100,126 @@ namespace
 
 }
 
+void Affa3NavDisplay::begin()
+{
+    if (!keyHandler)
+    {
+        // Keyboard mode: no AMS keyHandler set — start BLE HID keyboard
+        bleKeyboard.begin();
+        Serial.println("[Affa3Nav] begin(): BleKeyboard started (keyboard mode)");
+    }
+    else
+    {
+        Serial.println("[Affa3Nav] begin(): AMS mode, skipping BleKeyboard");
+    }
+}
+
+void Affa3NavDisplay::initializeMenu()
+{
+    // Fixed menu items
+    mainMenu.addItem(MenuItem("Voltage", Field(142, "V"), false));
+    mainMenu.addItem(MenuItem("Color", {"Red", "Green", "Blue", "White"}, 1));
+    mainMenu.addItem(MenuItem("Effect", {"Static", "Blink", "Fade"}, 2));
+    mainMenu.addItem(MenuItem("Power", Field(163, 0, 500, 1, 2, "HP")));
+    mainMenu.addItem(MenuItem("Mileage", Field(250345, 0, 500000, 1, 100, "km")));
+    mainMenu.addItem(MenuItem("Brightness", Field(50, 0, 100, 5, 2, "%")));
+
+    auto &timeItem = mainMenu.addItem(MenuItem(
+        "Time",
+        {Field(12, 0, 23, 1, 3), Field(34, 0, 59, 1, 5)}));
+    timeItem.onChange = [&](const MenuItem &item)
+    {
+        char buf[5];
+        snprintf(buf, sizeof(buf), "%02d%02d",
+                 item.fields[0].intValue,
+                 item.fields[1].intValue);
+        Serial.printf("Time changed to: %s\n", buf);
+        setTime(buf);
+    };
+
+    // Read BT config from NVS
+    Preferences prefs;
+    prefs.begin("config", true);
+    String btMode  = prefs.getString("bt_mode", "ams");
+    bool autoTime  = prefs.getBool("auto_time", true);
+    prefs.end();
+
+    int btModeIdx   = (btMode == "ams") ? 1 : 0;
+    int autoTimeIdx = autoTime ? 1 : 0;
+
+    // "BT Mode" — always shown; takes effect on next reboot
+    auto &btItem = mainMenu.addItem(
+        MenuItem("BT Mode", Field(std::vector<String>{"Keyboard", "AMS"}, btModeIdx)));
+    btItem.onChange = [](const MenuItem &item)
+    {
+        const char *val = (item.fields[0].listIndex == 1) ? "ams" : "keyboard";
+        Preferences p;
+        p.begin("config", false);
+        p.putString("bt_mode", val);
+        p.end();
+        Serial.printf("[Menu] BT Mode saved: %s (reboot to apply)\n", val);
+    };
+
+    // "Auto-time" — only in AMS mode; runtime toggle (no reboot needed)
+    if (btMode == "ams")
+    {
+        auto &atItem = mainMenu.addItem(
+            MenuItem("Auto-time", Field(std::vector<String>{"Off", "On"}, autoTimeIdx)));
+        atItem.onChange = [](const MenuItem &item)
+        {
+            _autoTime = (item.fields[0].listIndex == 1);
+            Preferences p;
+            p.begin("config", false);
+            p.putBool("auto_time", _autoTime);
+            p.end();
+            Serial.printf("[Menu] Auto-time: %s\n", _autoTime ? "On" : "Off");
+        };
+    }
+}
+
 void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 {
-  Serial.print("onKeyPressed fired, key:");
+  Serial.print("Affa3NavDisplay::onKeyPressed fired, key:");
   Serial.println(static_cast<uint16_t>(key), HEX);
   if (isHold && key == AffaCommon::AffaKey::Load)
   {
     Serial.println(">> Load (hold) pressed - doing stuff");
-    // setState(true);
-    tracker.SetAuxMode(true);
+    tracker.SetAuxMode(true); // just for testing, it will let us set aux in console(without  radio?)
+    //Add method to check if can show menu instead?\\
+
   }
 
   mainMenu.handleKey(key, isHold);
 
-  if (!mainMenu.isActive() && tracker.isInAuxMode())
-  {
-    {
-      // Not in menu, but AUX mode: BLE media control
-      Serial.println("Key in AUX mode:");
-      switch (key)
-      {
-      case AffaCommon::AffaKey::Pause:
-        Serial.println("Pause/Play");
-        bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-        break;
+  // if (!mainMenu.isActive() && tracker.isInAuxMode())
+  // {
+  //   {
+  //     // Not in menu, but AUX mode: BLE media control
+  //     Serial.println("Key in AUX mode:");
+  //     switch (key)
+  //     {
+  //     case AffaCommon::AffaKey::Pause:
+  //       Serial.println("Pause/Play");
+  //       bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+  //       break;
 
-      case AffaCommon::AffaKey::RollUp:
-        Serial.println("Next Track");
-        bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-        break;
+  //     case AffaCommon::AffaKey::RollUp:
+  //       Serial.println("Next Track");
+  //       bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+  //       break;
 
-      case AffaCommon::AffaKey::RollDown:
-        Serial.println("Previous Track");
-        bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-        break;
+  //     case AffaCommon::AffaKey::RollDown:
+  //       Serial.println("Previous Track");
+  //       bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+  //       break;
 
-      default:
-        Serial.print("Unhandled key: 0x");
-        Serial.println(static_cast<uint16_t>(key), HEX);
-        break;
-      }
-    }
-  }
+  //     default:
+  //       Serial.print("Unhandled key: 0x");
+  //       Serial.println(static_cast<uint16_t>(key), HEX);
+  //       break;
+  //     }
+  //   }
+  // }
 }
 
 void Affa3NavDisplay::tick()
@@ -236,6 +315,7 @@ struct Event
   enum Type
   {
     KeyPress,
+    MediaInfoUpdate,
     Other
   } type;
   AffaCommon::AffaKey key;
@@ -314,7 +394,7 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  bool answerNeeded = false;//TODO:move to settings
+  bool answerNeeded = false; // TODO:move to settings
 
   if (answerNeeded)
   {
@@ -375,14 +455,21 @@ void Affa3NavDisplay::processEvents()
   {
     Event e = eventQueue.front();
     eventQueue.pop();
-
     switch (e.type)
     {
     case Event::KeyPress:
-
-      Affa3NavDisplay::onKeyPressed(e.key, e.isHold); // safe to call affa3_send here
+    {
+      ProcessKey(e.key, e.isHold);  // dual-mode: AMS keyHandler OR BleKeyboard fallback
       break;
-      // future: other event types
+    }
+
+    case Event::MediaInfoUpdate:
+    {
+      // є новий AMS-стан → перемальовуємо медіа-екран
+      //Serial.println("Processing media update event...");
+      renderMediaScreen(/*forceRedraw=*/true);
+      break;
+    }
     }
   }
 }
@@ -523,7 +610,438 @@ void showConfirmBoxWithOffsets(
 
   Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
 }
+void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
+{
+  // визначаємо: новий трек чи той самий
+  bool titleChanged = (_mediaInfo.mTitle != info.mTitle);
+  bool artistChanged = (_mediaInfo.mArtist != info.mArtist);
+  bool playerChanged = (_mediaInfo.mPlayerName != info.mPlayerName);
 
+  _mediaInfo = info;
+
+  if (playerChanged)
+  {
+    _mediaPlayerName = _mediaInfo.mPlayerName.c_str();
+    if (_mediaPlayerName.isEmpty())
+    {
+      _mediaPlayerName = "PLAYER";
+    }
+  }
+
+  if (titleChanged || artistChanged)
+  {
+    // побудувати повний рядок 2: "Artist - Title"
+    _mediaLine2Full = "";
+    if (!_mediaInfo.mArtist.empty())
+    {
+      _mediaLine2Full += _mediaInfo.mArtist.c_str();
+    }
+    if (!_mediaInfo.mArtist.empty() && !_mediaInfo.mTitle.empty())
+    {
+      _mediaLine2Full += " - ";
+    }
+    if (!_mediaInfo.mTitle.empty())
+    {
+      _mediaLine2Full += _mediaInfo.mTitle.c_str();
+    }
+
+    _mediaScrollPos = 0; // скинути скрол
+    //_lastScrollMs = millis(); // оновити таймер
+  }
+  eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
+}
+
+void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
+{
+    // AuxMode side-effects (hold Load → enter AUX)
+    if (isHold && key == AffaCommon::AffaKey::Load)
+    {
+        tracker.SetAuxMode(true);
+    }
+
+    mainMenu.handleKey(key, isHold);
+
+    if (!mainMenu.isActive())
+    {
+        if (keyHandler)
+        {
+            // AMS mode: delegate to main.cpp HandleKey (AMS remote commands)
+            keyHandler(key, isHold);
+        }
+        else
+        {
+            // Keyboard mode: BLE HID media keys
+            switch (key)
+            {
+            case AffaCommon::AffaKey::Pause:
+                bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
+                break;
+            case AffaCommon::AffaKey::RollUp:
+                bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
+                break;
+            case AffaCommon::AffaKey::RollDown:
+                bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+String Affa3NavDisplay::buildProgressLine() const
+{
+  // AMS дає секунди (float)
+  float posSec = _mediaInfo.mElapsedTime;
+  float durSec = _mediaInfo.mDuration;
+
+  if (durSec <= 0.0f)
+  {
+    return "[----------] --:--/--:--"; // calc by lentght
+  }
+
+  float progress = posSec / durSec;
+  if (progress < 0.0f)
+    progress = 0.0f;
+  if (progress > 1.0f)
+    progress = 1.0f;
+
+  const int BAR_WIDTH = 10;
+
+  int filled = (int)(progress * BAR_WIDTH + 0.5f);
+
+  String bar;
+  bar.reserve(BAR_WIDTH);
+  for (int i = 0; i < BAR_WIDTH; ++i)
+  {
+    bar += (i < filled) ? 'X' : '_';
+  }
+
+  auto fmtTime = [](float secF) -> String
+  {
+    if (secF < 0.0f)
+      secF = 0.0f;
+    uint32_t totalSec = (uint32_t)(secF + 0.5f); // округляємо
+    uint32_t min = totalSec / 60;
+    uint32_t sec = totalSec % 60;
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%lu:%02lu",
+             (unsigned long)min,
+             (unsigned long)sec);
+    return String(buf);
+  };
+
+  String line;
+  line.reserve(24);
+  line += bar;
+  line += " ";
+  line += fmtTime(posSec);
+  line += "/";
+  line += fmtTime(durSec);
+
+  const int MAX_CHARS = 20; // скільки реально влазить в 3-й рядок
+  if (line.length() > MAX_CHARS)
+    line = line.substring(0, MAX_CHARS);
+
+  return line;
+}
+
+void Affa3NavDisplay::tickMedia()
+{
+  // Не малюємо, якщо меню відкрите або не AUX
+  if (mainMenu.isActive())
+    return;
+  if (!tracker.isInAuxMode())
+    return;
+
+  uint32_t now = millis();
+
+  // Оновлюємо дані про медіа з AMS
+  AppleMediaService::MediaInformation current = AppleMediaService::GetMediaInformation();
+  _mediaInfo = current;
+  _mediaPlayerName = current.mPlayerName.c_str();
+
+  // Локально дораховуємо elapsed time, якщо грає
+   if (current.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing)
+   {
+   if (current.mLastPlaybackInfoMs != 0)
+   {
+     uint32_t dtMs = now - current.mLastPlaybackInfoMs;
+     float dtSec = dtMs / 1000.0f;
+     _mediaInfo.mElapsedTime = current.mElapsedTime + dtSec * current.mPlaybackRate;
+   }
+   }
+
+  // Обмежимо частоту перерисовки, наприклад раз на 300ms
+  if (!(now - _lastMediaRenderMs >= 300))
+    return;
+
+  _lastMediaRenderMs = now;
+
+  // Крок скролу раз на ~400ms
+  if (now - _lastScrollStepMs >= 400)
+  {
+    _lastScrollStepMs = now;
+    _scrollPos++;
+  }
+
+  renderMediaScreen(false);
+}
+
+void Affa3NavDisplay::renderMediaScreen(bool forceRedraw)
+{
+  // Не ліземо поверх меню
+  if (mainMenu.isActive())
+    return;
+  if (!tracker.isInAuxMode())
+    return;
+
+  String status_icon;
+  switch (_mediaInfo.mPlaybackState)
+  {
+  case AppleMediaService::MediaInformation::PlaybackState::Playing:
+  {
+    status_icon = ">";
+    break;
+  }
+  case AppleMediaService::MediaInformation::PlaybackState::Paused:
+  {
+
+    status_icon = "||";
+    break;
+  }
+  default:
+  {
+
+    status_icon = "D";
+    break;
+  }
+  }
+
+  // 1-й рядок: назва плеєра
+  const char *header = status_icon + " " + _mediaPlayerName.length() ? _mediaPlayerName.c_str() : "AUX PLAYER";
+
+  // 2-й рядок: Artist - Title (з можливим скролом)
+  String line2 = buildScrollingTitle();
+  const char *row2 = line2.c_str();
+
+  // 3-й рядок: прогрес
+  String line3 = buildProgressLine();
+  const char *row3 = line3.c_str();
+  // scrollLockIndicator = 0 -> без стрілок, бо це не меню
+  showMenu(header, row2, row3, /*scrollLockIndicator*/ 0x00);
+  // --- 6. Текстове представлення в Serial (для тестів без дисплея) ---
+  // Serial.println();
+  // Serial.println("===== MEDIA SCREEN =====");
+  // Serial.println(header);   // 1-й рядок
+  // Serial.println(line2);       // 2-й рядок
+  // Serial.println(line3);       // 3-й рядок
+  // Serial.println("========================");
+}
+String transliterateToAscii(const String &in)
+{
+  String out;
+  out.reserve(in.length()); // груба оцінка, після трансліту може стати трохи довше
+
+  const uint8_t *s = (const uint8_t *)in.c_str();
+  size_t i = 0;
+
+  while (s[i])
+  {
+    uint8_t b = s[i];
+
+    // Звичайний ASCII – віддаємо як є
+    if (b < 0x80)
+    {
+      out += (char)b;
+      ++i;
+      continue;
+    }
+
+    // Мінімальний UTF-8 декодер (2–3 байти нам вистачить)
+    uint32_t cp = 0;
+    int extra = 0;
+
+    if ((b & 0xE0) == 0xC0)
+    { // 2-байтовий
+      cp = b & 0x1F;
+      extra = 1;
+    }
+    else if ((b & 0xF0) == 0xE0)
+    { // 3-байтовий
+      cp = b & 0x0F;
+      extra = 2;
+    }
+    else if ((b & 0xF8) == 0xF0)
+    { // 4-байтовий – для нас все одно буде "?"
+      cp = b & 0x07;
+      extra = 3;
+    }
+    else
+    {
+      // щось дивне, пропускаємо байт
+      ++i;
+      continue;
+    }
+
+    ++i;
+    for (int j = 0; j < extra && s[i]; ++j, ++i)
+    {
+      cp = (cp << 6) | (s[i] & 0x3F);
+    }
+
+    switch (cp)
+    {
+      // --- Polish letters ---
+      case 0x0104: out += "A"; break; // Ą
+      case 0x0105: out += "a"; break; // ą
+      case 0x0106: out += "C"; break; // Ć
+      case 0x0107: out += "c"; break; // ć
+      case 0x0118: out += "E"; break; // Ę
+      case 0x0119: out += "e"; break; // ę
+      case 0x0141: out += "L"; break; // Ł
+      case 0x0142: out += "l"; break; // ł
+      case 0x0143: out += "N"; break; // Ń
+      case 0x0144: out += "n"; break; // ń
+      case 0x00D3: out += "O"; break; // Ó
+      case 0x00F3: out += "o"; break; // ó
+      case 0x015A: out += "S"; break; // Ś
+      case 0x015B: out += "s"; break; // ś
+      case 0x0179: out += "Z"; break; // Ź
+      case 0x017A: out += "z"; break; // ź
+      case 0x017B: out += "Z"; break; // Ż
+      case 0x017C: out += "z"; break; // ż
+
+      // ---  Cyrillic ---
+      // Базові
+      case 0x0410: out += "A";   break; // А
+      case 0x0430: out += "a";   break; // а
+      case 0x0411: out += "B";   break; // Б
+      case 0x0431: out += "b";   break; // б
+      case 0x0412: out += "V";   break; // В
+      case 0x0432: out += "v";   break; // в
+      case 0x0413: out += "G";   break; // Г
+      case 0x0433: out += "g";   break; // г
+      case 0x0414: out += "D";   break; // Д
+      case 0x0434: out += "d";   break; // д
+      case 0x0415: out += "E";   break; // Е
+      case 0x0435: out += "e";   break; // е
+      case 0x0401: out += "E";   break; // Ё
+      case 0x0451: out += "e";   break; // ё
+      case 0x0416: out += "Zh";  break; // Ж
+      case 0x0436: out += "zh";  break; // ж
+      case 0x0417: out += "Z";   break; // З
+      case 0x0437: out += "z";   break; // з
+      case 0x0418: out += "I";   break; // И
+      case 0x0438: out += "i";   break; // и
+      case 0x0419: out += "J";   break; // Й
+      case 0x0439: out += "j";   break; // й
+      case 0x041A: out += "K";   break; // К
+      case 0x043A: out += "k";   break; // к
+      case 0x041B: out += "L";   break; // Л
+      case 0x043B: out += "l";   break; // л
+      case 0x041C: out += "M";   break; // М
+      case 0x043C: out += "m";   break; // м
+      case 0x041D: out += "N";   break; // Н
+      case 0x043D: out += "n";   break; // н
+      case 0x041E: out += "O";   break; // О
+      case 0x043E: out += "o";   break; // о
+      case 0x041F: out += "P";   break; // П
+      case 0x043F: out += "p";   break; // п
+      case 0x0420: out += "R";   break; // Р
+      case 0x0440: out += "r";   break; // р
+      case 0x0421: out += "S";   break; // С
+      case 0x0441: out += "s";   break; // с
+      case 0x0422: out += "T";   break; // Т
+      case 0x0442: out += "t";   break; // т
+      case 0x0423: out += "U";   break; // У
+      case 0x0443: out += "u";   break; // у
+      case 0x0424: out += "F";   break; // Ф
+      case 0x0444: out += "f";   break; // ф
+      case 0x0425: out += "Kh";  break; // Х
+      case 0x0445: out += "kh";  break; // х
+      case 0x0426: out += "Ts";  break; // Ц
+      case 0x0446: out += "ts";  break; // ц
+      case 0x0427: out += "Ch";  break; // Ч
+      case 0x0447: out += "ch";  break; // ч
+      case 0x0428: out += "Sh";  break; // Ш
+      case 0x0448: out += "sh";  break; // ш
+      case 0x0429: out += "Sch"; break; // Щ
+      case 0x0449: out += "sch"; break; // щ
+      case 0x042A: /*Ъ*/ break;
+      case 0x044A: /*ъ*/ break;
+      case 0x042B: out += "Y";   break; // Ы
+      case 0x044B: out += "y";   break; // ы
+      case 0x042C: /*Ь*/ break;
+      case 0x044C: /*ь*/ break;
+      case 0x042D: out += "E";   break; // Э
+      case 0x044D: out += "e";   break; // э
+      case 0x042E: out += "Yu";  break; // Ю
+      case 0x044E: out += "yu";  break; // ю
+      case 0x042F: out += "Ya";  break; // Я
+      case 0x044F: out += "ya";  break; // я
+
+      // Ukrainian extras
+      case 0x0404: out += "Ye";  break; // Є
+      case 0x0454: out += "ye";  break; // є
+      case 0x0406: out += "I";   break; // І
+      case 0x0456: out += "i";   break; // і
+      case 0x0407: out += "Yi";  break; // Ї
+      case 0x0457: out += "yi";  break; // ї
+      case 0x0490: out += "G";   break; // Ґ
+      case 0x0491: out += "g";   break; // ґ
+
+
+      default:
+        // Невідомі не-ASCII: або пропускаємо, або ставимо '?'
+        out += '?';
+        break;
+    }
+  }
+
+  return out;
+}
+String normalizeTitle(const String& in)
+{
+    String s = in;
+
+    // --- Remove "• Є відео" (various possible spacing) ---
+    s.replace("• Є відео", "");
+    s.replace("•Євідео", "");
+    s.replace(" • Є відео", "");
+    s.replace("• Video", "");  // інколи Apple дає англійську мітку
+    s.trim(); // прибрати зайві пробіли після видалення
+
+    // --- Then transliterate ---
+    return transliterateToAscii(s);
+}
+String Affa3NavDisplay::buildScrollingTitle()
+{
+
+  String full = String(_mediaInfo.mArtist.c_str());
+  if (full.length() > 0 && _mediaInfo.mTitle.size() > 0)
+  {
+    full += ": ";
+  }
+  full += String(_mediaInfo.mTitle.c_str()) +"    "; // додаємо пробіли в кінець для відступу при скролі
+  // 🔤 привести до чистого ASCII
+  full = normalizeTitle(full);
+  const int MAX_VISIBLE = 16; // підженеш під реальну ширину рядка
+
+  if (full.length() <= MAX_VISIBLE)
+    return full;
+
+  // Кільцевий скрол по рядку
+  uint16_t start = _scrollPos % full.length();
+  String out;
+  out.reserve(MAX_VISIBLE);
+
+  for (int i = 0; i < MAX_VISIBLE; ++i)
+  {
+    out += full[(start + i) % full.length()];
+  }
+
+  return out;
+}
 // menuit 41 44 48 77 AUX__AUTO AFAUTO SPEED_0
 void showInfoMenu(
     const char *item1,
@@ -622,8 +1140,8 @@ AffaCommon::AffaError Affa3NavDisplay::highlightItem(uint8_t id)
 //  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNAffa3Nav::ScrollLockIndicator scrollLockIndicator
 AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
 {
-  Serial.println("[showMenu] --- Building Menu ---");
-  Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
+  // Serial.println("[showMenu] --- Building Menu ---");
+  // Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
   // uint8_t selectionItem1 = 0x00;//unknown, to test
   // uint8_t selectionItem2 = 0x01;//unknown, to test
 

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <Arduino.h>
 #include <functional>
 
 // ---- metric + plan types ----
