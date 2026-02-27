@@ -14,6 +14,7 @@
 #include "display/Affa3Nav/Affa3NavDisplay.h"
 #include "bluetooth.h"
 #include "apple_media_service.h"
+#include <BleKeyboard.h>
 
 // SerialCommand sCmd;   // The SerialCommand object
 // Affa3NavDisplay display; // Create an instance of Affa3Display
@@ -25,6 +26,8 @@ unsigned long lastPingTime = 0;
 String btMode = "ams";   // "ams" or "keyboard"
 bool _autoTime = true;   // sync display clock from CTS (AMS mode only)
 bool _timeSyncDone = false; // reset each time BT disconnects
+
+BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
 // ---- Static IP for V-LINK (STA) ----
 IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
 IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
@@ -254,75 +257,39 @@ void connectToElm()
     lastWiFiAttemptMs = millis();
 }
 
-bool HandleKey(AffaCommon::AffaKey key, bool isHold) // only invoked in aux/nomenu mode
-{ 
-    //TODO: add regular bleKeyboard support, for android etc, swtichable via settings page
-
-    
-    // 2) Якщо немає BT – не робимо нічого
-    if (!Bluetooth::IsConnected()){
-    Serial.println("Bt not connected");
-        return false;
-    }
-
-    // 3) Якщо не в AUX режимі – теж нічого
-    // if (!g_tracker.isInAuxMode())
-    //     return;
-
-    Serial.print("[AMS] Key in AUX mode: 0x");
-    Serial.println(static_cast<uint16_t>(key), HEX);
-    if (true /*send ble siignals */)
-    {        // Not in menu, but AUX mode: BLE media control
-            Serial.println("Key in AUX mode:");
-            switch (key)
-            {
-            case AffaCommon::AffaKey::Pause:
-                Serial.println("Pause/Play");
-                AppleMediaService::Toggle();
-                // bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-                //   AppleMediaService::SendRemoteCommand(RemoteCommandID::TogglePlayPause);
-
-                break;
-
-            case AffaCommon::AffaKey::RollUp:
-                Serial.println("Next Track");
-                //  AppleMediaService::SendRemoteCommand(RemoteCommandID::NextTrack);
-                AppleMediaService::NextTrack();
-                //  bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-                break;
-
-            case AffaCommon::AffaKey::RollDown:
-                Serial.println("Previous Track");
-                //  AppleMediaService::SendRemoteCommand(RemoteCommandID::PreviousTrack);
-                AppleMediaService::PrevTrack();
-                //  bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-                break;
-
-            case AffaCommon::AffaKey::VolumeUp:
-                if (isHold)
-                {
-                    /* code */
-                    
-                    Serial.println("Volume Up");
-                    for(int i =0; i<15; i++) // send multiple times to set MAX volume
-                    AppleMediaService::VolumeUp(); 
-                    // bleKeyboard.write(KEY_MEDIA_VOLUME_UP);
-                    break;
-                }
-            default:
-                Serial.print("Unhandled key: 0x");
-                Serial.println(static_cast<uint16_t>(key), HEX);
-                break;
-            }
-        }
-    
-    // приклад: AUX-режим блокує стандартну логіку
-    if (false)
+bool HandleKey(AffaCommon::AffaKey key, bool isHold)
+{
+    if (btMode == "ams")
     {
-        return false; //  
-    }
+        if (!Bluetooth::IsConnected())
+            return false;
 
-    return true; // стандартна логіка активна
+        switch (key)
+        {
+        case AffaCommon::AffaKey::Pause:    AppleMediaService::Toggle();   break;
+        case AffaCommon::AffaKey::RollUp:   AppleMediaService::NextTrack(); break;
+        case AffaCommon::AffaKey::RollDown: AppleMediaService::PrevTrack(); break;
+        case AffaCommon::AffaKey::VolumeUp:
+            if (isHold)
+                for (int i = 0; i < 15; i++) AppleMediaService::VolumeUp();
+            break;
+        default: break;
+        }
+    }
+    else // keyboard
+    {
+        switch (key)
+        {
+        case AffaCommon::AffaKey::Pause:    bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);     break;
+        case AffaCommon::AffaKey::RollUp:   bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);     break;
+        case AffaCommon::AffaKey::RollDown: bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK); break;
+        case AffaCommon::AffaKey::VolumeUp:
+            if (isHold) bleKeyboard.write(KEY_MEDIA_VOLUME_UP);
+            break;
+        default: break;
+        }
+    }
+    return true;
 }
 
 static AppleMediaService::MediaInformation g_mediaInfo;
@@ -338,22 +305,23 @@ void setup()
     initDisplay();
     initSerial();
 
+    display->setKeyHandler(HandleKey);  // always set — HandleKey is mode-aware
+
     if (btMode == "ams")
     {
-        // AMS mode: configure keyHandler BEFORE begin() so begin() knows to skip BleKeyboard
-        display->setKeyHandler(HandleKey);
         AppleMediaService::RegisterForNotifications(
             onDataUpdateCallback,
             AppleMediaService::NotificationLevel::All);
         Bluetooth::Begin("MeganeCAN");
-        Serial.println("[BT] AMS mode: BLE central started");
+        Serial.println("[BT] AMS mode started");
     }
     else
     {
-        Serial.println("[BT] Keyboard mode: BleKeyboard will start in display->begin()");
+        bleKeyboard.begin();
+        Serial.println("[BT] Keyboard mode started");
     }
 
-    display->begin();  // keyboard mode: starts BleKeyboard; AMS mode: no-op
+    display->begin();
 
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);

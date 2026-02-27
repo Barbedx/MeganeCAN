@@ -102,16 +102,7 @@ namespace
 
 void Affa3NavDisplay::begin()
 {
-    if (!keyHandler)
-    {
-        // Keyboard mode: no AMS keyHandler set — start BLE HID keyboard
-        bleKeyboard.begin();
-        Serial.println("[Affa3Nav] begin(): BleKeyboard started (keyboard mode)");
-    }
-    else
-    {
-        Serial.println("[Affa3Nav] begin(): AMS mode, skipping BleKeyboard");
-    }
+    // BT init is handled entirely in main.cpp; nothing to do here
 }
 
 void Affa3NavDisplay::initializeMenu()
@@ -179,47 +170,7 @@ void Affa3NavDisplay::initializeMenu()
 
 void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 {
-  Serial.print("Affa3NavDisplay::onKeyPressed fired, key:");
-  Serial.println(static_cast<uint16_t>(key), HEX);
-  if (isHold && key == AffaCommon::AffaKey::Load)
-  {
-    Serial.println(">> Load (hold) pressed - doing stuff");
-    tracker.SetAuxMode(true); // just for testing, it will let us set aux in console(without  radio?)
-    //Add method to check if can show menu instead?\\
-
-  }
-
-  mainMenu.handleKey(key, isHold);
-
-  // if (!mainMenu.isActive() && tracker.isInAuxMode())
-  // {
-  //   {
-  //     // Not in menu, but AUX mode: BLE media control
-  //     Serial.println("Key in AUX mode:");
-  //     switch (key)
-  //     {
-  //     case AffaCommon::AffaKey::Pause:
-  //       Serial.println("Pause/Play");
-  //       bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-  //       break;
-
-  //     case AffaCommon::AffaKey::RollUp:
-  //       Serial.println("Next Track");
-  //       bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-  //       break;
-
-  //     case AffaCommon::AffaKey::RollDown:
-  //       Serial.println("Previous Track");
-  //       bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-  //       break;
-
-  //     default:
-  //       Serial.print("Unhandled key: 0x");
-  //       Serial.println(static_cast<uint16_t>(key), HEX);
-  //       break;
-  //     }
-  //   }
-  // }
+    // Kept for base-class contract; logic moved to ProcessKey
 }
 
 void Affa3NavDisplay::tick()
@@ -653,40 +604,13 @@ void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
 
 void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 {
-    // AuxMode side-effects (hold Load → enter AUX)
     if (isHold && key == AffaCommon::AffaKey::Load)
-    {
         tracker.SetAuxMode(true);
-    }
 
     mainMenu.handleKey(key, isHold);
 
-    if (!mainMenu.isActive())
-    {
-        if (keyHandler)
-        {
-            // AMS mode: delegate to main.cpp HandleKey (AMS remote commands)
-            keyHandler(key, isHold);
-        }
-        else
-        {
-            // Keyboard mode: BLE HID media keys
-            switch (key)
-            {
-            case AffaCommon::AffaKey::Pause:
-                bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);
-                break;
-            case AffaCommon::AffaKey::RollUp:
-                bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);
-                break;
-            case AffaCommon::AffaKey::RollDown:
-                bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK);
-                break;
-            default:
-                break;
-            }
-        }
-    }
+    if (!mainMenu.isActive() && keyHandler)
+        keyHandler(key, isHold);
 }
 String Affa3NavDisplay::buildProgressLine() const
 {

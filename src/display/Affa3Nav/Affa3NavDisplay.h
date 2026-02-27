@@ -1,7 +1,6 @@
 #pragma once
 #include <vector>
 #include <Arduino.h>
-#include <BleKeyboard.h>
 #include "apple_media_service.h"
 #include "Affa3NavConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
@@ -81,7 +80,6 @@ protected:
     }
 
 private:
-    BleKeyboard bleKeyboard{"MeganeCAN", "gycer", 100};  // used in keyboard mode only
     AppleMediaService::MediaInformation _mediaInfo;
     String _mediaLine2Full;      // повний "Artist - Title"
     String _mediaPlayerName ;      
