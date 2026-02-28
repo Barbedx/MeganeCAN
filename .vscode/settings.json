@@ -56,5 +56,6 @@
         "mutex": "cpp",
         "thread": "cpp",
         "iomanip": "cpp"
-    }
+    },
+    "markdown.validate.enabled": true
 }

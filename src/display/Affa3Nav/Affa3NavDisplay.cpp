@@ -1,6 +1,7 @@
 #include "Affa3NavDisplay.h"
 
 #include "AuxModeTracker.h"
+#include "bluetooth.h"
 #include <NimBLEDevice.h>
 #include <vector>
 #include <Arduino.h>
@@ -108,7 +109,8 @@ void Affa3NavDisplay::begin()
 void Affa3NavDisplay::initializeMenu()
 {
     // Fixed menu items
-    mainMenu.addItem(MenuItem("Voltage", Field(142, "V"), false));
+    mainMenu.addItem(MenuItem("Voltage", Field(0, "V"),    false));
+    mainMenu.addItem(MenuItem("Boost",   Field(0, "mbar"), false));
     mainMenu.addItem(MenuItem("Color", {"Red", "Green", "Blue", "White"}, 1));
     mainMenu.addItem(MenuItem("Effect", {"Static", "Blink", "Fade"}, 2));
     mainMenu.addItem(MenuItem("Power", Field(163, 0, 500, 1, 2, "HP")));
@@ -671,13 +673,24 @@ String Affa3NavDisplay::buildProgressLine() const
 
 void Affa3NavDisplay::tickMedia()
 {
-  // Не малюємо, якщо меню відкрите або не AUX
+  // Don't draw over open menu or outside AUX mode
   if (mainMenu.isActive())
     return;
   if (!tracker.isInAuxMode())
     return;
 
   uint32_t now = millis();
+
+  // When BT not connected: show what we're doing instead of an empty screen
+  if (!Bluetooth::IsConnected())
+  {
+    if (now - _lastMediaRenderMs >= 1000)
+    {
+      _lastMediaRenderMs = now;
+      showMenu("MeganeCAN", Bluetooth::GetStatusText(), "for AMS device", 0x00);
+    }
+    return;
+  }
 
   // Оновлюємо дані про медіа з AMS
   AppleMediaService::MediaInformation current = AppleMediaService::GetMediaInformation();
@@ -1116,6 +1129,18 @@ AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *
 
   Serial.printf("[CAN] do_send totalLen: %d  \n", totalLen);
   return affa3_send(0x151, payload, totalLen);
+}
+
+void Affa3NavDisplay::onElmUpdate(const char* key, float value)
+{
+    if (strcmp(key, "PR071") == 0)
+    {
+        mainMenu.updateFieldExternally("Voltage", 0, (int)roundf(value));
+    }
+    else if (strcmp(key, "DRV_BOOST") == 0)
+    {
+        mainMenu.updateFieldExternally("Boost", 0, (int)roundf(value));
+    }
 }
 
 AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)

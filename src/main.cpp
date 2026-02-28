@@ -10,7 +10,9 @@
 // #include <PsychicHttp.h>
 
 #include "ElmManager/MyELMManager.h"
-#include "display/Affa3/Affa3Display.h"
+#include "display/Affa2/Affa2Display.h"
+#include "display/Affa2/Affa2MenuDisplay.h"
+#include "display/Affa2/Affa2Base.h"
 #include "display/Affa3Nav/Affa3NavDisplay.h"
 #include "bluetooth.h"
 #include "apple_media_service.h"
@@ -26,6 +28,7 @@ unsigned long lastPingTime = 0;
 String btMode = "ams";   // "ams" or "keyboard"
 bool _autoTime = true;   // sync display clock from CTS (AMS mode only)
 bool _timeSyncDone = false; // reset each time BT disconnects
+bool _elmEnabled = false; // ELM327 enabled (read from NVS, configurable via Web UI)
 
 BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
 // ---- Static IP for V-LINK (STA) ----
@@ -206,8 +209,9 @@ void initDisplay()
     Preferences prefs;
     prefs.begin("config", true);
     String displayType = prefs.getString("display_type", "affa3nav");
-    btMode    = prefs.getString("bt_mode",   "ams");
-    _autoTime = prefs.getBool("auto_time",   true);
+    btMode      = prefs.getString("bt_mode",     "ams");
+    _autoTime   = prefs.getBool("auto_time",     true);
+    _elmEnabled = prefs.getBool("elm_enabled",   false);
     prefs.end();
 
     Serial.println("[Display Init] Display type: " + displayType);
@@ -219,10 +223,20 @@ void initDisplay()
         Serial.println("[Display Init] Instantiating Affa3NavDisplay");
         display = new Affa3NavDisplay();
     }
+    else if (displayType == "affa2")
+    {
+        Serial.println("[Display Init] Instantiating Affa2Display (8-segment)");
+        display = new Affa2Display();
+    }
+    else if (displayType == "affa2menu")
+    {
+        Serial.println("[Display Init] Instantiating Affa2MenuDisplay (full LED)");
+        display = new Affa2MenuDisplay();
+    }
     else
     {
         Serial.println("[Display Init] Instantiating Affa3Display (default)");
-        display = new Affa3Display();
+        display = new Affa2Base();
     }
 
     // NOTE: display->begin() is called in setup() AFTER BT mode configuration
@@ -262,11 +276,21 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold)
     if (btMode == "ams")
     {
         if (!Bluetooth::IsConnected())
-            return false;
+        {
+            // Use steering wheel keys to cycle through discovered AMS devices
+            switch (key)
+            {
+            case AffaCommon::AffaKey::RollUp:   Bluetooth::SelectNext(); break;
+            case AffaCommon::AffaKey::RollDown:  Bluetooth::SelectPrev(); break;
+            case AffaCommon::AffaKey::Pause:     Bluetooth::ConnectSelected(); break;
+            default: break;
+            }
+            return true;
+        }
 
         switch (key)
         {
-        case AffaCommon::AffaKey::Pause:    AppleMediaService::Toggle();   break;
+        case AffaCommon::AffaKey::Pause:    AppleMediaService::Toggle();    break;
         case AffaCommon::AffaKey::RollUp:   AppleMediaService::NextTrack(); break;
         case AffaCommon::AffaKey::RollDown: AppleMediaService::PrevTrack(); break;
         case AffaCommon::AffaKey::VolumeUp:
@@ -399,13 +423,11 @@ void loop()
         last_sync = now;
 
     }
-    // 1) Start connecting ONCE
+    // 1) Start connecting ONCE (only when ELM is enabled via Web UI)
     if (!wifiBeginIssued)
     {
-     //   Serial.println("[WiFi] Not connected, connectiong...");
-
-       // connectToElm(); TODO: enable elm later, not working now 
-     //   Serial.println("[WiFi] elm connected ...");
+        if (_elmEnabled)
+            connectToElm();
     }
     else if (WiFi.status() != WL_CONNECTED)
     {
@@ -432,7 +454,12 @@ void loop()
     // 2) When Wi-Fi is up, let the ELM manager build/maintain TCP+session
     if (WiFi.status() == WL_CONNECTED && elmManager)
     {
-        elmManager->tick(); // tick() calls ensureTcpAndElm() internally
+        elmManager->tick();
+
+        // Push ELM values to display (updates menu fields in-place)
+        float v;
+        if (elmManager->getCached("PR071",    v)) display->onElmUpdate("PR071",    v);
+        if (elmManager->getCached("DRV_BOOST", v)) display->onElmUpdate("DRV_BOOST", v);
     }
 
 }

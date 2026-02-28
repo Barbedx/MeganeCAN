@@ -58,8 +58,9 @@ public:
 
     bool isAffa3Nav() const override { return true; }
 
-    void begin() override;   // conditionally starts BleKeyboard (keyboard mode) or no-op (AMS mode)
+    void begin() override;
     void tickMedia() override;
+    void onElmUpdate(const char* key, float value) override;
 
 protected:
     Menu mainMenu;

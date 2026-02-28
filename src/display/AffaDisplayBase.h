@@ -29,9 +29,10 @@ void setKeyHandler(KeyHandler handler)
     virtual void setMediaInfo(const AppleMediaService::MediaInformation& info) {
         (void)info;
     }
-    virtual void tickMedia(){
+    virtual void tickMedia() {}
 
-    }
+    // Called by main loop when a new ELM value arrives (key = PID shortName, e.g. "PR071")
+    virtual void onElmUpdate(const char* key, float value) { (void)key; (void)value; }
     virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) =0;
 
 protected: 

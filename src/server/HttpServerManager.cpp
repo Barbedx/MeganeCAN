@@ -1,6 +1,7 @@
 #include "HttpServerManager.h"
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
+#include "../bluetooth.h"
 #include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
@@ -17,6 +18,38 @@ const char *htmlPage = R"rawliteral(
 <script>
 async function loadConfig() {
   try {
+    // Fetch ELM enabled
+    const elmRes = await fetch('/getelmenabled');
+    const elmEnabled = await elmRes.text();
+    document.getElementById('elmEnabledCheckbox').checked = (elmEnabled === '1');
+
+    // Fetch display type and pre-select the correct option
+    const dtRes = await fetch('/getdisplaytype');
+    const displayType = await dtRes.text();
+    const sel = document.getElementById('displayTypeSelect');
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === displayType) {
+        sel.selectedIndex = i;
+        break;
+      }
+    }
+
+    // Fetch BT mode
+    const btRes = await fetch('/getbtmode');
+    const btMode = await btRes.text();
+    const btSel = document.getElementById('btModeSelect');
+    for (let i = 0; i < btSel.options.length; i++) {
+      if (btSel.options[i].value === btMode) {
+        btSel.selectedIndex = i;
+        break;
+      }
+    }
+
+    // Fetch auto_time
+    const atRes = await fetch('/getautotime');
+    const autoTime = await atRes.text();
+    document.getElementById('autoTimeCheckbox').checked = (autoTime === '1');
+
     // Fetch autoRestore
     const restoreRes = await fetch('/config/restore');
     const autoRestore = await restoreRes.text();
@@ -38,30 +71,42 @@ async function loadConfig() {
 
 window.addEventListener('DOMContentLoaded', loadConfig);
 </script>
-
-
 </head>
 <body>
     <h1>Display Control v0.4</h1>
-  <h2>display type</h2>
 
+  <h2>Display Type</h2>
     <form action="/setDisplay" method="POST">
-    <select name="type">
-        <option value="affa3">AFFA3</option>
-        <option value="affa3nav">AFFA3Nav</option>
+    <select name="type" id="displayTypeSelect">
+        <option value="affa3nav">AFFA3Nav (Carminat)</option>
+        <option value="affa2">AFFA2 (8-segment)</option>
+        <option value="affa2menu">AFFA2 Menu (full-LED)</option>
     </select>
-    <input type="submit" value="Save" />
+    <input type="submit" value="Save &amp; Restart" />
+    </form>
+
+  <h2>Bluetooth Mode</h2>
+    <form action="/setbtmode" method="POST">
+    <select name="mode" id="btModeSelect">
+        <option value="ams">AMS (Apple Media Service)</option>
+        <option value="keyboard">BLE Keyboard</option>
+    </select>
+    <label style="margin-left:12px">
+        <input type="checkbox" id="autoTimeCheckbox" name="auto_time" value="1" />
+        Auto-sync time from phone
+    </label>
+    <input type="hidden" name="auto_time" value="0" />
+    <input type="submit" value="Save &amp; Restart" />
     </form>
 
   <h2>Auto-restore text</h2>
     <form action="/config/restore" method="GET">
-    <label>    
-    
-        <input type="checkbox" name="enable"  id="autoRestoreCheckbox"  value="1"  />
+    <label>
+        <input type="checkbox" name="enable" id="autoRestoreCheckbox" value="1" />
         Auto-Restore texts on startup
     </label>
-        <!-- Hidden input to force sending value when checkbox is unchecked -->
-        <input type="hidden" name="enable" value="0" />
+    <!-- Hidden input sends 0 when checkbox is unchecked -->
+    <input type="hidden" name="enable" value="0" />
     <input type="submit" value="Save" />
     </form>
 
@@ -91,21 +136,45 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
     <input type="submit" value="Set Time" />
     </form>
- 
+
   <hr>
 
-    <h2>Set Time</h2>
+    <h2>Set Voltage</h2>
     <form action="/setVoltage" method="GET">
-    <label>Voltage :</label>
+    <label>Voltage:</label>
     <input type="text" name="voltage" required />
     <input type="submit" value="Set Voltage" />
     </form>
-    <hr> 
- 
-    <hr>
+
+  <hr>
+
+  <h2>ELM327 / OBD Diagnostics</h2>
+    <form action="/setelm" method="POST">
+    <label>
+        <input type="checkbox" id="elmEnabledCheckbox" name="elm_enabled" value="1" />
+        Enable ELM327 (connects to V-LINK WiFi on boot, fetches voltage &amp; sensor data)
+    </label>
+    <input type="hidden" name="elm_enabled" value="0" />
+    <input type="submit" value="Save &amp; Restart" />
+    </form>
+    <p>Live data: <a href="/api/live">/api/live</a> (JSON, only when ELM connected)</p>
+
+  <hr>
+
+  <h2>Bluetooth</h2>
+    <form action="/clearbonds" method="POST"
+          onsubmit="return confirm('Clear BLE bonds? You will need to re-pair on the iPhone too.');">
+    <input type="submit" value="Clear BLE Bonds" />
+    </form>
+    <form action="/forgetdevice" method="POST" style="margin-top:6px"
+          onsubmit="return confirm('Forget saved device? Clears preferred address and bonds. Next boot scans fresh.');">
+    <input type="submit" value="Forget Saved Device" />
+    </form>
+
+  <hr>
     <h2>OTA Update</h2>
     <p>Use the <a href="/update">OTA Update</a> link to upload new firmware.</p>
- 
+
     <hr>
     <h2>Button emulation</h2>
     <p>Use the <a href="/emulate">Button emulation</a> link to debug menu.</p>
@@ -223,20 +292,87 @@ void HttpServerManager::setupRoutes()
         String response = "voltage set to: " + str;
         return request->reply(200, "text/plain", response.c_str()); });
 
-    _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {
-    if (request->hasParam("type")) 
-    {
-        String type = request->getParam("type")->value();
+    _server.on("/getdisplaytype", HTTP_GET, [](PsychicRequest *request) {
+        Preferences prefs;
+        prefs.begin("config", true);
+        String dt = prefs.getString("display_type", "affa3nav");
+        prefs.end();
+        return request->reply(200, "text/plain", dt.c_str());
+    });
 
+    _server.on("/getbtmode", HTTP_GET, [](PsychicRequest *request) {
+        Preferences prefs;
+        prefs.begin("config", true);
+        String mode = prefs.getString("bt_mode", "ams");
+        prefs.end();
+        return request->reply(200, "text/plain", mode.c_str());
+    });
+
+    _server.on("/getautotime", HTTP_GET, [](PsychicRequest *request) {
+        Preferences prefs;
+        prefs.begin("config", true);
+        bool at = prefs.getBool("auto_time", true);
+        prefs.end();
+        return request->reply(200, "text/plain", at ? "1" : "0");
+    });
+
+    _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {
+        if (!request->hasParam("type")) {
+            return request->reply(400, "text/plain", "Missing 'type' parameter");
+        }
+        String type = request->getParam("type")->value();
         Preferences prefs;
         prefs.begin("config", false);
         prefs.putString("display_type", type);
         prefs.end();
-        delay(1000); // Give time for ESP to restart
-        ESP.restart(); // Optional: force restart to apply change
-        return request->reply(200, "text/plain", "Display type saved. Restart required.");
-    }
-});
+        ESP.restart();
+        return request->reply(200, "text/plain", "Display type saved. Restarting...");
+    });
+
+    _server.on("/setbtmode", HTTP_POST, [](PsychicRequest *request) {
+        if (!request->hasParam("mode")) {
+            return request->reply(400, "text/plain", "Missing 'mode' parameter");
+        }
+        String mode = request->getParam("mode")->value();
+        bool autoTime = request->hasParam("auto_time") &&
+                        request->getParam("auto_time")->value() == "1";
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.putString("bt_mode", mode);
+        prefs.putBool("auto_time", autoTime);
+        prefs.end();
+        ESP.restart();
+        return request->reply(200, "text/plain", "BT mode saved. Restarting...");
+    });
+    _server.on("/getelmenabled", HTTP_GET, [](PsychicRequest *request) {
+        Preferences prefs;
+        prefs.begin("config", true);
+        bool en = prefs.getBool("elm_enabled", false);
+        prefs.end();
+        return request->reply(200, "text/plain", en ? "1" : "0");
+    });
+
+    _server.on("/setelm", HTTP_POST, [](PsychicRequest *request) {
+        bool enable = request->hasParam("elm_enabled") &&
+                      request->getParam("elm_enabled")->value() == "1";
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.putBool("elm_enabled", enable);
+        prefs.end();
+        ESP.restart();
+        return request->reply(200, "text/plain", enable ? "ELM enabled. Restarting..." : "ELM disabled. Restarting...");
+    });
+
+    _server.on("/clearbonds", HTTP_POST, [](PsychicRequest *request) {
+        Bluetooth::ClearBonds();
+        return request->reply(200, "text/plain", "BLE bonds cleared. Re-pair on iPhone.");
+    });
+
+    _server.on("/forgetdevice", HTTP_POST, [](PsychicRequest *request) {
+        Bluetooth::ForgetDevice();
+        return request->reply(200, "text/plain", "Saved device forgotten. Scanning fresh.");
+    });
+
 // // pseudo (adapt to your web lib)
 // server.on("/api/live", HTTP_GET, [this] (auto* req) {
 //   if (!elmManager) { req->send(503, "application/json", "{}"); return; }
