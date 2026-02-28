@@ -1,7 +1,8 @@
 
 #include <Arduino.h>
-#include "bluetooth.h" 
+#include "bluetooth.h"
 #include <NimBLEDevice.h>
+#include <Preferences.h>
 
 #include <time.h>
 #include <sys/time.h>
@@ -14,29 +15,6 @@
 #include "apple_media_service.h"
 #include "current_time_service.h"
 
-// <<< set this to your phone's BLE name if you know it >>>
-// static const char *const kTargetName = "IPhone 13"; // change to your phone name
-
-// "Підпис" твого айфона – префікс manufacturer data
-static const uint8_t kMyIphoneMfgPrefix[] = {
-    0x4c, 0x00, 0x01, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00
-    // можна скоротити / розширити при потребі
-};
-// AMS candidate (first Apple device): Name: , Address: dc:b5:4f:a6:69:9c, manufacturer data: 4c0010077f1fd4c3a8f948, txPower: 12
-// Service: trying to connect to AMS target
-// Connecting to AMS device: dc:b5:4f:a6:69:9c
-// E NimBLEClient: Connection failed; status=13
-// Client connect failed
-// Restarting scan after failed connect
-// [TIME] 2036-12-28 07:42:44
-// I NimBLEScan: New advertiser: 1c:86:9a:ae:a5:43
-// Result: Name: , Address: 1c:86:9a:ae:a5:43, manufacturer data: 750042040180661c869aaea5431e869aaea54201000000000000
-// I NimBLEScan: New advertiser: 63:f1:9e:a2:05:0c
-// Result: Name: , Address: 63:f1:9e:a2:05:0c, manufacturer data: 4c0009081375c0a864231b581608001537abdbe6a113
-// AMS candidate (first Apple device): Name: , Address: 63:f1:9e:a2:05:0c, manufacturer data: 4c0009081375c0a864231b581608001537abdbe6a113
-// Service: trying to connect to AMS target
-// Connecting to AMS device: 63:f1:9e:a2:05:0c
 
 #define APPLE_MUSIC_SERVICE_UUID "89D3502B-0F36-433A-8EF4-C502AD55F8DC"
 
@@ -48,109 +26,111 @@ static const uint8_t kMyIphoneMfgPrefix[] = {
 
 #define DELSOL_LOCATION_SERVICE_UUID "61d33c70-e3cd-4b31-90d8-a6e14162fffd"
 #define DELSOL_NAVIGATION_SERVICE_UUID "77f5d2b5-efa1-4d55-b14a-cc92b72708a0"
+
 namespace Bluetooth
 {
     namespace
     {
         // --- State ---
-
-        bool Ended = true;
+        bool Ended = false;
         bool Connected = false;
 
-        BLEClient *Client = nullptr; // NimBLE client (BLEClient macro)
-        BLEAddress TargetAddr;       // AMS device address
+        BLEClient *Client = nullptr;
+        BLEAddress TargetAddr{"00:00:00:00:00:00"};
         bool TargetFound = false;
 
         RTC_DATA_ATTR bool TimeSet = false;
 
-        // --- Scan callback: look for Apple Media Service UUID ---
-        // --- Connect to AMS peripheral and start AMS + CTS ---
-        static void dumpMfgHex(const std::string &mfg)
+        // --- Candidate list ---
+        struct BtCandidate { NimBLEAddress addr; std::string name; };
+        static std::vector<BtCandidate> candidates;
+        static int selectedIdx = 0;
+        static std::string preferredAddr; // saved address from NVS
+
+        static constexpr size_t MAX_CANDIDATES = 8;
+
+        // --- NVS helpers ---
+        static void SavePreferredAddr(const std::string &addr)
         {
-            Serial.print("  mfg hex: ");
-            for (uint8_t c : mfg)
-            {
-                char buf[4];
-                sprintf(buf, "%02X", c);
-                Serial.print(buf);
-            }
-            Serial.println();
+            Preferences prefs;
+            prefs.begin("bluetooth", false);
+            prefs.putString("pref_addr", addr.c_str());
+            prefs.end();
+            Serial.printf("[BT] Saved preferred addr: %s\n", addr.c_str());
         }
-        // NimBLE 1.4.3: base class is NimBLEAdvertisedDeviceCallbacks, no onDiscovered/onScanEnd
+
+        static std::string LoadPreferredAddr()
+        {
+            Preferences prefs;
+            prefs.begin("bluetooth", true);
+            String s = prefs.getString("pref_addr", "");
+            prefs.end();
+            return s.c_str();
+        }
+
+        static void ClearPreferredAddr()
+        {
+            Preferences prefs;
+            prefs.begin("bluetooth", false);
+            prefs.remove("pref_addr");
+            prefs.end();
+            preferredAddr.clear();
+            Serial.println("[BT] Preferred addr cleared");
+        }
+
+        // --- Returns a short display label for a candidate ---
+        // Apple doesn't always broadcast device name, so fall back to last 5 chars of address
+        static std::string CandidateLabel(const BtCandidate &c)
+        {
+            if (!c.name.empty())
+                return c.name;
+            // use last 5 chars of address (e.g. "a1:b2")
+            std::string a = c.addr.toString();
+            return a.size() >= 5 ? a.substr(a.size() - 5) : a;
+        }
+
+        // --- Status text buffer (returned as const char*) ---
+        static char statusBuf[48];
+
+        // --- Scan callback: collect all Apple (0x004C) connectable devices ---
         class AmsScanCallbacks : public NimBLEAdvertisedDeviceCallbacks
         {
         public:
             void onResult(NimBLEAdvertisedDevice *dev) override
             {
-                if (TargetFound)
-                    return;
+                if (TargetFound) return;
+                if (!dev->isConnectable()) return;
 
-                const std::string name = dev->getName();
+                const std::string& mfg = dev->getManufacturerData();
+                if (mfg.size() < 2) return;
+                uint16_t company = (uint8_t)mfg[0] | ((uint8_t)mfg[1] << 8);
+                if (company != 0x004C) return; // Apple only
 
-                // Debug
-                //  Serial.printf("Result: %s\n", dev->toString().c_str());
+                NimBLEAddress addr = dev->getAddress();
+                std::string   name = dev->getName();
+                std::string   addrStr = addr.toString();
 
-                // Always log what we see – this is super useful:
-        //        Serial.printf("Result: %s\n", dev->toString().c_str());
-                // Serial.printf("Name='%s', Address='%s', MfgData='%s'\n",
-                //                               name.c_str(),
-                //                               address.c_str(),
-                //                               mfg.c_str());
-                // 0) Переконаймось, що пристрій взагалі коннектимий
-                if (!dev->isConnectable())
+                // Deduplicate by address
+                for (auto& c : candidates)
+                    if (c.addr == addr) return;
+                if (candidates.size() >= MAX_CANDIDATES) return;
+
+                candidates.push_back({addr, name});
+                Serial.printf("[BT] Apple device %zu: '%s' %s\n",
+                              candidates.size(),
+                              name.empty() ? "(no name)" : name.c_str(),
+                              addrStr.c_str());
+
+                // Auto-select preferred (saved) address
+                if (!preferredAddr.empty() && addrStr == preferredAddr)
                 {
-                 //   Serial.println("  -> not connectable, ignoring");
-                    return;
-                } 
-                const std::string address = dev->getAddress().toString();
-                const std::string mfg = dev->getManufacturerData();
-          //      dumpMfgHex(mfg);
-                
-                if (mfg.size() < sizeof(kMyIphoneMfgPrefix))
-                {
-                 //   Serial.println("  -> mfg too short, ignoring");
-                    return;
+                    selectedIdx = (int)candidates.size() - 1;
+                    TargetAddr  = addr;
+                    TargetFound = true;
+                    NimBLEDevice::getScan()->stop();
+                    Serial.println("[BT] Preferred device found, auto-connecting");
                 }
-
-                // 1) Перевіряємо Apple company ID (перші 2 байти)
-                uint16_t company =
-                    (uint8_t)mfg[0] | ((uint8_t)mfg[1] << 8);
-
-                bool isApple = (company == 0x004C);
-        //        Serial.printf("  IsApple=%d\n", isApple ? 1 : 0);
-
-                if (!isApple)
-                {
-                    return;
-                }
-
-                // 2) Перевіряємо, чи збігається префікс з нашим айфоном
-                if (memcmp(mfg.data(), kMyIphoneMfgPrefix,
-                           sizeof(kMyIphoneMfgPrefix)) != 0)
-                {
-  //                  Serial.println("  -> Apple but not my mfg prefix, continue but");
-                return;
-                }
-
-                // 3) Додатково звузити по serviceUUID (Spotify UUID — надійний фільтр)
-                static const NimBLEUUID kMyService("3e1d50cd-7e3e-427d-8e1c-b78aa87fe624");
-
-                if (dev->haveServiceUUID() && dev->isAdvertisingService(kMyService))
-                {
-                    Serial.println("  -> mfg prefix + serviceUUID match, selecting target");
-                }
-                else
-                {
-                    return;
-                }
-
-                Serial.print("AMS candidate founded: ");
-                Serial.println(dev->toString().c_str());
-                TargetAddr = dev->getAddress();
-                TargetFound = true;
-                NimBLEDevice::getScan()->stop();
             }
-
         };
 
         bool ConnectToAms()
@@ -198,25 +178,6 @@ namespace Bluetooth
 
             Serial.println("Client connected to AMS device");
 
-            // Start encryption / bonding
-            // if(!NimBLEDevice::startSecurity(Client->getConnHandle())){
-            //     Serial.println("Failed to start security (bonding)");
-            //     Client->disconnect();
-            //     NimBLEDevice::deleteClient(Client);
-            //     Client = nullptr;
-
-            //     Connected = false;
-            //     TargetFound = false;
-
-            //     NimBLEScan *s = NimBLEDevice::getScan();
-            //     if (s)
-            //     {
-            //         Serial.println("Restarting scan after failed bonding");
-            //         s->start(0, false);
-            //     }
-            //     return false;
-            // };
-
             // Synchronous security: fail fast if pairing/encryption fails
             if (!Client->secureConnection()) {
                 Serial.println("Failed to secure connection (pairing/encryption)");
@@ -234,6 +195,7 @@ namespace Bluetooth
                 }
                 return false;
             }
+
             // --- Apple Media Service ---
             if (!AppleMediaService::StartMediaService(Client))
             {
@@ -257,6 +219,16 @@ namespace Bluetooth
             else
             {
                 Serial.println("AMS started");
+            }
+
+            // --- Save preferred address on successful AMS connection ---
+            {
+                std::string addrStr = TargetAddr.toString();
+                if (addrStr != preferredAddr)
+                {
+                    preferredAddr = addrStr;
+                    SavePreferredAddr(preferredAddr);
+                }
             }
 
             // --- Current Time Service ---
@@ -297,14 +269,12 @@ namespace Bluetooth
     // ---------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------
- void ClearBonds()
+    void ClearBonds()
     {
         Serial.println("[BLE] Clearing all BLE bonds...");
 
-        // Remove all stored bonds from NVS
         NimBLEDevice::deleteAllBonds();
 
-        // If we have a client, disconnect and delete it
         if (Client) {
             if (Client->isConnected()) {
                 Serial.println("[BLE] Disconnecting active client...");
@@ -314,12 +284,10 @@ namespace Bluetooth
             Client = nullptr;
         }
 
-        // Reset state flags
         Connected   = false;
         TargetFound = false;
         TimeSet     = false;
 
-        // Restart scan if BLE still initialized
         NimBLEScan *scan = NimBLEDevice::getScan();
         if (scan) {
             Serial.println("[BLE] Restarting scan after clearbonds...");
@@ -328,6 +296,7 @@ namespace Bluetooth
 
         Serial.println("[BLE] Bonds cleared. On iPhone: Settings → Bluetooth → Forget this device, then re-pair.");
     }
+
     void Begin(const std::string &device_name)
     {
         Serial.println("Bluetooth::Begin() AMS central-only");
@@ -337,30 +306,20 @@ namespace Bluetooth
         Connected = false;
         TimeSet = false;
         TargetFound = false;
+        candidates.clear();
+        selectedIdx = 0;
+
+        // Load saved preferred address for auto-reconnect
+        preferredAddr = LoadPreferredAddr();
+        if (!preferredAddr.empty())
+            Serial.printf("[BT] Will auto-connect to saved device: %s\n", preferredAddr.c_str());
 
         NimBLEDevice::init(device_name);
-        // Serial.println("Deleting all BLE bonds...");
-       //  NimBLEDevice::deleteAllBonds();
 
-        // // // Security: bonding + LE Secure Connections, no MITM
-        // static MySecurityCallbacks securityCallbacks;
-        // NimBLEDevice::startSecurity setSecurityCallbacks(&securityCallbacks);
-        // Security: bonding + LE Secure Connections, no MITM
-        // NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
-        NimBLEDevice::setSecurityAuth(/*bonding=*/false, /*mitm=*/false, /*sc=*/true); 
-        //AMS NO BOUNDING  its actually woirks, but asks for permission each time. I'm ok with that for now.
-        //to init connection we have to open spotify on mobile. for some reasone it will translate some ble service with spiotify uid 
-        // LEts figure out! 
-        // NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
-        // NimBLEDevice::setSecurityInitKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
-        // NimBLEDevice::setSecurityRespKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
-        // NimBLEDevice::setSecurityPasskey(123456); // optional fixed PIN
+        NimBLEDevice::setSecurityAuth(/*bonding=*/false, /*mitm=*/false, /*sc=*/true);
 
-        // No input/output → iOS does “Just Works” pairing
+        // No input/output → iOS does "Just Works" pairing
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
-
-        // Clear any old, possibly broken bonds
-        //   NimBLEDevice::deleteAllBonds();
 
         NimBLEScan *scan = NimBLEDevice::getScan();
         static AmsScanCallbacks cb;
@@ -371,7 +330,7 @@ namespace Bluetooth
         scan->setWindow(30);
         scan->setDuplicateFilter(false);
         scan->setFilterPolicy(BLE_HCI_SCAN_FILT_NO_WL);
-        scan->start(0, false); // ms; 0 = forever
+        scan->start(0, false); // 0 = forever
 
         Serial.println("Bluetooth::Begin finished (scanning for AMS)");
     }
@@ -414,6 +373,10 @@ namespace Bluetooth
             TimeSet = false;
             TargetFound = false;
 
+            // Clear candidates so we rediscover fresh
+            candidates.clear();
+            selectedIdx = 0;
+
             NimBLEScan *scan = NimBLEDevice::getScan();
             if (scan && !scan->isScanning())
             {
@@ -438,6 +401,91 @@ namespace Bluetooth
     bool IsTimeSet()
     {
         return TimeSet;
+    }
+
+    const char* GetStatusText()
+    {
+        if (Connected && Client && Client->isConnected())
+            return "Connected";
+
+        if (TargetFound)
+        {
+            if (!candidates.empty() && selectedIdx < (int)candidates.size())
+            {
+                std::string label = CandidateLabel(candidates[selectedIdx]);
+                snprintf(statusBuf, sizeof(statusBuf), "Connecting %d/%zu: %s",
+                         selectedIdx + 1, candidates.size(), label.c_str());
+            }
+            else
+            {
+                snprintf(statusBuf, sizeof(statusBuf), "Connecting...");
+            }
+            return statusBuf;
+        }
+
+        if (!candidates.empty())
+        {
+            // Show currently selected candidate and total count
+            std::string label = CandidateLabel(candidates[selectedIdx]);
+            snprintf(statusBuf, sizeof(statusBuf), "%d/%zu: %s",
+                     selectedIdx + 1, candidates.size(), label.c_str());
+            return statusBuf;
+        }
+
+        return "Scanning...";
+    }
+
+    void SelectNext()
+    {
+        if (candidates.empty()) return;
+        selectedIdx = (selectedIdx + 1) % (int)candidates.size();
+        Serial.printf("[BT] SelectNext -> %d/%zu (%s)\n",
+                      selectedIdx + 1, candidates.size(),
+                      CandidateLabel(candidates[selectedIdx]).c_str());
+    }
+
+    void SelectPrev()
+    {
+        if (candidates.empty()) return;
+        selectedIdx = (selectedIdx + (int)candidates.size() - 1) % (int)candidates.size();
+        Serial.printf("[BT] SelectPrev -> %d/%zu (%s)\n",
+                      selectedIdx + 1, candidates.size(),
+                      CandidateLabel(candidates[selectedIdx]).c_str());
+    }
+
+    void ConnectSelected()
+    {
+        if (candidates.empty()) return;
+        TargetAddr  = candidates[selectedIdx].addr;
+        TargetFound = true;
+        Serial.printf("[BT] ConnectSelected: %s\n", TargetAddr.toString().c_str());
+
+        NimBLEScan *scan = NimBLEDevice::getScan();
+        if (scan && scan->isScanning())
+            scan->stop();
+    }
+
+    void ForgetDevice()
+    {
+        Serial.println("[BT] ForgetDevice: clearing preferred addr and bonds");
+        ClearPreferredAddr();
+        NimBLEDevice::deleteAllBonds();
+
+        if (Client) {
+            if (Client->isConnected()) Client->disconnect();
+            NimBLEDevice::deleteClient(Client);
+            Client = nullptr;
+        }
+
+        Connected   = false;
+        TargetFound = false;
+        TimeSet     = false;
+        candidates.clear();
+        selectedIdx = 0;
+
+        NimBLEScan *scan = NimBLEDevice::getScan();
+        if (scan && !scan->isScanning())
+            scan->start(0, false);
     }
 
 } // namespace Bluetooth
