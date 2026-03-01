@@ -3,16 +3,10 @@
 #include "bluetooth.h"
 #include <NimBLEDevice.h>
 #include <Preferences.h>
-#include <set>
 
 #include <time.h>
 #include <sys/time.h>
 
-#if defined(CONFIG_NIMBLE_CPP_IDF)
-#include <host/ble_gap.h>
-#else
-#include <nimble/nimble/host/include/host/ble_gap.h>
-#endif
 #include "apple_media_service.h"
 #include "current_time_service.h"
 
@@ -47,7 +41,7 @@ namespace Bluetooth
         volatile BtState     state = BtState::IDLE;
 
         BLEClient           *Client     = nullptr;
-        BLEAddress           TargetAddr {"00:00:00:00:00:00"};
+        NimBLEAddress        TargetAddr; // set before each connect attempt
 
         RTC_DATA_ATTR bool   TimeSet    = false;
 
@@ -63,11 +57,24 @@ namespace Bluetooth
         static std::vector<BtCandidate> candidates;
         static int                      selectedIdx   = 0;
         static std::string              preferredAddr;
-        static std::set<std::string>    skippedDevices;
-        static constexpr size_t         MAX_CANDIDATES = 8;
+        static constexpr size_t         MAX_CANDIDATES = 20;
 
         // Auto-try timer (lives here so it can be reset on reconnect)
         static uint32_t lastAutoTryMs = 0;
+
+        // Settle timer: small extra buffer (200 ms) started in onDisconnect after the
+        // server-side connection fully closes.  ConnectToAms() must not run until
+        // _serverDisconnectComplete is true AND this timer has elapsed.
+        static uint32_t _connectSettleUntilMs = 0;
+
+        // Set by onDisconnect (when state==CONNECTING) to signal that NimBLE has
+        // fully processed the server disconnect HCI event — safe to open a client
+        // connection now.  This is the authoritative gate; a flat settle timer is
+        // insufficient because ble_gap_is_preempted() stays set until the host
+        // processes the event asynchronously.
+        // Starts true so non-server paths (scan auto-connect, SelectByIndex,
+        // ConnectSelected) go straight through without waiting.
+        static bool _serverDisconnectComplete = true;
 
         // --- NVS helpers ---
         static void SavePreferredAddr(const std::string &addr)
@@ -110,16 +117,68 @@ namespace Bluetooth
         // --- Status text buffer (returned as const char*) ---
         static char statusBuf[48];
 
+        // --- BLE server (server+client pattern for AMS) ---
+        // iOS connects to our server when it sees the solicited AMS UUID in our
+        // advertisement. This gives us iOS's current (non-rotated) address so we
+        // can open a fresh client connection and find AMS reliably.
+        //
+        // IMPORTANT (from ReflectionsOS NimBLE guidance):
+        //  • Never initiate a client connection from inside a NimBLE callback.
+        //    Set a flag; let Service() handle the actual connect on the next loop.
+        //  • Stop advertising before connecting as a client — they compete for radio.
+        //  • Disconnect the server connection from Service(), not from onConnect.
+        static NimBLEServer  *_server             = nullptr;
+        static bool           _pendingIosConnect   = false;
+        static NimBLEAddress  _pendingIosAddr;
+        static uint16_t       _pendingConnHandle   = 0;
+
+        class AmsServerCallbacks : public NimBLEServerCallbacks
+        {
+        public:
+            void onConnect(NimBLEServer *, NimBLEConnInfo &connInfo) override
+            {
+                // Capture iOS address immediately. Service() SCANNING will
+                // stop advertising/scan, disconnect the server connection,
+                // then ConnectToAms() once onDisconnect confirms it's done.
+                _pendingIosAddr    = connInfo.getAddress();
+                _pendingConnHandle = connInfo.getConnHandle();
+                _pendingIosConnect = true;
+                _serverDisconnectComplete = false;
+                Serial.printf("[BT] Server: iOS connected from %s\n",
+                              _pendingIosAddr.toString().c_str());
+            }
+            void onDisconnect(NimBLEServer *, NimBLEConnInfo &, int reason) override
+            {
+                _pendingIosConnect = false;
+                Serial.printf("[BT] Server: iOS disconnected (reason=%d), state=%d\n",
+                              reason, (int)state);
+                if (state == BtState::CONNECTING) {
+                    // We intentionally disconnected the server to open client connection.
+                    // NimBLE has now fully processed the HCI disconnect event — safe
+                    // to call Client->connect(). Add a small buffer for the stack to
+                    // finish any internal cleanup before we open the client connection.
+                    _serverDisconnectComplete = true;
+                    _connectSettleUntilMs = millis() + 200;
+                    Serial.println("[BT] Server disconnect done — will connect as client in 200ms");
+                } else {
+                    // Unexpected disconnect while still scanning — restart advertising.
+                    NimBLEDevice::getAdvertising()->start();
+                    Serial.println("[BT] Advertising restarted after server disconnect");
+                }
+            }
+        };
+        static AmsServerCallbacks _serverCbs;
+
         // ------------------------------------------------------------------
         // Scan callback — SCANNING state only
         // Collects connectable Apple devices into candidates[].
         // Transitions to CONNECTING automatically when the preferred address
         // is rediscovered.
         // ------------------------------------------------------------------
-        class AmsScanCallbacks : public NimBLEAdvertisedDeviceCallbacks
+        class AmsScanCallbacks : public NimBLEScanCallbacks
         {
         public:
-            void onResult(NimBLEAdvertisedDevice *dev) override
+            void onResult(const NimBLEAdvertisedDevice *dev) override
             {
                 // Stop collecting once we have a target
                 if (state != BtState::SCANNING) return;
@@ -130,31 +189,16 @@ namespace Bluetooth
                 uint16_t company = (uint8_t)mfg[0] | ((uint8_t)mfg[1] << 8);
                 if (company != 0x004C) return; // Apple only
 
-                // Skip known non-phone Apple devices (AirPods, AppleTV, Apple Watch)
-                if (mfg.size() >= 3)
-                {
-                    uint8_t appleType = (uint8_t)mfg[2];
-                    if (appleType == 0x07 || appleType == 0x09 ||
-                        appleType == 0x0B || appleType == 0x0C || appleType == 0x0D)
-                    {
-                        // Only log once per address to avoid flood on repeated advertisements
-                        std::string addrKey = dev->getAddress().toString();
-                        for (char &c : addrKey) c = tolower((unsigned char)c);
-                        if (skippedDevices.find(addrKey) == skippedDevices.end())
-                        {
-                            skippedDevices.insert(addrKey);
-                            Serial.printf("[BT] Skipping non-phone Apple device (type 0x%02X) addr=%s\n",
-                                          appleType, addrKey.c_str());
-                        }
-                        return;
-                    }
-                }
+                // No type filtering — Apple's type byte mapping is undocumented and unreliable.
+                // 0x10 = Nearby Info (iPhone), 0x0C = Handoff (iPhone/Mac), 0x0D = Nearby Action
+                // (iPhone), 0x07 = AirPods proximity pairing, etc. — we can't reliably tell
+                // which is the user's phone from type alone. Collect all; let the user pick.
 
                 NimBLEAddress addr    = dev->getAddress();
                 std::string   name    = dev->getName();
                 std::string   addrStr = addr.toString();
                 int8_t        rssi    = dev->getRSSI();
-                uint8_t       type    = (uint8_t)mfg[2];
+                uint8_t       type    = (mfg.size() >= 3) ? (uint8_t)mfg[2] : 0;
 
                 // Deduplicate — update RSSI on re-advertisement
                 for (auto &c : candidates)
@@ -192,6 +236,9 @@ namespace Bluetooth
         // ------------------------------------------------------------------
         bool ConnectToAms()
         {
+            // Stop advertising — advertising and active client connections fight for radio time
+            NimBLEDevice::getAdvertising()->stop();
+
             // scan->stop() is asynchronous; wait up to 300 ms for it to settle
             {
                 NimBLEScan *s = NimBLEDevice::getScan();
@@ -211,35 +258,50 @@ namespace Bluetooth
                 Client = nullptr;
             }
 
-            Serial.printf("[BT] Connecting to: %s\n", TargetAddr.toString().c_str());
-
             Client = NimBLEDevice::createClient();
             if (!Client)
             {
                 Serial.println("[BT] Failed to create client");
                 state = BtState::SCANNING;
-                NimBLEDevice::getScan()->start(0, false);
+                NimBLEDevice::getScan()->start(0, false, false);
                 return false;
             }
-            Client->setConnectTimeout(5);
+            // Connection params from article: 32*0.625ms=20ms min, 160*0.625ms=100ms max,
+            // 0 latency, 500*10ms=5s supervision timeout
+            Client->setConnectionParams(32, 160, 0, 500);
+            Client->setConnectTimeout(15); // 15s timeout
 
-            // On any failure: advance to next candidate and restart scan
+            // On any failure: advance to next candidate, restart scan + advertising
             auto advanceAndRescan = [&](const char *reason)
             {
                 Serial.printf("[BT] Candidate %d/%zu failed: %s — trying next\n",
                               selectedIdx + 1, candidates.size(), reason);
                 if (!candidates.empty())
                     selectedIdx = (selectedIdx + 1) % (int)candidates.size();
+                lastAutoTryMs = millis(); // reset timer so we wait 4 s before next attempt
                 state = BtState::SCANNING;
                 NimBLEScan *s = NimBLEDevice::getScan();
-                if (s) s->start(0, false);
+                if (s) s->start(0, false, false);
+                NimBLEDevice::getAdvertising()->start(); // re-attract iOS via server path
             };
 
-            if (!Client->connect(TargetAddr))
+            // Note: GAP preemption after server disconnect is handled upstream —
+            // ConnectToAms() is only called once _serverDisconnectComplete is true
+            // (set in onDisconnect) AND the 200ms settle timer has elapsed. By that
+            // point NimBLE has processed the HCI disconnect event and rebuilt the
+            // resolving list, so connect() should succeed immediately.
+
+            Serial.printf("[BT] Connecting to: %s\n", TargetAddr.toString().c_str());
+            bool connected = Client->connect(TargetAddr);
+            int  lastErr   = connected ? 0 : Client->getLastError();
+
+            if (!connected)
             {
                 NimBLEDevice::deleteClient(Client);
                 Client = nullptr;
-                advanceAndRescan("connect() failed");
+                char reason[32];
+                snprintf(reason, sizeof(reason), "connect() failed (err=%d)", lastErr);
+                advanceAndRescan(reason);
                 return false;
             }
 
@@ -286,16 +348,25 @@ namespace Bluetooth
             }
             else
             {
-                timeval new_time;
-                new_time.tv_sec  = time.ToTimeT();
-                new_time.tv_usec = (long)(time.mSecondsFraction * 1000000.0f);
-                Serial.printf("[BT] TIME: unix=%ld usec=%ld\n",
-                              (long)new_time.tv_sec, (long)new_time.tv_usec);
-                if (settimeofday(&new_time, nullptr) == 0)
-                    TimeSet = true;
+                time_t unix = time.ToTimeT();
+                // Sanity check: reject garbage timestamps (year < 2020 or > 2100)
+                if (time.mYear < 2020 || time.mYear > 2100)
+                {
+                    Serial.printf("[BT] CTS returned invalid year=%u — ignoring\n", time.mYear);
+                }
                 else
-                    Serial.println("[BT] Error setting time of day");
-                time.Dump();
+                {
+                    timeval new_time;
+                    new_time.tv_sec  = unix;
+                    new_time.tv_usec = (long)(time.mSecondsFraction * 1000000.0f);
+                    Serial.printf("[BT] TIME: unix=%ld usec=%ld\n",
+                                  (long)new_time.tv_sec, (long)new_time.tv_usec);
+                    time.Dump();
+                    if (settimeofday(&new_time, nullptr) == 0)
+                        TimeSet = true;
+                    else
+                        Serial.println("[BT] Error setting time of day");
+                }
             }
 
             state = BtState::CONNECTED;
@@ -330,8 +401,9 @@ namespace Bluetooth
         if (scan)
         {
             Serial.println("[BLE] Restarting scan after clearbonds...");
-            scan->start(0, false);
+            scan->start(0, false, false);
         }
+        NimBLEDevice::getAdvertising()->start();
 
         Serial.println("[BLE] Bonds cleared. On iPhone: Settings → Bluetooth → Forget this device, then re-pair.");
     }
@@ -345,9 +417,10 @@ namespace Bluetooth
         Ended     = false;
         TimeSet   = false;
         candidates.clear();
-        skippedDevices.clear();
-        selectedIdx   = 0;
-        lastAutoTryMs = 0;
+        selectedIdx               = 0;
+        lastAutoTryMs             = 0;
+        _serverDisconnectComplete = true;  // no pending server disconnect at boot
+        _connectSettleUntilMs     = 0;
 
         preferredAddr = LoadPreferredAddr();
         if (!preferredAddr.empty())
@@ -357,23 +430,67 @@ namespace Bluetooth
         NimBLEDevice::init(device_name);
         Serial.printf("[BT] t=%lums init done\n", millis());
 
-        // bonding=false → iOS pairs with "Just Works" encryption, no persistent bond
-        NimBLEDevice::setSecurityAuth(/*bonding=*/false, /*mitm=*/false, /*sc=*/true);
+        // bonding=true → iOS stores our device; required for AMS to be exposed
+        NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+
+        // ---- BLE server: iOS connects to us when it sees our solicited AMS UUID ----
+        // We only need onConnect to fire so we can capture iOS's current address.
+        // No services are needed — the server is a "doorbell" only.
+        _server = NimBLEDevice::createServer();
+        _server->setCallbacks(&_serverCbs);
+        _server->start();
+
+        // Advertise with solicited AMS UUID (GAP type 0x15 — 128-bit solicited services).
+        // iOS sees this and:
+        //   a) connects to our server so we get its current non-rotated address, AND
+        //   b) knows to expose AMS when we connect to it as a client.
+        {
+            // AMS UUID 89D3502B-0F36-433A-8EF4-C502AD55F8DC in little-endian BLE order
+            static const uint8_t solicit[] = {
+                17, 0x15,                           // length=17, GAP type=0x15
+                0xDC, 0xF8, 0x55, 0xAD, 0x02, 0xC5,
+                0xF4, 0x8E, 0x3A, 0x43, 0x36, 0x0F,
+                0x2B, 0x50, 0xD3, 0x89
+            };
+            NimBLEAdvertising    *adv = NimBLEDevice::getAdvertising();
+            NimBLEAdvertisementData advData;
+            advData.setFlags(0x06); // LE General Discoverable, BR/EDR Not Supported
+            advData.addData(solicit, sizeof(solicit));
+            adv->setAdvertisementData(advData);
+
+            // Scan response: name + manufacturer data for easy filtering in BLE scanner apps
+            // (LightBlue, nRF Connect — filter by "MCan" or company "Espressif Inc.")
+            NimBLEAdvertisementData scanRsp;
+            scanRsp.setName(device_name.c_str());
+            // Manufacturer specific data: Espressif company ID (0x02E5) + "MCan"
+            static const uint8_t mfgData[] = {
+                7, 0xFF,               // length=7, GAP type=0xFF (manufacturer specific)
+                0xE5, 0x02,            // company ID 0x02E5 (Espressif Inc.) little-endian
+                'M', 'C', 'a', 'n'    // 4-byte identifier
+            };
+            scanRsp.addData(mfgData, sizeof(mfgData));
+            adv->setScanResponseData(scanRsp);
+            bool advOk = adv->start();
+            Serial.printf("[BT] Advertising with solicited AMS UUID — start()=%s  name=\"%s\"\n",
+                          advOk ? "OK" : "FAIL", device_name.c_str());
+        }
 
         NimBLEScan *scan = NimBLEDevice::getScan();
         static AmsScanCallbacks cb;
-        scan->setAdvertisedDeviceCallbacks(&cb);
-        scan->setActiveScan(true);
-        scan->setInterval(45);
-        scan->setWindow(30);
+        scan->setScanCallbacks(&cb);
+        scan->setActiveScan(false); // passive scan — we only need addr+mfg data, not name
+        // Low-duty-cycle scan: 18.75ms window every 500ms = ~4% scan time.
+        // Leaves the radio free to advertise (so iPhone can see "MeganeCAN" in BT Settings).
+        scan->setInterval(800); // 500ms interval
+        scan->setWindow(30);    // 18.75ms window
         scan->setDuplicateFilter(false);
         scan->setFilterPolicy(BLE_HCI_SCAN_FILT_NO_WL);
 
         state = BtState::SCANNING; // set BEFORE scan->start so Service() runs immediately
         Serial.printf("[BT] t=%lums scan->start...\n", millis());
-        scan->start(0, false); // 0 = forever; blocks until scan->stop() is called
-        Serial.printf("[BT] t=%lums scan->start returned (scan stopped)\n", millis());
+        scan->start(0, false, false); // non-blocking in NimBLE 2.x — returns immediately
+        Serial.printf("[BT] t=%lums scan started\n", millis());
         Serial.println("[BT] Begin finished");
     }
 
@@ -408,36 +525,89 @@ namespace Bluetooth
     {
         if (Ended || state == BtState::IDLE) return;
 
+        // Periodic heartbeat — printed every 5 s so we can confirm the loop is running
+        // and advertising is active.
+        {
+            static uint32_t lastHb = 0;
+            uint32_t now = millis();
+            if (now - lastHb > 5000) {
+                lastHb = now;
+                const char *stateStr =
+                    state == BtState::SCANNING   ? "SCANNING"   :
+                    state == BtState::CONNECTING ? "CONNECTING" :
+                    state == BtState::CONNECTED  ? "CONNECTED"  : "IDLE";
+                NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+                Serial.printf("[BT] heartbeat state=%s candidates=%zu adv=%s server=%s\n",
+                              stateStr, candidates.size(),
+                              adv->isAdvertising() ? "ON" : "OFF",
+                              _server ? "UP" : "NULL");
+            }
+        }
+
         switch (state)
         {
         case BtState::SCANNING:
-            if (!candidates.empty())
+        {
+            // Priority 1: iOS connected to our server → we have its current address.
+            // Immediately stop advertising + scan, disconnect server, then wait
+            // for onDisconnect to confirm NimBLE finished the HCI event before
+            // opening the client connection. No bonding wait — connecting quickly
+            // uses the fresh address before iOS has any reason to rotate it.
+            if (_pendingIosConnect)
             {
+                _pendingIosConnect        = false;
+                _serverDisconnectComplete = false;
+                TargetAddr = _pendingIosAddr;
+                Serial.printf("[BT] iOS connected to server — stopping adv+scan, disconnecting server, will connect to %s\n",
+                              TargetAddr.toString().c_str());
+                NimBLEDevice::getAdvertising()->stop();
+                NimBLEScan *sc = NimBLEDevice::getScan();
+                if (sc && sc->isScanning()) sc->stop();
+                // Transition first so onDisconnect (state==CONNECTING) sets the flag
+                // and doesn't restart advertising.
+                state = BtState::CONNECTING;
+                if (_server) _server->disconnect(_pendingConnHandle);
+                break;
+            }
+
+            // Priority 2: scan found our previously-saved device (handled in scan callback
+            // which sets state=CONNECTING and TargetAddr directly — no code needed here).
+
+            // NO blind auto-cycling through unknown Apple devices.
+            // Connecting to random neighbours' iPhones/MacBooks wastes time and stops
+            // advertising, preventing the user's iPhone from seeing "MeganeCAN" to pair.
+            // Manual selection is available via steering wheel (SelectNext/ConnectSelected)
+            // or the web UI.
+
+            // Keep advertising visible while idle in SCANNING state.
+            // Call start() periodically — NimBLE 2.x ignores it if already advertising.
+            {
+                static uint32_t lastAdvEnsure = 0;
                 uint32_t now = millis();
-                if (now - lastAutoTryMs > 4000)
-                {
-                    lastAutoTryMs = now;
-                    TargetAddr    = candidates[selectedIdx].addr;
-                    state         = BtState::CONNECTING;
-                    NimBLEScan *s = NimBLEDevice::getScan();
-                    if (s && s->isScanning()) s->stop();
-                    Serial.printf("[BT] Auto-trying candidate %d/%zu: %s '%s'\n",
-                                  selectedIdx + 1, candidates.size(),
-                                  candidates[selectedIdx].addr.toString().c_str(),
-                                  candidates[selectedIdx].name.empty()
-                                      ? "(no name)" : candidates[selectedIdx].name.c_str());
+                if (now - lastAdvEnsure > 2000) {
+                    lastAdvEnsure = now;
+                    NimBLEDevice::getAdvertising()->start();
                 }
             }
             break;
+        }
 
         case BtState::CONNECTING:
+            // If we got here via the server path: wait for onDisconnect to confirm
+            // NimBLE has processed the HCI disconnect event before connecting as client.
+            // (_serverDisconnectComplete starts false, set to true in onDisconnect)
+            // If we got here via scan/manual path: _serverDisconnectComplete is already
+            // true (no server to disconnect), so this check passes immediately.
+            if (!_serverDisconnectComplete) break;
+            if (_connectSettleUntilMs && millis() < _connectSettleUntilMs) break;
+            _connectSettleUntilMs = 0;
             ConnectToAms();
             break;
 
         case BtState::CONNECTED:
             if (!Client || !Client->isConnected())
             {
-                Serial.println("[BT] Connection dropped, restarting scan");
+                Serial.println("[BT] Connection dropped, restarting scan + advertising");
                 if (Client)
                 {
                     NimBLEDevice::deleteClient(Client);
@@ -445,13 +615,14 @@ namespace Bluetooth
                 }
                 TimeSet = false;
                 candidates.clear();
-                skippedDevices.clear();
-                selectedIdx   = 0;
+                        selectedIdx   = 0;
                 lastAutoTryMs = 0;
                 state         = BtState::SCANNING;
                 NimBLEScan *scan = NimBLEDevice::getScan();
                 if (scan && !scan->isScanning())
-                    scan->start(0, false);
+                    scan->start(0, false, false);
+                // Resume advertising so iOS reconnects via server+client path
+                NimBLEDevice::getAdvertising()->start();
             }
             break;
 
@@ -526,9 +697,10 @@ namespace Bluetooth
         if (candidates.empty() || idx < 0 || idx >= (int)candidates.size()) return;
         selectedIdx = idx;
         TargetAddr  = candidates[selectedIdx].addr;
-        state       = BtState::CONNECTING;
+        NimBLEDevice::getAdvertising()->stop();
         NimBLEScan *scan = NimBLEDevice::getScan();
         if (scan && scan->isScanning()) scan->stop();
+        state = BtState::CONNECTING;
         Serial.printf("[BT] SelectByIndex %d/%zu: %s\n",
                       selectedIdx + 1, candidates.size(),
                       candidates[selectedIdx].addr.toString().c_str());
@@ -538,9 +710,10 @@ namespace Bluetooth
     {
         if (candidates.empty()) return;
         TargetAddr  = candidates[selectedIdx].addr;
-        state       = BtState::CONNECTING;
+        NimBLEDevice::getAdvertising()->stop();
         NimBLEScan *scan = NimBLEDevice::getScan();
         if (scan && scan->isScanning()) scan->stop();
+        state = BtState::CONNECTING;
         Serial.printf("[BT] ConnectSelected: %s\n", TargetAddr.toString().c_str());
     }
 
@@ -565,7 +738,8 @@ namespace Bluetooth
 
         NimBLEScan *scan = NimBLEDevice::getScan();
         if (scan && !scan->isScanning())
-            scan->start(0, false);
+            scan->start(0, false, false);
+        NimBLEDevice::getAdvertising()->start();
     }
 
     String GetStatusJson()

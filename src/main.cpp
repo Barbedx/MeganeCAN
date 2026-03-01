@@ -16,12 +16,9 @@
 #include "display/Affa3Nav/Affa3NavDisplay.h"
 #include "bluetooth.h"
 #include "apple_media_service.h"
-#include <BleKeyboard.h>
+#include "BleMediaKeyboard.h"
 
-// SerialCommand sCmd;   // The SerialCommand object
-// Affa3NavDisplay display; // Create an instance of Affa3Display
 AffaDisplayBase *display = nullptr;
-// bool sessionStarted = false;
 unsigned long lastPingTime = 0;
 
 // BT mode state (read from NVS in initDisplay, used throughout)
@@ -30,7 +27,7 @@ bool _autoTime = true;   // sync display clock from CTS (AMS mode only)
 bool _timeSyncDone = false; // reset each time BT disconnects
 bool _elmEnabled = false; // ELM327 enabled (read from NVS, configurable via Web UI)
 
-BleKeyboard bleKeyboard("MeganeCAN", "gycer", 100);
+BleMediaKeyboard bleKeyboard;
 // ---- Static IP for V-LINK (STA) ----
 IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
 IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
@@ -59,6 +56,14 @@ void cmd_enable(SerialCommands *sender)
     display->setState(true);
 }
 void cmd_disable(SerialCommands *sender) { display->setState(false); }
+void cmd_clearbonds(SerialCommands *sender)
+{
+    Serial.println("[BT] Clearing BLE bonds via serial command...");
+    if (btMode == "ams")
+        Bluetooth::ClearBonds();
+    else
+        Serial.println("[BT] ClearBonds only available in AMS mode");
+}
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
@@ -136,6 +141,7 @@ SerialCommand cmd_d("d", cmd_disable);
 SerialCommand cmd_st("st", cmd_setTime);
 SerialCommand cmd_msr("msr", cmd_scrollmtx);
 SerialCommand cmd_msl("msl", cmd_scrollmtxl);
+SerialCommand cmd_cb("cb", cmd_clearbonds);
 
 // Create SerialCommands manager
 char serial_command_buffer[64];
@@ -159,6 +165,7 @@ void initSerial()
     serialCommands.AddCommand(&cmd_st);
     serialCommands.AddCommand(&cmd_msr);
     serialCommands.AddCommand(&cmd_msl);
+    serialCommands.AddCommand(&cmd_cb);
 }
 
 void restoreDisplay(IDisplay &display, Preferences &prefs)
@@ -211,7 +218,8 @@ void initDisplay()
     String displayType = prefs.getString("display_type", "affa3nav");
     btMode      = prefs.getString("bt_mode",     "ams");
     _autoTime   = prefs.getBool("auto_time",     true);
-    _elmEnabled = prefs.getBool("elm_enabled",   false);
+    _elmEnabled = false; // TODO: re-enable via NVS once BLE is stable
+    // _elmEnabled = prefs.getBool("elm_enabled",   false);
     prefs.end();
 
     Serial.println("[Display Init] Display type: " + displayType);
@@ -359,7 +367,7 @@ void setup()
     }
     else
     {
-        bleKeyboard.begin();
+        bleKeyboard.begin("MeganeCAN");
         Serial.println("[BT] Keyboard mode started");
     }
 
