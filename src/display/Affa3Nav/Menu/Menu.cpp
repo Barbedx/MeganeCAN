@@ -234,35 +234,13 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
     return;
 }
 
-void Menu::handleMessage(const CAN_FRAME &frame) 
-{ // Ensure frame is from the expected CAN ID and length is valid
-    if (frame.id != 0x151 || frame.length < 8 /**or just it? */)
-        return;
-
-    uint8_t firstByte = frame.data.uint8[0];
-    if (firstByte != 0x5A)
-        return; /*MENU*/
-
-    active = true;
-
-    if (firstByte == 0x10)
-    { /*Text*/
-        active = false;
-    }
-    //     // Save header values from 0x10 frame
-    //     memcpy(header, frame.data.uint8, 8);
-    //     lastHeaderTime = millis();
-    //   } else if (firstByte == 0x21) {
-    //     // Check if a recent header was received
-    //     if (millis() - lastHeaderTime < 200) {
-    //       bool nowAux = isAux(header, frame.data.uint8);
-    //       if (nowAux != auxActive) {
-    //         auxActive = nowAux;
-    //         Serial.print("AUX mode changed: ");
-    //         Serial.println(auxActive ? "ENTERED" : "EXITED");
-    //       }
-    //     }
-    //   }
+void Menu::handleMessage(const CAN_FRAME &frame)
+{
+    // Menu active state is driven by key press only (hold Load).
+    // Do not auto-set active from CAN frames — the radio sends 0x5A frames
+    // for its own menu state which would falsely mark our menu as open and
+    // cause the next hold-Load to close instead of open.
+    (void)frame;
 }
 
 void Menu::editFieldValue(int delta, bool isHold)

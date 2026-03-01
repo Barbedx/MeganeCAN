@@ -606,13 +606,16 @@ void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
 
 void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 {
-    if (isHold && key == AffaCommon::AffaKey::Load)
-        tracker.SetAuxMode(true);
-
     mainMenu.handleKey(key, isHold);
 
     if (!mainMenu.isActive() && keyHandler)
         keyHandler(key, isHold);
+}
+
+void Affa3NavDisplay::setAuxMode(bool on)
+{
+    tracker.SetAuxMode(on);
+    Serial.printf("[AUX] setAuxMode(%s)\n", on ? "true" : "false");
 }
 String Affa3NavDisplay::buildProgressLine() const
 {

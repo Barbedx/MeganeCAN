@@ -30,7 +30,6 @@ Minimum:
 - **CAN transceiver** — SN65HVD230 / TJA1050 / MCP2551
 - Wiring to CAN-H, CAN-L, GND, and a fused 5 V supply
 
-> Provide a **dedicated power supply** to the ESP32 — drawing from the display bus directly can cause resets under load.
 > Do **not** add a second 120 Ω terminator if the bus is already terminated.
 
 Pinout (ESP32-C3):

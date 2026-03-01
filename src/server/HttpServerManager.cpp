@@ -162,6 +162,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
   <hr>
 
   <h2>Bluetooth</h2>
+    <div id="btStatus" style="font-family:monospace;background:#f4f4f4;padding:8px;margin-bottom:8px;">Loading BT status...</div>
     <form action="/clearbonds" method="POST"
           onsubmit="return confirm('Clear BLE bonds? You will need to re-pair on the iPhone too.');">
     <input type="submit" value="Clear BLE Bonds" />
@@ -170,20 +171,84 @@ window.addEventListener('DOMContentLoaded', loadConfig);
           onsubmit="return confirm('Forget saved device? Clears preferred address and bonds. Next boot scans fresh.');">
     <input type="submit" value="Forget Saved Device" />
     </form>
+    <script>
+    async function tryCandidate(idx) {
+      await fetch('/bt/try?idx=' + idx, {method:'POST'});
+    }
+    async function refreshBt() {
+      try {
+        const r = await fetch('/api/bt');
+        const d = await r.json();
+        let html = '<b>Status:</b> ' + d.status + '<br>';
+        if (d.candidates && d.candidates.length > 0) {
+          html += '<b>Discovered Apple devices (RSSI = signal strength, higher = closer):</b>';
+          html += '<table style="border-collapse:collapse;font-size:13px;margin-top:4px">';
+          html += '<tr style="background:#ddd"><th>#</th><th>Addr</th><th>Name</th><th>RSSI</th><th>Type</th><th></th></tr>';
+          for (let i = 0; i < d.candidates.length; i++) {
+            const c = d.candidates[i];
+            const sel = c.selected;
+            html += '<tr style="' + (sel ? 'font-weight:bold;background:#fffacc' : '') + '">';
+            html += '<td style="padding:2px 6px">' + (i+1) + '</td>';
+            html += '<td style="padding:2px 6px;font-family:monospace">' + c.addr + '</td>';
+            html += '<td style="padding:2px 6px">' + (c.name || '<i>(no name)</i>') + '</td>';
+            html += '<td style="padding:2px 6px">' + c.rssi + ' dBm</td>';
+            html += '<td style="padding:2px 6px;font-family:monospace">' + (c.type || '?') + '</td>';
+            html += '<td style="padding:2px 4px"><button onclick="tryCandidate(' + i + ')">Try</button></td>';
+            html += '</tr>';
+          }
+          html += '</table>';
+        } else {
+          html += '<i>No Apple devices found yet</i>';
+        }
+        document.getElementById('btStatus').innerHTML = html;
+      } catch(e) { console.error('BT status fetch failed', e); document.getElementById('btStatus').textContent = 'BT status unavailable'; }
+    }
+    refreshBt();
+    setInterval(refreshBt, 3000);
+    </script>
 
   <hr>
     <h2>OTA Update</h2>
     <p>Use the <a href="/update">OTA Update</a> link to upload new firmware.</p>
 
-    <hr>
-    <h2>Button emulation</h2>
-    <p>Use the <a href="/emulate">Button emulation</a> link to debug menu.</p>
+  <hr>
+  <h2>Button emulation</h2>
+  <div>
+    <form action="/setaux" method="POST" style="display:inline">
+      <button type="submit">Set AUX mode</button>
+    </form>
+  </div><br>
+  <div>
+    <button onclick="sendKey(0x0000,0)">Load</button>
+    <button onclick="sendKey(0x0000,1)">Load (Hold)</button><br><br>
+    <button onclick="sendKey(0x0101,0)">Roll Up</button>
+    <button onclick="sendKey(0x0141,0)">Roll Down</button><br><br>
+    <button onclick="sendKey(0x0005,0)">Pause</button>
+    <button onclick="sendKey(0x0001,0)">Src&gt;</button>
+    <button onclick="sendKey(0x0002,0)">Src&lt;</button><br><br>
+    <button onclick="sendKey(0x0003,0)">Vol+</button>
+    <button onclick="sendKey(0x0004,0)">Vol-</button>
+  </div>
+  <script>
+  async function sendKey(key, hold) {
+    const body = new URLSearchParams({key, hold: hold ? '1' : '0'});
+    const r = await fetch('/emulate/key', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+    console.log(await r.text());
+  }
+  </script>
+
+  <hr>
+  <h2>System</h2>
+  <form action="/restart" method="POST" onsubmit="return confirm('Restart device?');">
+    <input type="submit" value="Restart ESP32" />
+  </form>
 </body>
 </html>
 )rawliteral";
 
 void HttpServerManager::begin()
 {
+    _server.config.max_uri_handlers = 32;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);
@@ -504,6 +569,30 @@ _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
     )rawliteral";
 
         return request->reply(200, "text/html", page);
+    });
+
+    _server.on("/setaux", HTTP_POST, [this](PsychicRequest *request) {
+        _display.setAuxMode(true);
+        return request->reply(200, "text/plain", "AUX mode activated");
+    });
+
+    _server.on("/restart", HTTP_POST, [](PsychicRequest *request) {
+        request->reply(200, "text/plain", "Restarting...");
+        delay(200);
+        ESP.restart();
+        return ESP_OK;
+    });
+
+    _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", Bluetooth::GetStatusJson().c_str());
+    });
+
+    _server.on("/bt/try", HTTP_POST, [](PsychicRequest *request) {
+        if (!request->hasParam("idx"))
+            return request->reply(400, "text/plain", "Missing idx");
+        int idx = request->getParam("idx")->value().toInt();
+        Bluetooth::SelectByIndex(idx);
+        return request->reply(200, "text/plain", "Trying device");
     });
 
     _server.on("/emulate/key", HTTP_POST, [this](PsychicRequest *request) {

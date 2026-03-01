@@ -36,6 +36,7 @@ public:
 
     Menu &getMenu() { return mainMenu; }
     void  ProcessKey(AffaCommon::AffaKey key, bool isHold) override;
+    void  setAuxMode(bool on) override;
 
     //void setKeyHandler(KeyHandler handler) { keyHandler = handler; }
  

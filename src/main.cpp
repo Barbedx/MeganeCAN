@@ -250,23 +250,21 @@ static bool wifiBeginIssued = false;
 static uint32_t lastWiFiAttemptMs = 0;
 static const uint32_t WIFI_RETRY_MS = 5000; // retry every 5s if not connected
 
-// One-time connect helper
+// One-time connect helper — keeps AP alive (WIFI_AP_STA)
 void connectToElm()
 {
+    Serial.println("Configuring ELM STA...");
 
-    Serial.println("COnfiguring ELM ...");
-
-    WiFi.mode(WIFI_STA);
+    // Keep mode as AP_STA so the web UI stays reachable even while connecting to V-LINK
+    WiFi.mode(WIFI_AP_STA);
     WiFi.persistent(false);
-    WiFi.setAutoReconnect(true); // we'll manually retry to keep control
-    WiFi.setSleep(true);         // E (6354) wifi:Error! Should enable WiFi modem sleep when both WiFi and Bluetooth are enabled!!!!!!
+    WiFi.setAutoReconnect(true);
+    WiFi.setSleep(true); // required when both WiFi and BT are active
 
-    WiFi.disconnect(true, true); // clean state
-    // WiFi.config(ELM_STA_IP, ELM_GATEWAY, ELM_SUBNET); // STATIC IP
+    WiFi.config(ELM_STA_IP, ELM_GATEWAY, ELM_SUBNET); // static IP for V-LINK
     Serial.println("Connecting to ELM WiFi (STA, static IP)...");
     WiFi.begin("V-LINK"); // open network (no password)
 
-    // ✅ Important: mark as issued so we don't retry every loop
     wifiBeginIssued = true;
     lastWiFiAttemptMs = millis();
 }
@@ -331,13 +329,33 @@ void setup()
 
     display->setKeyHandler(HandleKey);  // always set — HandleKey is mode-aware
 
+    // WiFi AP must be running BEFORE NimBLE init so the BLE/WiFi coexistence
+    // module is fully active when the BLE stack syncs with the radio.
+    // Without the AP running, scan->start() blocks indefinitely.
+    // (The ~80s BLE sync delay is normal for ESP32 BT+WiFi coexistence.)
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.setSleep(true); // required when BT and WiFi coexist on same radio
+    WiFi.softAP(ssid, password);
+    Serial.print("[WiFi] AP started: ");
+    Serial.print(ssid);
+    Serial.print(" @ ");
+    Serial.println(WiFi.softAPIP());
+    serverManager->begin();
+
     if (btMode == "ams")
     {
         AppleMediaService::RegisterForNotifications(
             onDataUpdateCallback,
             AppleMediaService::NotificationLevel::All);
-        Bluetooth::Begin("MeganeCAN");
-        Serial.println("[BT] AMS mode started");
+        // Run BT init in a background task — NimBLE init + scan->start can block
+        // for 60-80s on ESP32 while BT/WiFi coexistence syncs. Everything else
+        // (CAN, display, web UI) must work immediately without waiting for BT.
+        xTaskCreate([](void*) {
+            Bluetooth::Begin("MeganeCAN");
+            Serial.println("[BT] AMS mode started");
+            vTaskDelete(nullptr);
+        }, "bt_begin", 16384, nullptr, 1, nullptr);
+        Serial.println("[BT] AMS init launched in background");
     }
     else
     {
@@ -352,9 +370,6 @@ void setup()
     CAN0.setGeneralCallback(gotFrame);
     CAN0.watchFor();
     Serial.println(" CAN...............INIT");
-
-    WiFi.mode(WIFI_AP_STA);
-    serverManager->begin();
 
     Serial.println(" all............inited");
     Serial.println("RESTAPI........done");
@@ -431,16 +446,8 @@ void loop()
     }
     else if (WiFi.status() != WL_CONNECTED)
     {
-
-        // not connected yet
-        uint32_t now = millis();
-        if (now - lastWiFiAttemptMs >= WIFI_RETRY_MS)
-        {
-         //   Serial.println("[WiFi] Not connected, retrying...");
-        }
-        // else wait longer
-        // bail out of loop() for now
-        return;
+        // Not connected yet — nothing to do, just wait.
+        // The elm tick below is guarded by WL_CONNECTED so it will be skipped.
     }
     //  else {
     // connected
@@ -450,7 +457,6 @@ void loop()
     //   }
     // }
 
-    ElegantOTA.loop();
     // 2) When Wi-Fi is up, let the ELM manager build/maintain TCP+session
     if (WiFi.status() == WL_CONNECTED && elmManager)
     {
