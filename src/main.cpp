@@ -64,6 +64,27 @@ void cmd_clearbonds(SerialCommands *sender)
     else
         Serial.println("[BT] ClearBonds only available in AMS mode");
 }
+void cmd_playpause(SerialCommands *sender)
+{
+    if (btMode == "ams" && Bluetooth::IsConnected())
+        AppleMediaService::Toggle();
+    else
+        Serial.println("[BT] Not connected in AMS mode");
+}
+void cmd_next(SerialCommands *sender)
+{
+    if (btMode == "ams" && Bluetooth::IsConnected())
+        AppleMediaService::NextTrack();
+    else
+        Serial.println("[BT] Not connected in AMS mode");
+}
+void cmd_prev(SerialCommands *sender)
+{
+    if (btMode == "ams" && Bluetooth::IsConnected())
+        AppleMediaService::PrevTrack();
+    else
+        Serial.println("[BT] Not connected in AMS mode");
+}
 // void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
 
 // void cmd_messageTestold5() { displayManager.messageTest5(); }
@@ -142,6 +163,9 @@ SerialCommand cmd_st("st", cmd_setTime);
 SerialCommand cmd_msr("msr", cmd_scrollmtx);
 SerialCommand cmd_msl("msl", cmd_scrollmtxl);
 SerialCommand cmd_cb("cb", cmd_clearbonds);
+SerialCommand cmd_pp("pp", cmd_playpause);
+SerialCommand cmd_nx("nx", cmd_next);
+SerialCommand cmd_pv("pv", cmd_prev);
 
 // Create SerialCommands manager
 char serial_command_buffer[64];
@@ -166,6 +190,9 @@ void initSerial()
     serialCommands.AddCommand(&cmd_msr);
     serialCommands.AddCommand(&cmd_msl);
     serialCommands.AddCommand(&cmd_cb);
+    serialCommands.AddCommand(&cmd_pp);
+    serialCommands.AddCommand(&cmd_nx);
+    serialCommands.AddCommand(&cmd_pv);
 }
 
 void restoreDisplay(IDisplay &display, Preferences &prefs)
