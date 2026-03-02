@@ -7,6 +7,7 @@
 #include <Arduino.h>
 #include <queue>
 #include <Preferences.h>
+#include <time.h>
 
 // _autoTime is defined in main.cpp; flipped by the Auto-time menu item onChange
 extern bool _autoTime;
@@ -598,7 +599,7 @@ void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
       _mediaLine2Full += _mediaInfo.mTitle.c_str();
     }
 
-    _mediaScrollPos = 0; // скинути скрол
+    _scrollPos = 0; // reset scroll on track change
     //_lastScrollMs = millis(); // оновити таймер
   }
   eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
@@ -757,8 +758,22 @@ void Affa3NavDisplay::renderMediaScreen(bool forceRedraw)
   }
   }
 
-  // 1-й рядок: назва плеєра
-  const char *header = status_icon + " " + _mediaPlayerName.length() ? _mediaPlayerName.c_str() : "AUX PLAYER";
+  // 1-й рядок: назва плеєра + час справа (26 символів максимум)
+  String headerStr = status_icon + " " + (_mediaPlayerName.length() ? _mediaPlayerName : String("AUX PLAYER"));
+  struct tm ti;
+  if (getLocalTime(&ti, 0))
+  {
+    char timeBuf[8];
+    snprintf(timeBuf, sizeof(timeBuf), "[%02d:%02d]", ti.tm_hour, ti.tm_min);
+    const int timeLen = strlen(timeBuf); // 7
+    const int maxNameLen = 26 - timeLen - 1; // 1 space separator
+    if ((int)headerStr.length() > maxNameLen)
+      headerStr = headerStr.substring(0, maxNameLen);
+    int spaces = 26 - (int)headerStr.length() - timeLen;
+    while (spaces-- > 0) headerStr += ' ';
+    headerStr += timeBuf;
+  }
+  const char *header = headerStr.c_str();
 
   // 2-й рядок: Artist - Title (з можливим скролом)
   String line2 = buildScrollingTitle();

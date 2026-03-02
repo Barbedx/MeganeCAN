@@ -245,13 +245,13 @@ void initDisplay()
     String displayType = prefs.getString("display_type", "affa3nav");
     btMode      = prefs.getString("bt_mode",     "ams");
     _autoTime   = prefs.getBool("auto_time",     true);
-    _elmEnabled = false; // TODO: re-enable via NVS once BLE is stable
-    // _elmEnabled = prefs.getBool("elm_enabled",   false);
+    _elmEnabled = prefs.getBool("elm_enabled", false);
     prefs.end();
 
     Serial.println("[Display Init] Display type: " + displayType);
     Serial.println("[Display Init] BT mode: " + btMode);
     Serial.println("[Display Init] Auto-time: " + String(_autoTime ? "on" : "off"));
+    Serial.println("[Display Init] ELM enabled: " + String(_elmEnabled ? "yes" : "no"));
 
     if (displayType == "affa3nav")
     {
@@ -482,15 +482,20 @@ void loop()
     else if (WiFi.status() != WL_CONNECTED)
     {
         // Not connected yet — nothing to do, just wait.
-        // The elm tick below is guarded by WL_CONNECTED so it will be skipped.
+        static bool _elmWifiLostLogged = false;
+        if (!_elmWifiLostLogged) {
+            Serial.println("[ELM] Waiting for WiFi...");
+            _elmWifiLostLogged = true;
+        }
     }
-    //  else {
-    // connected
-    //   if (!sessionStarted) {
-    //     Serial.println("[WiFi] Connected to ELM WiFi");
-    //     sessionStarted = true;
-    //   }
-    // }
+    else
+    {
+        static bool _elmWifiConnLogged = false;
+        if (!_elmWifiConnLogged) {
+            Serial.println("[ELM] Connected to ELM WiFi");
+            _elmWifiConnLogged = true;
+        }
+    }
 
     // 2) When Wi-Fi is up, let the ELM manager build/maintain TCP+session
     if (WiFi.status() == WL_CONNECTED && elmManager)

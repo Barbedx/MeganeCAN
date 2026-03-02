@@ -85,8 +85,6 @@ private:
     AppleMediaService::MediaInformation _mediaInfo;
     String _mediaLine2Full;      // повний "Artist - Title"
     String _mediaPlayerName ;      
-    size_t _mediaScrollPos = 0;  // позиція скролу
-    ///unsigned long _lastScrollMs = 0;
     uint32_t _lastMediaRenderMs = 0;
     uint32_t _lastScrollStepMs = 0;
     uint16_t _scrollPos = 0;
