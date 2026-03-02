@@ -364,27 +364,18 @@ void setup()
 
     display->setKeyHandler(HandleKey);  // always set — HandleKey is mode-aware
 
-    // WiFi AP must be running BEFORE NimBLE init so the BLE/WiFi coexistence
-    // module is fully active when the BLE stack syncs with the radio.
-    // Without the AP running, scan->start() blocks indefinitely.
-    // (The ~80s BLE sync delay is normal for ESP32 BT+WiFi coexistence.)
+    // Set WiFi mode + sleep first — required before any radio use (BLE or AP).
+    // On ESP32-C3 (single radio), BLE must start before softAP to avoid the AP
+    // beacon traffic blocking NimBLE init. (BT branch confirmed: BLE before AP.)
     WiFi.mode(WIFI_AP_STA);
     WiFi.setSleep(true); // required when BT and WiFi coexist on same radio
-    WiFi.softAP(ssid, password);
-    Serial.print("[WiFi] AP started: ");
-    Serial.print(ssid);
-    Serial.print(" @ ");
-    Serial.println(WiFi.softAPIP());
-    serverManager->begin();
 
     if (btMode == "ams")
     {
         AppleMediaService::RegisterForNotifications(
             onDataUpdateCallback,
             AppleMediaService::NotificationLevel::All);
-        // Run BT init in a background task — NimBLE init + scan->start can block
-        // for 60-80s on ESP32 while BT/WiFi coexistence syncs. Everything else
-        // (CAN, display, web UI) must work immediately without waiting for BT.
+        // Launch BLE init BEFORE softAP so the radio is free during NimBLE startup.
         xTaskCreate([](void*) {
             Bluetooth::Begin("MeganeCAN");
             Serial.println("[BT] AMS mode started");
@@ -397,6 +388,15 @@ void setup()
         bleKeyboard.begin("MeganeCAN");
         Serial.println("[BT] Keyboard mode started");
     }
+
+    // Start AP after BLE task is queued — coexistence is established by the time
+    // the AP begins beaconing.
+    WiFi.softAP(ssid, password);
+    Serial.print("[WiFi] AP started: ");
+    Serial.print(ssid);
+    Serial.print(" @ ");
+    Serial.println(WiFi.softAPIP());
+    serverManager->begin();
 
     display->begin();
 
