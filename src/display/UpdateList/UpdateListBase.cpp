@@ -13,6 +13,9 @@ inline void AFFA2_PRINT(const char *fmt, ...)
 
 void UpdateListBase::tick()
 {
+    // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
+    if (_skipFuncReg) return;
+
     struct CAN_FRAME packet;
     static int8_t timeout = SYNC_TIMEOUT;
 

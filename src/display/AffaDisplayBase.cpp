@@ -13,7 +13,7 @@ AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len
     uint8_t i, stat, num = 0, left = len;
     int16_t timeout;
 
-    if (hasFlag(_sync_status, SyncStatus::FAILED))
+    if (!_skipFuncReg && hasFlag(_sync_status, SyncStatus::FAILED))
       return AffaError::NoSync;
 
     while (left > 0)

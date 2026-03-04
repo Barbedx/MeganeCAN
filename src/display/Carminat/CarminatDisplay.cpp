@@ -207,6 +207,8 @@ void CarminatDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 
 void CarminatDisplay::tick()
 {
+  // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
+  if (_skipFuncReg) return;
 
   struct CAN_FRAME packet;
   static int8_t timeout = SYNC_TIMEOUT;
