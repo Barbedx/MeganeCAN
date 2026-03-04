@@ -66,11 +66,11 @@ void DiagPage::handleKey(AffaCommon::AffaKey key, bool isHold) {
 String DiagPage::formatSingle(const MetricSnapshot& snap) const {
     char buf[12];
     if (!snap.hasValue) {
-        snprintf(buf, sizeof(buf), "%s:---", snap.shortName.c_str());
+        snprintf(buf, sizeof(buf), "%s:---", snap.label.c_str());
     } else if (snap.unit.length() > 0) {
-        snprintf(buf, sizeof(buf), "%s:%.0f%s", snap.shortName.c_str(), snap.value, snap.unit.c_str());
+        snprintf(buf, sizeof(buf), "%s:%.0f%s", snap.label.c_str(), snap.value, snap.unit.c_str());
     } else {
-        snprintf(buf, sizeof(buf), "%s:%.0f", snap.shortName.c_str(), snap.value);
+        snprintf(buf, sizeof(buf), "%s:%.0f", snap.label.c_str(), snap.value);
     }
     String s(buf);
     if (s.length() > 8) s = s.substring(0, 8);

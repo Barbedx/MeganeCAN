@@ -38,7 +38,8 @@ inline std::vector<PidPlan> buildCombinedPlan()
 
 // -------- Metric snapshot (for DiagPage) --------
 struct MetricSnapshot {
-    String shortName;
+    String shortName;  // original code, e.g. "PR001"
+    String label;      // short display label, e.g. "IN" (falls back to shortName)
     String unit;
     float  value    = 0.0f;
     bool   hasValue = false;

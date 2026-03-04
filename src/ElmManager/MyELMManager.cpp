@@ -203,6 +203,7 @@ std::vector<MetricSnapshot> MyELMManager::getCachedMetrics() const {
         for (const auto& m : node.metrics) {
             MetricSnapshot s;
             s.shortName = String(m.shortName);
+            s.label     = (m.label && m.label[0]) ? String(m.label) : String(m.shortName);
             s.unit      = m.units ? String(m.units) : String("");
             auto it = valueCache.find(s.shortName);
             if (it != valueCache.end()) { s.value = it->second; s.hasValue = true; }
@@ -218,6 +219,7 @@ std::vector<MetricSnapshot> MyELMManager::getCachedMetrics(const String& header)
         for (const auto& m : node.metrics) {
             MetricSnapshot s;
             s.shortName = String(m.shortName);
+            s.label     = (m.label && m.label[0]) ? String(m.label) : String(m.shortName);
             s.unit      = m.units ? String(m.units) : String("");
             auto it = valueCache.find(s.shortName);
             if (it != valueCache.end()) { s.value = it->second; s.hasValue = true; }
