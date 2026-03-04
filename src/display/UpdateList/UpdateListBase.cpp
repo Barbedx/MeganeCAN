@@ -52,9 +52,10 @@ void UpdateListBase::tick()
 AffaCommon::AffaError UpdateListBase::setState(bool enabled)
 {
     UpdateList::DisplayCtrl state = enabled ? UpdateList::DisplayCtrl::Enable : UpdateList::DisplayCtrl::Disable;
+    
     uint8_t data[] = {
         0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
-
+    
     return affa3_send(UpdateList::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
 

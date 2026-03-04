@@ -316,6 +316,7 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
 
   if (packet->id == Carminat::PACKET_ID_SYNC_REPLY)
   { /* Pakiety synchronizacyjne */
+    if (_skipFuncReg) return;
     if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
     { /* Żądanie synchronizacji */
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
@@ -379,7 +380,7 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  bool answerNeeded = false; // TODO:move to settings
+  bool answerNeeded = _skipFuncReg; // TODO:move to settings
 
   if (answerNeeded)
   {
