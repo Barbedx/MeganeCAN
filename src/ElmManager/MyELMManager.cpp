@@ -196,6 +196,84 @@ String MyELMManager::headersJson() const {
     return out;
 }
 
+// ----------------- on-demand scan -----------------
+bool MyELMManager::requestScan(const char* header, const char* pid) {
+    if (_scanMode || _scanPending) return false;
+
+    _scanHeader = header;
+    _scanPid    = pid;
+
+    // needsSession: true if ANY plan node for this header requires it
+    _scanNeedsSession = false;
+    for (const auto& n : plan)
+        if (String(n.header) == _scanHeader && n.needsSession)
+            { _scanNeedsSession = true; break; }
+
+    // Copy metrics if this exact (header, pid) is in the plan
+    _scanMetrics.clear();
+    for (const auto& n : plan)
+        if (String(n.header) == _scanHeader && String(n.modePid) == _scanPid)
+            { _scanMetrics = n.metrics; break; }
+
+    _scanResult = ScanResult{};
+    // drain any stale signal before arming
+    xSemaphoreTake(_scanDoneSem, 0);
+    _scanPending = true;
+    return true;
+}
+
+bool MyELMManager::waitScan(uint32_t timeoutMs) {
+    return xSemaphoreTake(_scanDoneSem, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+}
+
+void MyELMManager::cancelScan() {
+    _scanPending = false;
+    _scanMode    = false;
+}
+
+String MyELMManager::planJson() const {
+    // Build {"7E0":["21A0","21C1"],"743":[...],...}
+    std::map<String, std::vector<String>> byHeader;
+    for (const auto& n : plan)
+        byHeader[String(n.header)].push_back(String(n.modePid));
+
+    String out = "{";
+    bool firstH = true;
+    for (const auto& kv : byHeader) {
+        if (!firstH) out += ",";
+        firstH = false;
+        out += "\"" + kv.first + "\":[";
+        bool firstP = true;
+        for (const auto& p : kv.second) {
+            if (!firstP) out += ",";
+            firstP = false;
+            out += "\"" + p + "\"";
+        }
+        out += "]";
+    }
+    out += "}";
+    return out;
+}
+
+String MyELMManager::computeMetricsJson(const std::vector<MetricDef>& metrics,
+                                         const std::vector<uint8_t>& data) const {
+    if (metrics.empty()) return "{}";
+    String out = "{";
+    bool first = true;
+    for (const auto& m : metrics) {
+        if (!m.eval) continue;
+        float v = m.eval(data);
+        if (!first) out += ",";
+        first = false;
+        out += "\""; out += m.shortName; out += "\":"; out += String(v, 3);
+        if (m.units && m.units[0]) {
+            out += ",\""; out += m.shortName; out += "_unit\":\""; out += m.units; out += "\"";
+        }
+    }
+    out += "}";
+    return out;
+}
+
 // ---- Debug ----
 
 #ifndef LOG_PID_VALUES
@@ -235,6 +313,17 @@ void MyELMManager::tick()
                           (int)elm.nb_rx_state,
                           currentHeader.c_str(),
                           plan.empty() ? "-" : plan[planIndex].modePid);
+
+            // Fail an in-progress scan
+            if (_scanMode) {
+                _scanResult.errorMsg = "ELM error state=" + String(elm.nb_rx_state);
+                _scanResult.ready    = true;
+                _scanMode            = false;
+                xSemaphoreGive(_scanDoneSem);
+                waitState = WaitState::IDLE;
+                return;
+            }
+
             if (waitState == WaitState::PID)
                 planIndex = (planIndex + 1) % plan.size();
             waitState = WaitState::IDLE;
@@ -271,6 +360,19 @@ void MyELMManager::tick()
         case WaitState::PID:
         {
             auto data = decodeToUdsData(elm.payload, elm.PAYLOAD_LEN);
+
+            // One-shot scan: capture result and wake HTTP task
+            if (_scanMode) {
+                _scanResult.bytes       = data;
+                _scanResult.metricsJson = computeMetricsJson(_scanMetrics, data);
+                _scanResult.ready       = true;
+                _scanMode               = false;
+                sessions[currentHeader].lastMs = now;
+                xSemaphoreGive(_scanDoneSem);
+                waitState = WaitState::IDLE;
+                return;
+            }
+
             const auto &node = plan[planIndex];
 #if LOG_PID_VALUES
             Serial.printf("[RECV] header=%s pid=%s\n", currentHeader.c_str(), node.modePid);
@@ -303,24 +405,41 @@ void MyELMManager::tick()
     if ((now - lastCmdMs) < kCmdIntervalMs)
         return;
 
-    // ---- C) Skip disabled headers ----
-    {
+    // ---- C) Activate pending scan if any; choose active node params ----
+    if (_scanPending) {
+        _scanMode    = true;
+        _scanPending = false;
+        currentHeader = "";                     // force ATSH for scan header
+        sessions[_scanHeader].open = false;     // force session reopen
+    }
+
+    const char* activeHeader;
+    const char* activePid;
+    bool        activeNeedsSession;
+
+    if (_scanMode) {
+        activeHeader       = _scanHeader.c_str();
+        activePid          = _scanPid.c_str();
+        activeNeedsSession = _scanNeedsSession;
+    } else {
+        // ---- Skip disabled headers ----
         size_t skipped = 0;
         while (skipped < plan.size() && !isHeaderEnabled(plan[planIndex].header)) {
             planIndex = (planIndex + 1) % plan.size();
             ++skipped;
         }
         if (skipped == plan.size()) return; // all headers disabled
+        activeHeader       = plan[planIndex].header;
+        activePid          = plan[planIndex].modePid;
+        activeNeedsSession = plan[planIndex].needsSession;
     }
 
-    const auto &node = plan[planIndex];
-
     // ---- D) Ensure correct CAN header ----
-    if (currentHeader != node.header)
+    if (currentHeader != activeHeader)
     {
-        pendingHeader = node.header;
+        pendingHeader = activeHeader;
         char cmd[24];
-        snprintf(cmd, sizeof(cmd), "ATSH %s", node.header);
+        snprintf(cmd, sizeof(cmd), "ATSH %s", activeHeader);
         Serial.printf("[SEND] %s\n", cmd);
         elm.sendCommand(cmd);
         waitState = WaitState::HEADER;
@@ -331,7 +450,7 @@ void MyELMManager::tick()
     Sess &s = sessions[currentHeader];
 
     // ---- E) Open / reopen diagnostic session if this PID needs one ----
-    if (node.needsSession)
+    if (activeNeedsSession)
     {
         if (s.open && (now - s.lastMs) > kReopenSdsMs) {
             Serial.printf("[SDS] idle>=%ums, re-open (%s)\n", kReopenSdsMs, currentHeader.c_str());
@@ -348,7 +467,8 @@ void MyELMManager::tick()
 
     // ---- F) TesterPresent to keep the session alive ----
     //         Only send when there is actually an open session to keep alive.
-    if (s.open && (now - s.lastMs) > kPingPeriodMs)
+    //         Skipped during scan to avoid extra round-trips.
+    if (!_scanMode && s.open && (now - s.lastMs) > kPingPeriodMs)
     {
         Serial.printf("[SEND] 3E00 (%s)\n", currentHeader.c_str());
         elm.sendCommand("3E00");
@@ -358,8 +478,8 @@ void MyELMManager::tick()
     }
 
     // ---- G) Send the PID ----
-    Serial.printf("[SEND] %s (%s)\n", node.modePid, node.header);
-    elm.sendCommand(node.modePid);
+    Serial.printf("[SEND] %s (%s)\n", activePid, activeHeader);
+    elm.sendCommand(activePid);
     waitState = WaitState::PID;
     lastCmdMs = now;
 }

@@ -6,6 +6,7 @@
 #include <map>
 #include <WiFi.h>
 #include <Preferences.h>
+#include <freertos/semphr.h>
 
 #include "ELMduino.h"
 #include "display/IDisplay.h"
@@ -35,13 +36,36 @@ inline std::vector<PidPlan> buildCombinedPlan()
     return out;
 }
 
+// -------- Scan result --------
+struct ScanResult {
+    bool ready      = false;
+    bool timedOut   = false;
+    String errorMsg;
+    std::vector<uint8_t> bytes;
+    String metricsJson; // "{}" if no matching plan entry
+};
+
+// -------- Manager --------
 class MyELMManager
 {
 public:
-    MyELMManager(IDisplay &display) : display(display) {}
+    MyELMManager(IDisplay &display) : display(display)
+    {
+        _scanDoneSem = xSemaphoreCreateBinary();
+    }
 
     // Call frequently from loop()
     void tick();
+
+    // One-shot on-demand scan
+    bool requestScan(const char* header, const char* pid); // false if busy
+    bool waitScan(uint32_t timeoutMs);                     // blocks caller's task
+    void cancelScan();
+    bool isScanBusy() const { return _scanMode || _scanPending; }
+    const ScanResult& lastScanResult() const { return _scanResult; }
+
+    // Plan introspection for web UI
+    String planJson() const; // {"7E0":["21A0",...],...}
 
     // Header enable/disable control
     void setHeaderEnabled(const char* header, bool enabled);
@@ -118,6 +142,19 @@ private:
     WaitState waitState   = WaitState::IDLE;
     String    pendingHeader;   // target header for ATSH in flight
     String    currentHeader;   // last committed header
+
+    // one-shot scan state
+    volatile bool _scanPending = false;
+    bool _scanMode = false;
+    String _scanHeader;           // owns the string for the active scan node
+    String _scanPid;
+    bool _scanNeedsSession = false;
+    std::vector<MetricDef> _scanMetrics; // copied from plan if PID found
+    ScanResult _scanResult;
+    SemaphoreHandle_t _scanDoneSem = nullptr;
+
+    String computeMetricsJson(const std::vector<MetricDef>& metrics,
+                               const std::vector<uint8_t>& data) const;
 
     // ---- timings ----
     uint32_t lastGoodRxMs = 0;
