@@ -270,7 +270,7 @@ void initDisplay()
     }
     else
     {
-        Serial.println("[Display Init] Instantiating Affa3Display (default)");
+        Serial.println("[Display Init] Instantiating Affa2Base (Update List fallback)");
         display = new Affa2Base();
     }
 
