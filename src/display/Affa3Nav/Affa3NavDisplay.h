@@ -1,11 +1,17 @@
 #pragma once
 #include <vector>
+#include <map>
 #include <Arduino.h>
 #include "apple_media_service.h"
 #include "Affa3NavConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
+
+class IPage;
+class DiagPage;
+class MyELMManager;
+
 class Affa3NavDisplay : public AffaDisplayBase
 {
 public:
@@ -63,6 +69,10 @@ public:
     void tickMedia() override;
     void onElmUpdate(const char* key, float value) override;
 
+    void attachElm(MyELMManager* m);
+    void pushPage(IPage* p);
+    void popPage();
+
 protected:
     Menu mainMenu;
     void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
@@ -82,6 +92,10 @@ protected:
     }
 
 private:
+    IPage*                       _currentPage = nullptr;
+    MyELMManager*                _elm         = nullptr;
+    std::map<String, DiagPage*>  _diagPages;
+
     AppleMediaService::MediaInformation _mediaInfo;
     String _mediaLine2Full;      // повний "Artist - Title"
     String _mediaPlayerName ;      

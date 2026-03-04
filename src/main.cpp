@@ -279,6 +279,8 @@ void initDisplay()
     serverManager = new HttpServerManager(*display, preferences);
     serverManager->attachElm(elmManager);
     elmManager->loadHeaderConfig(preferences); // load per-header enable/disable from NVS
+    if (display->isAffa3Nav())
+        static_cast<Affa3NavDisplay*>(display)->attachElm(elmManager);
     Serial.println("[Display Init] HttpServerManager initialized");
 }
 static bool wifiBeginIssued = false;

@@ -1,4 +1,6 @@
 #include "Affa3NavDisplay.h"
+#include "Pages/DiagPage.h"
+#include "ElmManager/MyELMManager.h"
 
 #include "AuxModeTracker.h"
 #include "bluetooth.h"
@@ -109,13 +111,16 @@ void Affa3NavDisplay::begin()
 
 void Affa3NavDisplay::initializeMenu()
 {
-    // Fixed menu items
+    // Live read-only items (updated via onElmUpdate)
     mainMenu.addItem(MenuItem("Voltage", Field(0, "V"),    false));
     mainMenu.addItem(MenuItem("Boost",   Field(0, "mbar"), false));
-    mainMenu.addItem(MenuItem("Color", {"Red", "Green", "Blue", "White"}, 1));
-    mainMenu.addItem(MenuItem("Effect", {"Static", "Blink", "Fade"}, 2));
-    mainMenu.addItem(MenuItem("Power", Field(163, 0, 500, 1, 2, "HP")));
-    mainMenu.addItem(MenuItem("Mileage", Field(250345, 0, 500000, 1, 100, "km")));
+
+    // Stubs — commented out until implemented
+    // mainMenu.addItem(MenuItem("Color", {"Red", "Green", "Blue", "White"}, 1));
+    // mainMenu.addItem(MenuItem("Effect", {"Static", "Blink", "Fade"}, 2));
+    // mainMenu.addItem(MenuItem("Power", Field(163, 0, 500, 1, 2, "HP")));
+    // mainMenu.addItem(MenuItem("Mileage", Field(250345, 0, 500000, 1, 100, "km")));
+
     mainMenu.addItem(MenuItem("Brightness", Field(50, 0, 100, 5, 2, "%")));
 
     auto &timeItem = mainMenu.addItem(MenuItem(
@@ -168,6 +173,30 @@ void Affa3NavDisplay::initializeMenu()
             p.end();
             Serial.printf("[Menu] Auto-time: %s\n", _autoTime ? "On" : "Off");
         };
+    }
+
+    // ---- Diagnostics section ----
+    {
+        auto &sep = mainMenu.addItem(
+            MenuItem("-- DIAG --", std::vector<String>{""}, 0, false));
+        sep.onActivate = []() {}; // no-op so hold-Load doesn't enter edit mode
+
+        static const struct { const char* key; const char* title; } ecus[] = {
+            {"7E0", "ENGINE"},
+            {"743", "GEARBOX"},
+            {"744", "HVAC"},
+            {"745", "ECU 745"},
+            {"74D", "ALT GBX"},
+        };
+        for (const auto& e : ecus) {
+            auto &item = mainMenu.addItem(
+                MenuItem(e.title, std::vector<String>{""}, 0, false));
+            String hdr(e.key);
+            item.onActivate = [this, hdr]() {
+                auto it = _diagPages.find(hdr);
+                if (it != _diagPages.end()) pushPage(it->second);
+            };
+        }
     }
 }
 
@@ -426,6 +455,10 @@ void Affa3NavDisplay::processEvents()
     }
     }
   }
+
+  // Tick the active page (rate-limited internally by DiagPage)
+  if (_currentPage)
+      _currentPage->onTick();
 }
 /**
  * Sends a text string to the car display over CAN bus.
@@ -607,6 +640,10 @@ void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
 
 void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 {
+    if (_currentPage) {
+        _currentPage->handleKey(key, isHold);
+        return;
+    }
     mainMenu.handleKey(key, isHold);
 
     if (!mainMenu.isActive() && keyHandler)
@@ -1169,4 +1206,32 @@ AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *cap
 AffaCommon::AffaError Affa3NavDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
 {
   return AffaCommon::AffaError();
+}
+
+// ---- Page management ----
+
+void Affa3NavDisplay::attachElm(MyELMManager* m)
+{
+    _elm = m;
+    _diagPages["7E0"] = new DiagPage(*this, m, "7E0", "ENGINE");
+    _diagPages["743"] = new DiagPage(*this, m, "743", "GEARBOX");
+    _diagPages["744"] = new DiagPage(*this, m, "744", "HVAC");
+    _diagPages["745"] = new DiagPage(*this, m, "745", "ECU 745");
+    _diagPages["74D"] = new DiagPage(*this, m, "74D", "ALT GBX");
+}
+
+void Affa3NavDisplay::pushPage(IPage* p)
+{
+    if (!p) return;
+    _currentPage = p;
+    p->onEnter();
+}
+
+void Affa3NavDisplay::popPage()
+{
+    if (!_currentPage) return;
+    _currentPage->onExit();
+    _currentPage = nullptr;
+    if (mainMenu.isActive())
+        mainMenu.show();
 }

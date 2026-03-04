@@ -196,6 +196,37 @@ String MyELMManager::headersJson() const {
     return out;
 }
 
+// ----------------- metric snapshots -----------------
+std::vector<MetricSnapshot> MyELMManager::getCachedMetrics() const {
+    std::vector<MetricSnapshot> out;
+    for (const auto& node : plan)
+        for (const auto& m : node.metrics) {
+            MetricSnapshot s;
+            s.shortName = String(m.shortName);
+            s.unit      = m.units ? String(m.units) : String("");
+            auto it = valueCache.find(s.shortName);
+            if (it != valueCache.end()) { s.value = it->second; s.hasValue = true; }
+            out.push_back(s);
+        }
+    return out;
+}
+
+std::vector<MetricSnapshot> MyELMManager::getCachedMetrics(const String& header) const {
+    std::vector<MetricSnapshot> out;
+    for (const auto& node : plan) {
+        if (String(node.header) != header) continue;
+        for (const auto& m : node.metrics) {
+            MetricSnapshot s;
+            s.shortName = String(m.shortName);
+            s.unit      = m.units ? String(m.units) : String("");
+            auto it = valueCache.find(s.shortName);
+            if (it != valueCache.end()) { s.value = it->second; s.hasValue = true; }
+            out.push_back(s);
+        }
+    }
+    return out;
+}
+
 // ----------------- on-demand scan -----------------
 bool MyELMManager::requestScan(const char* header, const char* pid) {
     if (_scanMode || _scanPending) return false;
@@ -422,13 +453,17 @@ void MyELMManager::tick()
         activePid          = _scanPid.c_str();
         activeNeedsSession = _scanNeedsSession;
     } else {
-        // ---- Skip disabled headers ----
+        // ---- Skip disabled or non-focus headers ----
         size_t skipped = 0;
-        while (skipped < plan.size() && !isHeaderEnabled(plan[planIndex].header)) {
+        while (skipped < plan.size()) {
+            bool enabled  = isHeaderEnabled(plan[planIndex].header);
+            bool inFocus  = _focusHeader.isEmpty() ||
+                            String(plan[planIndex].header) == _focusHeader;
+            if (enabled && inFocus) break;
             planIndex = (planIndex + 1) % plan.size();
             ++skipped;
         }
-        if (skipped == plan.size()) return; // all headers disabled
+        if (skipped == plan.size()) return; // all headers disabled/non-focus
         activeHeader       = plan[planIndex].header;
         activePid          = plan[planIndex].modePid;
         activeNeedsSession = plan[planIndex].needsSession;

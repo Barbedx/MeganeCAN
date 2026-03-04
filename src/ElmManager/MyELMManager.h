@@ -36,6 +36,14 @@ inline std::vector<PidPlan> buildCombinedPlan()
     return out;
 }
 
+// -------- Metric snapshot (for DiagPage) --------
+struct MetricSnapshot {
+    String shortName;
+    String unit;
+    float  value    = 0.0f;
+    bool   hasValue = false;
+};
+
 // -------- Scan result --------
 struct ScanResult {
     bool ready      = false;
@@ -74,6 +82,14 @@ public:
     void saveHeaderConfig(Preferences& prefs) const;
     String headersJson() const;
     std::vector<String> getUniqueHeaders() const;
+
+    // Metric snapshots for DiagPage
+    std::vector<MetricSnapshot> getCachedMetrics() const;
+    std::vector<MetricSnapshot> getCachedMetrics(const String& header) const;
+
+    // Focus: when set, tick() only cycles that header
+    void setFocusHeader(const String& hdr) { _focusHeader = hdr; }
+    void clearFocusHeader()               { _focusHeader = ""; }
 
     // Expose latest metric values (by ShortName)
     bool getCached(const char *shortName, float &out) const
@@ -136,6 +152,9 @@ private:
 
     // per-header enable/disable (default true for all)
     std::map<String, bool> _headerEnabled;
+
+    // when non-empty, only this header is cycled in tick()
+    String _focusHeader;
 
     // ---- state machine ----
     enum class WaitState { IDLE, HEADER, SDS, TESTER_PRESENT, PID };

@@ -225,7 +225,12 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
                 return;            // refresh display
             }
             else
-                enterEditMode();
+            {
+                if (items[selectedIndex].onActivate)
+                    items[selectedIndex].onActivate();
+                else
+                    enterEditMode();
+            }
         }
         break;
     default:
