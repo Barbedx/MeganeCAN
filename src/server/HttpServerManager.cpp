@@ -50,6 +50,11 @@ async function loadConfig() {
     const autoTime = await atRes.text();
     document.getElementById('autoTimeCheckbox').checked = (autoTime === '1');
 
+    // Fetch skip_funcreg
+    const sfrRes = await fetch('/getskipfuncreg');
+    const sfr = await sfrRes.text();
+    document.getElementById('skipFuncRegCheckbox').checked = (sfr === '1');
+
     // Fetch autoRestore
     const restoreRes = await fetch('/config/restore');
     const autoRestore = await restoreRes.text();
@@ -82,6 +87,14 @@ window.addEventListener('DOMContentLoaded', loadConfig);
         <option value="updatelist">UpdateList (8-segment)</option>
         <option value="updatelist_menu">UpdateList Menu (full-LED)</option>
     </select>
+    <input type="submit" value="Save &amp; Restart" />
+    </form>
+    <form action="/setskipfuncreg" method="POST" style="margin-top:6px">
+    <label>
+        <input type="checkbox" id="skipFuncRegCheckbox" name="skip_funcreg" value="1" />
+        Skip function registration (connected to real radio)
+    </label>
+    <input type="hidden" name="skip_funcreg" value="0" />
     <input type="submit" value="Save &amp; Restart" />
     </form>
 
@@ -383,6 +396,25 @@ void HttpServerManager::setupRoutes()
         bool at = prefs.getBool("auto_time", true);
         prefs.end();
         return request->reply(200, "text/plain", at ? "1" : "0");
+    });
+
+    _server.on("/getskipfuncreg", HTTP_GET, [](PsychicRequest *request) {
+        Preferences prefs;
+        prefs.begin("config", true);
+        bool v = prefs.getBool("skip_funcreg", false);
+        prefs.end();
+        return request->reply(200, "text/plain", v ? "1" : "0");
+    });
+
+    _server.on("/setskipfuncreg", HTTP_POST, [](PsychicRequest *request) {
+        bool skip = request->hasParam("skip_funcreg") &&
+                    request->getParam("skip_funcreg")->value() == "1";
+        Preferences prefs;
+        prefs.begin("config", false);
+        prefs.putBool("skip_funcreg", skip);
+        prefs.end();
+        ESP.restart();
+        return request->reply(200, "text/plain", skip ? "Func-reg skip enabled. Restarting..." : "Func-reg skip disabled. Restarting...");
     });
 
     _server.on("/setDisplay", HTTP_POST, [](PsychicRequest *request) {

@@ -35,10 +35,15 @@ void setKeyHandler(KeyHandler handler)
     virtual void onElmUpdate(const char* key, float value) { (void)key; (void)value; }
     virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) =0;
 
-protected: 
+    // When true, skip function registration (FUNCSREG) handshake.
+    // Set this when connected to a real radio — the radio handles auth itself.
+    void setSkipFuncReg(bool skip) { _skipFuncReg = skip; }
+
+protected:
     static constexpr int SYNC_TIMEOUT = 5;
     KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
+    bool _skipFuncReg = false;
     struct Affa3Func {
         uint16_t id;
         FuncStatus stat;

@@ -103,7 +103,7 @@ AffaError AffaDisplayBase::affa3_send(uint16_t id, uint8_t *data, uint8_t len)
     AffaError err;
 
     // if ((_sync_status & AFFA3_SYNC_STAT_FUNCSREG) != AFFA3_SYNC_STAT_FUNCSREG)
-    if (!hasFlag(_sync_status, SyncStatus::FUNCSREG))
+    if (!_skipFuncReg && !hasFlag(_sync_status, SyncStatus::FUNCSREG))
     {
       //	AFFA3_PRINT("[send] Registering supported functions...\n");
 

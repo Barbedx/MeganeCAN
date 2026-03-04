@@ -246,6 +246,7 @@ void initDisplay()
     btMode      = prefs.getString("bt_mode",     "ams");
     _autoTime   = prefs.getBool("auto_time",     true);
     _elmEnabled = prefs.getBool("elm_enabled", false);
+    bool skipFuncReg = prefs.getBool("skip_funcreg", false);
     prefs.end();
 
     Serial.println("[Display Init] Display type: " + displayType);
@@ -273,6 +274,9 @@ void initDisplay()
         Serial.println("[Display Init] Instantiating UpdateListBase (fallback)");
         display = new UpdateListBase();
     }
+
+    display->setSkipFuncReg(skipFuncReg);
+    Serial.println("[Display Init] Skip func-reg: " + String(skipFuncReg ? "yes" : "no"));
 
     // NOTE: display->begin() is called in setup() AFTER BT mode configuration
     elmManager = new MyELMManager(*display);
