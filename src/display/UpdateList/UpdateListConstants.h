@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace Affa2 {
+namespace UpdateList {
     static constexpr uint16_t PACKET_REPLY_FLAG       = 0x400;
     static constexpr uint16_t PACKET_ID_SYNC_REPLY    = 0x3CF;
     static constexpr uint16_t PACKET_ID_SYNC          = 0x3DF;

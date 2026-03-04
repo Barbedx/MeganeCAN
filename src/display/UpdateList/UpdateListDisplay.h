@@ -1,15 +1,15 @@
 #pragma once
-#include "Affa2Base.h"
+#include "UpdateListBase.h"
 #include "../../apple_media_service.h"
 #include <Arduino.h>
 
 // Affa2 8-segment display.
 // Reuses all Affa2Base CAN logic; adds non-blocking track title scroll
 // driven by tickMedia() / setMediaInfo().
-class Affa2Display : public Affa2Base
+class UpdateListDisplay : public UpdateListBase
 {
 public:
-    Affa2Display() = default;
+    UpdateListDisplay() = default;
 
     void setMediaInfo(const AppleMediaService::MediaInformation &info) override;
     void tickMedia() override;

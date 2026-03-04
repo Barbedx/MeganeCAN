@@ -78,9 +78,9 @@ window.addEventListener('DOMContentLoaded', loadConfig);
   <h2>Display Type</h2>
     <form action="/setDisplay" method="POST">
     <select name="type" id="displayTypeSelect">
-        <option value="affa3nav">AFFA3Nav (Carminat)</option>
-        <option value="affa2">AFFA2 (8-segment)</option>
-        <option value="affa2menu">AFFA2 Menu (full-LED)</option>
+        <option value="carminat">Carminat (Nav)</option>
+        <option value="updatelist">UpdateList (8-segment)</option>
+        <option value="updatelist_menu">UpdateList Menu (full-LED)</option>
     </select>
     <input type="submit" value="Save &amp; Restart" />
     </form>
@@ -364,7 +364,7 @@ void HttpServerManager::setupRoutes()
     _server.on("/getdisplaytype", HTTP_GET, [](PsychicRequest *request) {
         Preferences prefs;
         prefs.begin("config", true);
-        String dt = prefs.getString("display_type", "affa3nav");
+        String dt = prefs.getString("display_type", "carminat");
         prefs.end();
         return request->reply(200, "text/plain", dt.c_str());
     });

@@ -3,7 +3,7 @@
 #include <map>
 #include <Arduino.h>
 #include "apple_media_service.h"
-#include "Affa3NavConstants.h"
+#include "CarminatConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
@@ -12,10 +12,10 @@ class IPage;
 class DiagPage;
 class MyELMManager;
 
-class Affa3NavDisplay : public AffaDisplayBase
+class CarminatDisplay : public AffaDisplayBase
 {
 public:
-    Affa3NavDisplay()
+    CarminatDisplay()
         : mainMenu(
               "Main Menu",
               [this](const String &h, const String &t, const String &b, uint8_t scroll)
@@ -54,7 +54,7 @@ public:
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;
     AffaCommon::AffaError setTime(const char *clock) override;
-    // Affa3Nav::ScrollLockIndicator::SCROLL_BOTH
+    // Carminat::ScrollLockIndicator::SCROLL_BOTH
     AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator = 0x0B) override;
 
     AffaCommon::AffaError highlightItem(uint8_t id);
@@ -63,7 +63,7 @@ public:
                                        uint8_t offset1 = 0x41, uint8_t offset2 = 0x44, uint8_t offset3 = 0x48,
                                        uint8_t infoPrefix = 0x70); // Show info menu with items and offsets
 
-    bool isAffa3Nav() const override { return true; }
+    bool isCarminat() const override { return true; }
 
     void begin() override;
     void tickMedia() override;
@@ -80,15 +80,15 @@ protected:
 
     uint8_t getPacketFiller() const override
     {
-        return Affa3Nav::PACKET_FILLER; // your specific constant
+        return Carminat::PACKET_FILLER; // your specific constant
     }
 
     void initializeFuncs() override
     {
         funcsMax = 2;
         funcs = new Affa3Func[funcsMax]{
-            {Affa3Nav::PACKET_ID_SETTEXT, AffaCommon::FuncStatus::IDLE},
-            {Affa3Nav::PACKET_ID_NAV, AffaCommon::FuncStatus::IDLE}};
+            {Carminat::PACKET_ID_SETTEXT, AffaCommon::FuncStatus::IDLE},
+            {Carminat::PACKET_ID_NAV, AffaCommon::FuncStatus::IDLE}};
     }
 
 private:

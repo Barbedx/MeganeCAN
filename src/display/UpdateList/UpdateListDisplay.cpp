@@ -1,6 +1,6 @@
-#include "Affa2Display.h"
+#include "UpdateListDisplay.h"
 
-void Affa2Display::setMediaInfo(const AppleMediaService::MediaInformation &info)
+void UpdateListDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
 {
     String title  = String(info.mTitle.c_str());
     String artist = String(info.mArtist.c_str());
@@ -19,10 +19,10 @@ void Affa2Display::setMediaInfo(const AppleMediaService::MediaInformation &info)
     _scrollPos   = 0;
     _lastScrollMs = 0;
 
-    Serial.printf("[Affa2] setMediaInfo: scrolling \"%s\"\n", full.c_str());
+    Serial.printf("[UpdateList] setMediaInfo: scrolling \"%s\"\n", full.c_str());
 }
 
-void Affa2Display::tickMedia()
+void UpdateListDisplay::tickMedia()
 {
     if (_scrollTitle.length() == 0)
         return;

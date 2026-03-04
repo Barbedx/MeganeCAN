@@ -1,7 +1,7 @@
 #include "DiagPage.h"
-#include "../Affa3NavDisplay.h"
+#include "../CarminatDisplay.h"
 
-DiagPage::DiagPage(Affa3NavDisplay& display, MyELMManager* elm,
+DiagPage::DiagPage(CarminatDisplay& display, MyELMManager* elm,
                    const String& header, const String& title)
     : _display(display), _elm(elm), _header(header), _title(title) {}
 

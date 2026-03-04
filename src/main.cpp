@@ -10,10 +10,10 @@
 // #include <PsychicHttp.h>
 
 #include "ElmManager/MyELMManager.h"
-#include "display/Affa2/Affa2Display.h"
-#include "display/Affa2/Affa2MenuDisplay.h"
-#include "display/Affa2/Affa2Base.h"
-#include "display/Affa3Nav/Affa3NavDisplay.h"
+#include "display/UpdateList/UpdateListDisplay.h"
+#include "display/UpdateList/UpdateListMenuDisplay.h"
+#include "display/UpdateList/UpdateListBase.h"
+#include "display/Carminat/CarminatDisplay.h"
 #include "bluetooth.h"
 #include "apple_media_service.h"
 #include "BleMediaKeyboard.h"
@@ -242,7 +242,7 @@ void initDisplay()
 {
     Preferences prefs;
     prefs.begin("config", true);
-    String displayType = prefs.getString("display_type", "affa3nav");
+    String displayType = prefs.getString("display_type", "carminat");
     btMode      = prefs.getString("bt_mode",     "ams");
     _autoTime   = prefs.getBool("auto_time",     true);
     _elmEnabled = prefs.getBool("elm_enabled", false);
@@ -253,25 +253,25 @@ void initDisplay()
     Serial.println("[Display Init] Auto-time: " + String(_autoTime ? "on" : "off"));
     Serial.println("[Display Init] ELM enabled: " + String(_elmEnabled ? "yes" : "no"));
 
-    if (displayType == "affa3nav")
+    if (displayType == "carminat")
     {
-        Serial.println("[Display Init] Instantiating Affa3NavDisplay");
-        display = new Affa3NavDisplay();
+        Serial.println("[Display Init] Instantiating CarminatDisplay");
+        display = new CarminatDisplay();
     }
-    else if (displayType == "affa2")
+    else if (displayType == "updatelist")
     {
-        Serial.println("[Display Init] Instantiating Affa2Display (8-segment)");
-        display = new Affa2Display();
+        Serial.println("[Display Init] Instantiating UpdateListDisplay (8-segment)");
+        display = new UpdateListDisplay();
     }
-    else if (displayType == "affa2menu")
+    else if (displayType == "updatelist_menu")
     {
-        Serial.println("[Display Init] Instantiating Affa2MenuDisplay (full LED)");
-        display = new Affa2MenuDisplay();
+        Serial.println("[Display Init] Instantiating UpdateListMenuDisplay (full LED)");
+        display = new UpdateListMenuDisplay();
     }
     else
     {
-        Serial.println("[Display Init] Instantiating Affa2Base (Update List fallback)");
-        display = new Affa2Base();
+        Serial.println("[Display Init] Instantiating UpdateListBase (fallback)");
+        display = new UpdateListBase();
     }
 
     // NOTE: display->begin() is called in setup() AFTER BT mode configuration
@@ -279,8 +279,8 @@ void initDisplay()
     serverManager = new HttpServerManager(*display, preferences);
     serverManager->attachElm(elmManager);
     elmManager->loadHeaderConfig(preferences); // load per-header enable/disable from NVS
-    if (display->isAffa3Nav())
-        static_cast<Affa3NavDisplay*>(display)->attachElm(elmManager);
+    if (display->isCarminat())
+        static_cast<CarminatDisplay*>(display)->attachElm(elmManager);
     Serial.println("[Display Init] HttpServerManager initialized");
 }
 static bool wifiBeginIssued = false;

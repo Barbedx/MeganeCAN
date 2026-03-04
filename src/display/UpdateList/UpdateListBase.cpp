@@ -1,4 +1,4 @@
-#include "Affa2Base.h"
+#include "UpdateListBase.h"
 #include <string.h>
 
 inline void AFFA2_PRINT(const char *fmt, ...)
@@ -11,17 +11,17 @@ inline void AFFA2_PRINT(const char *fmt, ...)
 #endif
 }
 
-void Affa2Base::tick()
+void UpdateListBase::tick()
 {
     struct CAN_FRAME packet;
     static int8_t timeout = SYNC_TIMEOUT;
 
-    CanUtils::sendCan(Affa2::PACKET_ID_SYNC, 0x79, 0x00, Affa2::PACKET_FILLER, Affa2::PACKET_FILLER, Affa2::PACKET_FILLER, Affa2::PACKET_FILLER, Affa2::PACKET_FILLER, Affa2::PACKET_FILLER);
+    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x79, 0x00, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
 
     if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
     {
         AFFA2_PRINT("[tick] Sync failed or requested, sending sync request\n");
-        CanUtils::sendCan(Affa2::PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
+        CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
         _sync_status &= ~SyncStatus::START;
         delay(100);
     }
@@ -46,24 +46,24 @@ void Affa2Base::tick()
     }
 }
 
-AffaCommon::AffaError Affa2Base::setState(bool enabled)
+AffaCommon::AffaError UpdateListBase::setState(bool enabled)
 {
-    Affa2::DisplayCtrl state = enabled ? Affa2::DisplayCtrl::Enable : Affa2::DisplayCtrl::Disable;
+    UpdateList::DisplayCtrl state = enabled ? UpdateList::DisplayCtrl::Enable : UpdateList::DisplayCtrl::Disable;
     uint8_t data[] = {
         0x04, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF};
 
-    return affa3_send(Affa2::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
+    return affa3_send(UpdateList::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
 
-void Affa2Base::recv(CAN_FRAME *packet)
+void UpdateListBase::recv(CAN_FRAME *packet)
 {
     uint8_t i;
 
-    if (packet->id == Affa2::PACKET_ID_SYNC_REPLY)
+    if (packet->id == UpdateList::PACKET_ID_SYNC_REPLY)
     {
         if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
         {
-            CanUtils::sendCan(Affa2::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
+            CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
             _sync_status &= ~SyncStatus::FAILED;
             if (packet->data.uint8[2] == 0x01)
                 _sync_status |= SyncStatus::START;
@@ -76,9 +76,9 @@ void Affa2Base::recv(CAN_FRAME *packet)
         return;
     }
 
-    if (packet->id & Affa2::PACKET_REPLY_FLAG)
+    if (packet->id & UpdateList::PACKET_REPLY_FLAG)
     {
-        packet->id &= ~Affa2::PACKET_REPLY_FLAG;
+        packet->id &= ~UpdateList::PACKET_REPLY_FLAG;
         for (i = 0; i < funcsMax; i++)
         {
             if (funcs[i].id == packet->id)
@@ -103,7 +103,7 @@ void Affa2Base::recv(CAN_FRAME *packet)
         return;
     }
 
-    if (packet->id == Affa2::PACKET_ID_KEYPRESSED)
+    if (packet->id == UpdateList::PACKET_ID_KEYPRESSED)
     {
         if (!((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] == 0x89)))
             return;
@@ -125,18 +125,18 @@ void Affa2Base::recv(CAN_FRAME *packet)
     }
 
     struct CAN_FRAME reply;
-    reply.id = packet->id | Affa2::PACKET_REPLY_FLAG;
+    reply.id = packet->id | UpdateList::PACKET_REPLY_FLAG;
     reply.length = AffaCommon::PACKET_LENGTH;
     i = 0;
     reply.data.uint8[i++] = 0x74;
 
     for (; i < AffaCommon::PACKET_LENGTH; i++)
-        reply.data.uint8[i] = Affa2::PACKET_FILLER;
+        reply.data.uint8[i] = UpdateList::PACKET_FILLER;
 
     CanUtils::sendFrame(reply);
 }
 
-AffaCommon::AffaError Affa2Base::setText(const char *text, uint8_t digit)
+AffaCommon::AffaError UpdateListBase::setText(const char *text, uint8_t digit)
 {
     char oldBuf[8]  = {' '};
     char newBuf[12] = {' '};
@@ -169,15 +169,15 @@ AffaCommon::AffaError Affa2Base::setText(const char *text, uint8_t digit)
     data[len++] = 0x81;
     data[len++] = 0x81;
 
-    return affa3_send(Affa2::PACKET_ID_SETTEXT, data, len);
+    return affa3_send(UpdateList::PACKET_ID_SETTEXT, data, len);
 }
 
-AffaCommon::AffaError Affa2Base::setTime(const char *clock)
+AffaCommon::AffaError UpdateListBase::setTime(const char *clock)
 {
     return AffaCommon::AffaError::NoError;
 }
 
-void Affa2Base::processEvents()
+void UpdateListBase::processEvents()
 {
     while (!_keyQueue.empty())
     {

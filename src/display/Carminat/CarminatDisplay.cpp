@@ -1,4 +1,4 @@
-#include "Affa3NavDisplay.h"
+#include "CarminatDisplay.h"
 #include "Pages/DiagPage.h"
 #include "ElmManager/MyELMManager.h"
 
@@ -104,12 +104,12 @@ namespace
 
 }
 
-void Affa3NavDisplay::begin()
+void CarminatDisplay::begin()
 {
     // BT init is handled entirely in main.cpp; nothing to do here
 }
 
-void Affa3NavDisplay::initializeMenu()
+void CarminatDisplay::initializeMenu()
 {
     // Live read-only items (updated via onElmUpdate)
     mainMenu.addItem(MenuItem("Voltage", Field(0, "V"),    false));
@@ -200,25 +200,25 @@ void Affa3NavDisplay::initializeMenu()
     }
 }
 
-void Affa3NavDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
+void CarminatDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
 {
     // Kept for base-class contract; logic moved to ProcessKey
 }
 
-void Affa3NavDisplay::tick()
+void CarminatDisplay::tick()
 {
 
   struct CAN_FRAME packet;
   static int8_t timeout = SYNC_TIMEOUT;
 
   /* Wysyłamy pakiet informujący o tym że żyjemy */
-  CanUtils::sendCan(Affa3Nav::PACKET_ID_SYNC, 0xB9, 0x00, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER);
+  CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB9, 0x00, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
 
   if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
   { /* Błąd synchronizacji */
     /* Wysyłamy pakiet z żądaniem synchronizacji */
     AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
-    CanUtils::sendCan(Affa3Nav::PACKET_ID_SYNC, 0xBA, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER, Affa3Nav::PACKET_FILLER);
+    CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
     _sync_status &= ~SyncStatus::START;
     delay(100);
   }
@@ -307,20 +307,20 @@ struct Event
 
 std::queue<Event> eventQueue;
 
-void Affa3NavDisplay::recv(CAN_FRAME *packet)
+void CarminatDisplay::recv(CAN_FRAME *packet)
 {
 
   uint8_t i;
 
-  if (packet->id == Affa3Nav::PACKET_ID_SYNC_REPLY)
+  if (packet->id == Carminat::PACKET_ID_SYNC_REPLY)
   { /* Pakiety synchronizacyjne */
     if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
     { /* Żądanie synchronizacji */
-      CanUtils::sendCan(Affa3Nav::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
+      CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
       // affa3_is_synced = false;
 
-      CanUtils::sendCan(Affa3Nav::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
-      CanUtils::sendCan(Affa3Nav::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
+      CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
+      CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
 
       _sync_status &= ~SyncStatus::FAILED;
       if (packet->data.uint8[2] == 0x01)
@@ -334,9 +334,9 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     return;
   }
 
-  if (packet->id & Affa3Nav::PACKET_REPLY_FLAG)
+  if (packet->id & Carminat::PACKET_REPLY_FLAG)
   {
-    packet->id &= ~Affa3Nav::PACKET_REPLY_FLAG;
+    packet->id &= ~Carminat::PACKET_REPLY_FLAG;
     for (i = 0; i < funcsMax; i++)
     { /* Szukamy w tablicy funkcji */
       if (funcs[i].id == packet->id)
@@ -360,7 +360,7 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
     }
     return;
   }
-  if (packet->id == Affa3Nav::PACKET_ID_SETTEXT)
+  if (packet->id == Carminat::PACKET_ID_SETTEXT)
   { /* Pakiet z danymi text */
     tracker.onCanMessage(*packet);
     mainMenu.handleMessage(*packet);
@@ -383,16 +383,16 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
   {
     struct CAN_FRAME reply;
     /* Wysyłamy odpowiedź */
-    reply.id = packet->id | Affa3Nav::PACKET_REPLY_FLAG;
+    reply.id = packet->id | Carminat::PACKET_REPLY_FLAG;
     reply.length = AffaCommon::PACKET_LENGTH;
     i = 0;
     reply.data.uint8[i++] = 0x74;
     for (; i < AffaCommon::PACKET_LENGTH; i++)
-      reply.data.uint8[i] = Affa3Nav::PACKET_FILLER;
+      reply.data.uint8[i] = Carminat::PACKET_FILLER;
     CanUtils::sendFrame(reply);
   }
 
-  if (packet->id == Affa3Nav::PACKET_ID_KEYPRESSED) // TODO CHECK IT
+  if (packet->id == Carminat::PACKET_ID_KEYPRESSED) // TODO CHECK IT
   {
     if (!((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] == 0x89))) /* Błędny pakiet */
       return;
@@ -432,7 +432,7 @@ void Affa3NavDisplay::recv(CAN_FRAME *packet)
   }
 }
 
-void Affa3NavDisplay::processEvents()
+void CarminatDisplay::processEvents()
 {
   while (!eventQueue.empty())
   {
@@ -487,7 +487,7 @@ void Affa3NavDisplay::processEvents()
  * @param rawText Text to display (max 7 characters shown).
  *                Underscores (_) are replaced with spaces.
  */
-AffaCommon::AffaError Affa3NavDisplay::setText(const char *text, uint8_t digit)
+AffaCommon::AffaError CarminatDisplay::setText(const char *text, uint8_t digit)
 {
 
   // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
@@ -597,7 +597,7 @@ void showConfirmBoxWithOffsets(
 
   Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
 }
-void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
+void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
 {
   // визначаємо: новий трек чи той самий
   bool titleChanged = (_mediaInfo.mTitle != info.mTitle);
@@ -638,7 +638,7 @@ void Affa3NavDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
   eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
 }
 
-void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
+void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 {
     if (_currentPage) {
         _currentPage->handleKey(key, isHold);
@@ -650,12 +650,12 @@ void Affa3NavDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
         keyHandler(key, isHold);
 }
 
-void Affa3NavDisplay::setAuxMode(bool on)
+void CarminatDisplay::setAuxMode(bool on)
 {
     tracker.SetAuxMode(on);
     Serial.printf("[AUX] setAuxMode(%s)\n", on ? "true" : "false");
 }
-String Affa3NavDisplay::buildProgressLine() const
+String CarminatDisplay::buildProgressLine() const
 {
   // AMS дає секунди (float)
   float posSec = _mediaInfo.mElapsedTime;
@@ -712,7 +712,7 @@ String Affa3NavDisplay::buildProgressLine() const
   return line;
 }
 
-void Affa3NavDisplay::tickMedia()
+void CarminatDisplay::tickMedia()
 {
   // Don't draw over open menu or outside AUX mode
   if (mainMenu.isActive())
@@ -765,7 +765,7 @@ void Affa3NavDisplay::tickMedia()
   renderMediaScreen(false);
 }
 
-void Affa3NavDisplay::renderMediaScreen(bool forceRedraw)
+void CarminatDisplay::renderMediaScreen(bool forceRedraw)
 {
   // Не ліземо поверх меню
   if (mainMenu.isActive())
@@ -1006,7 +1006,7 @@ String normalizeTitle(const String& in)
     // --- Then transliterate ---
     return transliterateToAscii(s);
 }
-String Affa3NavDisplay::buildScrollingTitle()
+String CarminatDisplay::buildScrollingTitle()
 {
 
   String full = String(_mediaInfo.mArtist.c_str());
@@ -1076,17 +1076,17 @@ void showInfoMenu(
   Serial.println("[showInfoMenu] --- Done ---");
 }
 
-AffaCommon::AffaError Affa3NavDisplay::setState(bool enabled)
+AffaCommon::AffaError CarminatDisplay::setState(bool enabled)
 {
-  Affa3Nav::DisplayCtrl state = enabled ? Affa3Nav::DisplayCtrl::Enable : Affa3Nav::DisplayCtrl::Disable;
+  Carminat::DisplayCtrl state = enabled ? Carminat::DisplayCtrl::Enable : Carminat::DisplayCtrl::Disable;
 
   uint8_t data[] = {
       0x3, 0x52, static_cast<uint8_t>(state), 0xFF, 0xFF}; // sc 151 3 52 9 0 0 0 0 0
 
-  return affa3_send(Affa3Nav::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
+  return affa3_send(Carminat::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
 
-AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
+AffaCommon::AffaError CarminatDisplay::setTime(const char *clock)
 {
   // NAV-specific clock logic
   CAN_FRAME answer;
@@ -1106,7 +1106,7 @@ AffaCommon::AffaError Affa3NavDisplay::setTime(const char *clock)
   Serial.println(clock);
   return AffaCommon::AffaError::NoError;
 }
-AffaCommon::AffaError Affa3NavDisplay::highlightItem(uint8_t id)
+AffaCommon::AffaError CarminatDisplay::highlightItem(uint8_t id)
 {
   CAN_FRAME frame;
   frame.id = 0x151;
@@ -1129,8 +1129,8 @@ AffaCommon::AffaError Affa3NavDisplay::highlightItem(uint8_t id)
 }
 
 // SCROLL LOCK INDICATOR
-//  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNAffa3Nav::ScrollLockIndicator scrollLockIndicator
-AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
+//  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNCarminat::ScrollLockIndicator scrollLockIndicator
+AffaCommon::AffaError CarminatDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
 {
   // Serial.println("[showMenu] --- Building Menu ---");
   // Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
@@ -1186,7 +1186,7 @@ AffaCommon::AffaError Affa3NavDisplay::showMenu(const char *header, const char *
   return affa3_send(0x151, payload, totalLen);
 }
 
-void Affa3NavDisplay::onElmUpdate(const char* key, float value)
+void CarminatDisplay::onElmUpdate(const char* key, float value)
 {
     if (strcmp(key, "PR071") == 0)
     {
@@ -1198,19 +1198,19 @@ void Affa3NavDisplay::onElmUpdate(const char* key, float value)
     }
 }
 
-AffaCommon::AffaError Affa3NavDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)
+AffaCommon::AffaError CarminatDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)
 {
   return AffaCommon::AffaError();
 }
 
-AffaCommon::AffaError Affa3NavDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
+AffaCommon::AffaError CarminatDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
 {
   return AffaCommon::AffaError();
 }
 
 // ---- Page management ----
 
-void Affa3NavDisplay::attachElm(MyELMManager* m)
+void CarminatDisplay::attachElm(MyELMManager* m)
 {
     _elm = m;
     _diagPages["7E0"] = new DiagPage(*this, m, "7E0", "ENGINE");
@@ -1220,14 +1220,14 @@ void Affa3NavDisplay::attachElm(MyELMManager* m)
     _diagPages["74D"] = new DiagPage(*this, m, "74D", "ALT GBX");
 }
 
-void Affa3NavDisplay::pushPage(IPage* p)
+void CarminatDisplay::pushPage(IPage* p)
 {
     if (!p) return;
     _currentPage = p;
     p->onEnter();
 }
 
-void Affa3NavDisplay::popPage()
+void CarminatDisplay::popPage()
 {
     if (!_currentPage) return;
     _currentPage->onExit();

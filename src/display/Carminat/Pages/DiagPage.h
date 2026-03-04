@@ -3,11 +3,11 @@
 #include "ElmManager/MyELMManager.h"
 #include <vector>
 
-class Affa3NavDisplay;
+class CarminatDisplay;
 
 class DiagPage : public IPage {
 public:
-    DiagPage(Affa3NavDisplay& display, MyELMManager* elm,
+    DiagPage(CarminatDisplay& display, MyELMManager* elm,
              const String& header, const String& title);
 
     void onEnter()  override;
@@ -22,7 +22,7 @@ private:
     String formatSingle(const MetricSnapshot& snap) const; // max 8 chars
     uint8_t computeScroll() const;
 
-    Affa3NavDisplay& _display;
+    CarminatDisplay& _display;
     MyELMManager*    _elm;
     String           _header;       // ECU filter, e.g. "7E0"
     String           _title;        // display header, e.g. "ENGINE"

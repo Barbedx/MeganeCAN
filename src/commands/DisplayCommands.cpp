@@ -1,7 +1,7 @@
 #include "DisplayCommands.h"
 // Update the path if "ScrollEffect.h" is in a subfolder, e.g.:
 #include "../effects/ScrollEffect.h" 
-#include <display/Affa3Nav/Affa3NavDisplay.h>
+#include <display/Carminat/CarminatDisplay.h>
 
 namespace DisplayCommands
 {
@@ -48,8 +48,8 @@ namespace DisplayCommands
 
     void Manager::setVoltage(int arg)
     {
-        if (_display.isAffa3Nav()) {
-            static_cast<Affa3NavDisplay*>(&_display)->getMenu().updateFieldExternally("Voltage", 0, arg);
+        if (_display.isCarminat()) {
+            static_cast<CarminatDisplay*>(&_display)->getMenu().updateFieldExternally("Voltage", 0, arg);
         } 
     }
 

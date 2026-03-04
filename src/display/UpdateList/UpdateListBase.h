@@ -1,13 +1,13 @@
 #pragma once
-#include "Affa2Constants.h"
+#include "UpdateListConstants.h"
 #include "../AffaDisplayBase.h"
 #include <Arduino.h>
 #include <queue>
 
-class Affa2Base : public AffaDisplayBase
+class UpdateListBase : public AffaDisplayBase
 {
 public:
-    Affa2Base() { initializeFuncs(); }
+    UpdateListBase() { initializeFuncs(); }
     void tick() override;
     void recv(CAN_FRAME *frame) override;
     void processEvents() override;
@@ -35,12 +35,12 @@ protected:
     {
         funcsMax = 2;
         funcs = new Affa3Func[funcsMax]{
-            {Affa2::PACKET_ID_SETTEXT,      AffaCommon::FuncStatus::IDLE},
-            {Affa2::PACKET_ID_DISPLAY_CTRL, AffaCommon::FuncStatus::IDLE}};
+            {UpdateList::PACKET_ID_SETTEXT,      AffaCommon::FuncStatus::IDLE},
+            {UpdateList::PACKET_ID_DISPLAY_CTRL, AffaCommon::FuncStatus::IDLE}};
     }
 
     uint8_t getPacketFiller() const override
     {
-        return Affa2::PACKET_FILLER;
+        return UpdateList::PACKET_FILLER;
     }
 };
