@@ -142,6 +142,60 @@ vector<uint8_t> MyELMManager::decodeToUdsData(const char *ascii, size_t len)
     return udsDataOnly(raw); // strip 61/62/50 xx header if present
 }
 
+// ----------------- header enable/disable -----------------
+std::vector<String> MyELMManager::getUniqueHeaders() const {
+    std::vector<String> result;
+    for (const auto& node : plan) {
+        String hdr(node.header);
+        bool found = false;
+        for (const auto& h : result) {
+            if (h == hdr) { found = true; break; }
+        }
+        if (!found) result.push_back(hdr);
+    }
+    return result;
+}
+
+void MyELMManager::setHeaderEnabled(const char* header, bool enabled) {
+    _headerEnabled[String(header)] = enabled;
+}
+
+bool MyELMManager::isHeaderEnabled(const char* header) const {
+    auto it = _headerEnabled.find(String(header));
+    return (it == _headerEnabled.end()) ? true : it->second;
+}
+
+void MyELMManager::loadHeaderConfig(Preferences& prefs) {
+    prefs.begin("elmcfg", true);
+    for (const auto& hdr : getUniqueHeaders()) {
+        String key = "h_" + hdr;
+        _headerEnabled[hdr] = prefs.getBool(key.c_str(), true);
+    }
+    prefs.end();
+}
+
+void MyELMManager::saveHeaderConfig(Preferences& prefs) const {
+    prefs.begin("elmcfg", false);
+    for (const auto& kv : _headerEnabled) {
+        String key = "h_" + kv.first;
+        prefs.putBool(key.c_str(), kv.second);
+    }
+    prefs.end();
+}
+
+String MyELMManager::headersJson() const {
+    String out = "{";
+    bool first = true;
+    for (const auto& hdr : getUniqueHeaders()) {
+        if (!first) out += ",";
+        first = false;
+        out += "\""; out += hdr; out += "\":";
+        out += isHeaderEnabled(hdr.c_str()) ? "true" : "false";
+    }
+    out += "}";
+    return out;
+}
+
 // ---- Debug ----
 
 #ifndef LOG_PID_VALUES
@@ -249,9 +303,19 @@ void MyELMManager::tick()
     if ((now - lastCmdMs) < kCmdIntervalMs)
         return;
 
+    // ---- C) Skip disabled headers ----
+    {
+        size_t skipped = 0;
+        while (skipped < plan.size() && !isHeaderEnabled(plan[planIndex].header)) {
+            planIndex = (planIndex + 1) % plan.size();
+            ++skipped;
+        }
+        if (skipped == plan.size()) return; // all headers disabled
+    }
+
     const auto &node = plan[planIndex];
 
-    // ---- C) Ensure correct CAN header ----
+    // ---- D) Ensure correct CAN header ----
     if (currentHeader != node.header)
     {
         pendingHeader = node.header;
@@ -266,7 +330,7 @@ void MyELMManager::tick()
 
     Sess &s = sessions[currentHeader];
 
-    // ---- D) Open / reopen diagnostic session if this PID needs one ----
+    // ---- E) Open / reopen diagnostic session if this PID needs one ----
     if (node.needsSession)
     {
         if (s.open && (now - s.lastMs) > kReopenSdsMs) {
@@ -282,7 +346,7 @@ void MyELMManager::tick()
         }
     }
 
-    // ---- E) TesterPresent to keep the session alive ----
+    // ---- F) TesterPresent to keep the session alive ----
     //         Only send when there is actually an open session to keep alive.
     if (s.open && (now - s.lastMs) > kPingPeriodMs)
     {
@@ -293,7 +357,7 @@ void MyELMManager::tick()
         return;
     }
 
-    // ---- F) Send the PID ----
+    // ---- G) Send the PID ----
     Serial.printf("[SEND] %s (%s)\n", node.modePid, node.header);
     elm.sendCommand(node.modePid);
     waitState = WaitState::PID;

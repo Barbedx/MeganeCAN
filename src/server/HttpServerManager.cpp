@@ -161,6 +161,31 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
   <hr>
 
+  <h2>ELM Headers</h2>
+    <div id="elmHeaders">Loading...</div>
+    <script>
+    async function loadElmHeaders() {
+      const res = await fetch('/api/elm/headers');
+      if (!res.ok) { document.getElementById('elmHeaders').textContent = 'ELM not available'; return; }
+      const data = await res.json();
+      const div = document.getElementById('elmHeaders');
+      div.innerHTML = '';
+      for (const [hdr, en] of Object.entries(data)) {
+        const id = 'hdr_' + hdr;
+        div.innerHTML += '<label><input type="checkbox" id="' + id + '" ' + (en ? 'checked' : '') +
+          ' onchange="setHeader(\'' + hdr + '\',this.checked)"> ' + hdr + '</label><br>';
+      }
+    }
+    async function setHeader(hdr, enabled) {
+      const body = new URLSearchParams({header: hdr, enabled: enabled ? '1' : '0'});
+      await fetch('/api/elm/headers', {method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});
+    }
+    window.addEventListener('DOMContentLoaded', loadElmHeaders);
+    </script>
+
+  <hr>
+
   <h2>Bluetooth</h2>
     <div id="btStatus" style="font-family:monospace;background:#f4f4f4;padding:8px;margin-bottom:8px;">Loading BT status...</div>
     <form action="/clearbonds" method="POST"
@@ -258,104 +283,83 @@ void HttpServerManager::begin()
 
 void HttpServerManager::setupRoutes()
 {
-
     _server.on("/", HTTP_GET, [this](PsychicRequest *request)
                { return request->reply(200, "text/html", htmlPage); });
 
-    _server.on("/static", HTTP_GET, [this](PsychicRequest *request)
-               {
-        if (!request->hasParam("text")) {
+    _server.on("/static", HTTP_GET, [this](PsychicRequest *request) {
+        if (!request->hasParam("text"))
             return request->reply(400, "text/plain", "Missing 'text' parameter");
-        }
         String text = request->getParam("text")->value();
         bool save = request->hasParam("save");
-
-        // Call your command handler
         _commands.showText(text, save);
-        String response = "Static Text shown: " + text;
-        return request->reply(200, "text/plain", response.c_str()); });
+        String msg = "Static Text shown: " + text;
+        return request->reply(200, "text/plain", msg.c_str());
+    });
 
-    _server.on("/scroll", HTTP_GET, [this](PsychicRequest *request)
-               {    
-        if (!request->hasParam("text")) {
-            return request->reply(400, "text/plain", "Missing 'text' parameter");   
-        }
-        String text = request->getParam("text")->value();   
+    _server.on("/scroll", HTTP_GET, [this](PsychicRequest *request) {
+        if (!request->hasParam("text"))
+            return request->reply(400, "text/plain", "Missing 'text' parameter");
+        String text = request->getParam("text")->value();
         bool save = request->hasParam("save");
-
-        // Call your command handler
-        if (save) {
-            // Scroll AND save as welcome text
+        if (save)
             _commands.setWelcomeText(text);
-        } else {
-            // Scroll temporarily only
+        else
             _commands.scrollText(text);
-        } 
-        String response = save ? "Text scrolled and saved as welcome: " + text
-                            : "Text scrolled temporarily: " + text;
+        String msg = save ? "Text scrolled and saved as welcome: " + text
+                          : "Text scrolled temporarily: " + text;
+        return request->reply(200, "text/plain", msg.c_str());
+    });
 
-        return request->reply(200, "text/plain", response.c_str()); });
-
-    _server.on("/config/restore", HTTP_GET, [this](PsychicRequest *request)
-               {
+    _server.on("/config/restore", HTTP_GET, [this](PsychicRequest *request) {
         if (request->hasParam("enable")) {
             bool enable = request->getParam("enable")->value() == "1";
             _prefs.begin("display", false);
             _prefs.putBool("autoRestore", enable);
             _prefs.end();
-            String resp = enable ? "Auto restore enabled" : "Auto restore disabled";
-            return request->reply(200, "text/plain", resp.c_str());
+            return request->reply(200, "text/plain", enable ? "Auto restore enabled" : "Auto restore disabled");
         } else {
             _prefs.begin("display", true);
             bool autoRestore = _prefs.getBool("autoRestore", false);
             _prefs.end();
-            String resp = autoRestore ? "1" : "0";
-            return request->reply(200, "text/plain", resp.c_str());
-        } });
+            return request->reply(200, "text/plain", autoRestore ? "1" : "0");
+        }
+    });
 
-    _server.on("/getlasttext", HTTP_GET, [this](PsychicRequest *request)
-               {
+    _server.on("/getlasttext", HTTP_GET, [this](PsychicRequest *request) {
         _prefs.begin("display", true);
         String lastText = _prefs.getString("lastText", "");
         _prefs.end();
-        return request->reply(200, "text/plain", lastText.c_str()); });
+        return request->reply(200, "text/plain", lastText.c_str());
+    });
 
-    _server.on("/getwelcometext", HTTP_GET, [this](PsychicRequest *request)
-               {
+    _server.on("/getwelcometext", HTTP_GET, [this](PsychicRequest *request) {
         _prefs.begin("display", true);
         String welcomeText = _prefs.getString("welcomeText", "");
         _prefs.end();
-        return request->reply(200, "text/plain", welcomeText.c_str()); });
-        
-    _server.on("/settime", HTTP_GET, [this](PsychicRequest *request)
-               {
-        if (!request->hasParam("time")) {
+        return request->reply(200, "text/plain", welcomeText.c_str());
+    });
+
+    _server.on("/settime", HTTP_GET, [this](PsychicRequest *request) {
+        if (!request->hasParam("time"))
             return request->reply(400, "text/plain", "Missing 'time' parameter");
-        }
         String timeStr = request->getParam("time")->value();
-
-        if (timeStr.length() != 4) {
+        if (timeStr.length() != 4)
             return request->reply(400, "text/plain", "Invalid time format. Use 4 digits like '1234'");
-        }
-
         _commands.setTime(timeStr);
-        String response = "Time set to: " + timeStr;
-        return request->reply(200, "text/plain", response.c_str()); });
+        String msg = "Time set to: " + timeStr;
+        return request->reply(200, "text/plain", msg.c_str());
+    });
 
-    _server.on("/setVoltage", HTTP_GET, [this](PsychicRequest *request)
-               {
-        if (!request->hasParam("voltage")) {
+    _server.on("/setVoltage", HTTP_GET, [this](PsychicRequest *request) {
+        if (!request->hasParam("voltage"))
             return request->reply(400, "text/plain", "Missing 'voltage' parameter");
-        }
         String str = request->getParam("voltage")->value();
-
-        if (str.length() <= 0 ) {
+        if (str.length() == 0)
             return request->reply(400, "text/plain", "Invalid voltage format. input is empty");
-        }
-
         _commands.setVoltage(str.toInt());
-        String response = "voltage set to: " + str;
-        return request->reply(200, "text/plain", response.c_str()); });
+        String msg = "voltage set to: " + str;
+        return request->reply(200, "text/plain", msg.c_str());
+    });
 
     _server.on("/getdisplaytype", HTTP_GET, [](PsychicRequest *request) {
         Preferences prefs;
@@ -409,6 +413,7 @@ void HttpServerManager::setupRoutes()
         ESP.restart();
         return request->reply(200, "text/plain", "BT mode saved. Restarting...");
     });
+
     _server.on("/getelmenabled", HTTP_GET, [](PsychicRequest *request) {
         Preferences prefs;
         prefs.begin("config", true);
@@ -438,73 +443,63 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", "Saved device forgotten. Scanning fresh.");
     });
 
-// // pseudo (adapt to your web lib)
-// server.on("/api/live", HTTP_GET, [this] (auto* req) {
-//   if (!elmManager) { req->send(503, "application/json", "{}"); return; }
-//   req->send(200, "application/json", elmManager->snapshotJson());
-// });
+    _server.on("/api/live", HTTP_GET, [this](PsychicRequest *request) {
+        if (!elm) return request->reply(503, "application/json", "{\"error\":\"elm not ready\"}");
+        return request->reply(200, "application/json", elm->snapshotJson().c_str());
+    });
 
-_server.on("/api/live", HTTP_GET, [this](PsychicRequest *req){
-    if (!elm) { return req->reply(503, "application/json", "{\"error\":\"elm not ready\"}"); }
-    return req->reply(200, "application/json", elm->snapshotJson().c_str());
-  });
+    _server.on("/api/elm/headers", HTTP_GET, [this](PsychicRequest *request) {
+        if (!elm) return request->reply(503, "application/json", "{}");
+        return request->reply(200, "application/json", elm->headersJson().c_str());
+    });
 
+    _server.on("/api/elm/headers", HTTP_POST, [this](PsychicRequest *request) {
+        if (!elm) return request->reply(503, "application/json", "{}");
+        if (!request->hasParam("header") || !request->hasParam("enabled"))
+            return request->reply(400, "text/plain", "Missing header or enabled");
+        String hdr = request->getParam("header")->value();
+        bool en = request->getParam("enabled")->value() != "0";
+        elm->setHeaderEnabled(hdr.c_str(), en);
+        elm->saveHeaderConfig(_prefs);
+        return request->reply(200, "text/plain", "OK");
+    });
 
-
-_server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
-{
-    if (!request->hasParam("caption") || 
-        !request->hasParam("name1") || 
-        !request->hasParam("name2")) 
-    {
-        return request->reply(400, "text/plain", "Missing one or more required parameters: caption, name1, name2");
-    }
-
-    String caption = request->getParam("caption")->value();
-    String name1 = request->getParam("name1")->value();
-    String name2 = request->getParam("name2")->value();
-
-     uint8_t scrollLockIndicator = 0x0B; // default value
-
-    if (request->hasParam("scrollLock")) {
-        String scrollLockStr = request->getParam("scrollLock")->value();
-        if (scrollLockStr.length() != 2 ) {
-            return request->reply(400, "text/plain", "Invalid scrollLock format. Use two-digit hex like '7E'");
+    _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request) {
+        if (!request->hasParam("caption") || !request->hasParam("name1") || !request->hasParam("name2"))
+            return request->reply(400, "text/plain", "Missing one or more required parameters: caption, name1, name2");
+        String caption = request->getParam("caption")->value();
+        String name1   = request->getParam("name1")->value();
+        String name2   = request->getParam("name2")->value();
+        uint8_t scrollLockIndicator = 0x0B;
+        if (request->hasParam("scrollLock")) {
+            String scrollLockStr = request->getParam("scrollLock")->value();
+            if (scrollLockStr.length() != 2)
+                return request->reply(400, "text/plain", "Invalid scrollLock format. Use two-digit hex like '7E'");
+            scrollLockIndicator = (uint8_t) strtoul(scrollLockStr.c_str(), nullptr, 16);
         }
-        scrollLockIndicator = (uint8_t) strtoul(scrollLockStr.c_str(), nullptr, 16);
-    }
+        Serial.printf("[showMenu] caption='%s' name1='%s' name2='%s' scrollLock=0x%02X\n",
+                      caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+        _commands.showMenu(caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+        String msg = "Menu sent with scrollLock=0x" + String(scrollLockIndicator, HEX);
+        return request->reply(200, "text/plain", msg.c_str());
+    });
 
-    Serial.printf("[showMenu] caption='%s' name1='%s' name2='%s' scrollLock=0x%02X\n",
-                  caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
-
-    _commands.showMenu(caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
-
-    String response = "Menu sent with scrollLock=0x" + String(scrollLockIndicator, HEX);
-    return request->reply(200, "text/plain", response.c_str());
-});
-
-        
-    // Serve a dedicated page for Affa3 display test commands
-    _server.on("/affa3test", HTTP_GET, [this](PsychicRequest *request)
-               {
-    const char *page = R"rawliteral(
+    _server.on("/affa3test", HTTP_GET, [](PsychicRequest *request) {
+        const char *page = R"rawliteral(
         <!DOCTYPE html>
         <html><head><title>Affa3 Display Test</title></head><body>
         <h2>Set Menu</h2>
         <form action="/affa3/setMenu" method="GET">
             Caption: <input name="caption" required><br>
             Name1: <input name="name1" required><br>
-            Name2: <input name="name2" required><br> 
+            Name2: <input name="name2" required><br>
             Scroll Lock (Hex): <input name="scrollLock" value="0B" pattern="[0-9a-fA-F]{2}" ><br>
-  
             <input type="submit" value="Set Menu">
         </form>
-
         <h2>Set AUX</h2>
         <form action="/affa3/setAux" method="GET">
             <input type="submit" value="Set AUX">
         </form>
-
         <h2>Set Big Text</h2>
         <form action="/affa3/setTextBig" method="GET">
             Caption: <input name="caption" required><br>
@@ -513,61 +508,49 @@ _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
             <input type="submit" value="Set Big Text">
         </form>
         </body></html>
-    )rawliteral";
-    return request->reply(200, "text/html", page); });
+        )rawliteral";
+        return request->reply(200, "text/html", page);
+    });
 
-    _server.on("/emulate", HTTP_GET, [this](PsychicRequest *request){
-
-        const char * page = R"rawliteral(
+    _server.on("/emulate", HTTP_GET, [](PsychicRequest *request) {
+        const char *page = R"rawliteral(
         <!DOCTYPE html>
         <html><head><title>Affa3 Display Button Test</title></head><body>
         <h2>Emulate Buttons</h2>
-
         <form onsubmit="return false">
         <button onclick="sendKey(0x0000, 0)">Load</button>
         <button onclick="sendKey(0x0000, 1)">Load (Hold)</button><br>
-
         <button onclick="sendKey(0x0001, 0)">SrcRight</button>
         <button onclick="sendKey(0x0001, 1)">SrcRight (Hold)</button><br>
-
         <button onclick="sendKey(0x0002, 0)">SrcLeft</button>
         <button onclick="sendKey(0x0002, 1)">SrcLeft (Hold)</button><br>
-
         <button onclick="sendKey(0x0003, 0)">Vol+</button>
         <button onclick="sendKey(0x0003, 1)">Vol+ (Hold)</button><br>
-
         <button onclick="sendKey(0x0004, 0)">Vol-</button>
         <button onclick="sendKey(0x0004, 1)">Vol- (Hold)</button><br>
-
         <button onclick="sendKey(0x0005, 0)">Pause</button>
         <button onclick="sendKey(0x0005, 1)">Pause (Hold)</button><br>
-
         <button onclick="sendKey(0x0101, 0)">RollUp</button>
         <button onclick="sendKey(0x0101, 1)">RollUp (Hold)</button><br>
-
         <button onclick="sendKey(0x0141, 0)">RollDown</button>
         <button onclick="sendKey(0x0141, 1)">RollDown (Hold)</button><br>
         </form>
-
         <script>
         async function sendKey(key, hold) {
             const formData = new URLSearchParams();
             formData.append("key", key);
             formData.append("hold", hold ? "1" : "0");
-
             const res = await fetch("/emulate/key", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: formData
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: formData
             });
-
             const txt = await res.text();
             console.log("Response:", txt);
         }
         </script>
-                </body></html>
-    )rawliteral";
-
+        </body></html>
+        )rawliteral";
         return request->reply(200, "text/html", page);
     });
 
@@ -596,18 +579,13 @@ _server.on("/affa3/setMenu", HTTP_GET, [this](PsychicRequest *request)
     });
 
     _server.on("/emulate/key", HTTP_POST, [this](PsychicRequest *request) {
-        if (!request->hasParam("key") || !request->hasParam("hold")) {
+        if (!request->hasParam("key") || !request->hasParam("hold"))
             return request->reply(400, "text/plain", "Missing key or hold");
-        }
-
         uint16_t keyCode = request->getParam("key")->value().toInt();
         bool isHold = request->getParam("hold")->value() == "1";
-
         AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(keyCode);
-        _commands.OnKeyPressed(key, isHold); 
-
+        _commands.OnKeyPressed(key, isHold);
         String msg = String("Emulated key 0x") + String(keyCode, HEX) + (isHold ? " (Hold)" : " (Press)");
         return request->reply(200, "text/plain", msg.c_str());
     });
- 
 }

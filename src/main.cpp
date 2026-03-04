@@ -278,6 +278,7 @@ void initDisplay()
     elmManager = new MyELMManager(*display);
     serverManager = new HttpServerManager(*display, preferences);
     serverManager->attachElm(elmManager);
+    elmManager->loadHeaderConfig(preferences); // load per-header enable/disable from NVS
     Serial.println("[Display Init] HttpServerManager initialized");
 }
 static bool wifiBeginIssued = false;

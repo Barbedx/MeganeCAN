@@ -5,6 +5,7 @@
 #include <functional>
 #include <map>
 #include <WiFi.h>
+#include <Preferences.h>
 
 #include "ELMduino.h"
 #include "display/IDisplay.h"
@@ -42,6 +43,15 @@ public:
     // Call frequently from loop()
     void tick();
 
+    // Header enable/disable control
+    void setHeaderEnabled(const char* header, bool enabled);
+    bool isHeaderEnabled(const char* header) const;
+    void loadHeaderConfig(Preferences& prefs);
+    void saveHeaderConfig(Preferences& prefs) const;
+    String headersJson() const;
+    std::vector<String> getUniqueHeaders() const;
+
+    // Expose latest metric values (by ShortName)
     bool getCached(const char *shortName, float &out) const
     {
         auto it = valueCache.find(String(shortName));
@@ -99,6 +109,9 @@ private:
     };
     std::map<String, Sess>  sessions;
     std::map<String, float> valueCache;
+
+    // per-header enable/disable (default true for all)
+    std::map<String, bool> _headerEnabled;
 
     // ---- state machine ----
     enum class WaitState { IDLE, HEADER, SDS, TESTER_PRESENT, PID };
