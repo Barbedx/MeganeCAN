@@ -457,6 +457,14 @@ void loop()
     if (btMode == "ams")
     {
         Bluetooth::Service();
+
+        // Detect BT disconnect and notify display to freeze content.
+        static bool _prevBtConnected = false;
+        bool _curBtConnected = Bluetooth::IsConnected();
+        if (_prevBtConnected && !_curBtConnected)
+            display->onBtDisconnected();
+        _prevBtConnected = _curBtConnected;
+
         display->tickMedia();
 
         // Auto-time: sync display clock once per BT connection via CTS

@@ -118,6 +118,24 @@ void UpdateListBase::recv(CAN_FRAME *packet)
         return;
     }
 
+    // Text frame from radio (0x121) — we never receive our own sends on CAN.
+    // First frame has no counter prefix: data[0]=0x10 (set text command).
+    // AUX detection: check bytes 5-7 for 'A','U','X' (0x41,0x55,0x58) in 0x19 format,
+    // where chan/loc occupy bytes 3-4 and old-text starts at byte 5.
+    if (packet->id == UpdateList::PACKET_ID_SETTEXT)
+    {
+        bool isAux = false;
+        if (packet->data.uint8[0] == 0x10 && packet->data.uint8[1] == 0x19)
+        {
+            isAux = (packet->data.uint8[5] == 'A' &&
+                     packet->data.uint8[6] == 'U' &&
+                     packet->data.uint8[7] == 'X');
+        }
+        Serial.printf("[UL recv] radio SETTEXT, isAux=%d\n", isAux);
+        onRadioText(isAux);
+        return; // do NOT auto-reply — this frame was addressed to the display, not to us
+    }
+
     if (packet->id == UpdateList::PACKET_ID_KEYPRESSED)
     {
         if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] != 0x89))
@@ -203,4 +221,25 @@ void UpdateListBase::processEvents()
         _keyQueue.pop();
         ProcessKey(e.key, e.isHold);
     }
+}
+
+void UpdateListBase::ProcessKey(AffaCommon::AffaKey key, bool isHold)
+{
+    // Hold-Load toggles AMS key forwarding regardless of _amsKeysEnabled state.
+    if (isHold && key == AffaCommon::AffaKey::Load)
+    {
+        _amsKeysEnabled = !_amsKeysEnabled;
+        const char *msg = _amsKeysEnabled ? "AMS  ON " : "AMS OFF ";
+        Serial.printf("[UL] AMS keys %s\n", _amsKeysEnabled ? "enabled" : "disabled");
+        // Send 3x so the message stays visible past the next tickMedia scroll step.
+        for (int i = 0; i < 3; i++)
+        {
+            setText(msg);
+            delay(100);
+        }
+        return;
+    }
+
+    if (_amsKeysEnabled && keyHandler)
+        keyHandler(key, isHold);
 }
