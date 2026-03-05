@@ -172,16 +172,23 @@ uint8_t Menu::getScrollIndicator()
 
 void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
 {
+    Serial.printf("[Menu::handleKey] key=0x%04X isHold=%d active=%s\n",
+                  static_cast<uint16_t>(key), isHold, active ? "YES" : "NO");
     if (!active)
     {
         if (isHold && key == AffaCommon::AffaKey::Load)
         {
+            Serial.println("[Menu::handleKey] -> hold+Load: activating menu");
             active = true;
-            show(); // refresh display
+            show();
+        } else {
+            Serial.println("[Menu::handleKey] -> menu not active, key ignored by menu");
         }
-        return; // not active, do nothing //maybe add another menus later?(by catching new keys)
+        return;
     }
 
+    Serial.printf("[Menu::handleKey] menu active, handling key editing=%s selectedIndex=%d\n",
+                  editing ? "YES" : "NO", selectedIndex);
     switch (key)
     {
 

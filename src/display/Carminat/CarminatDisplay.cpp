@@ -652,14 +652,26 @@ void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
 
 void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 {
+    Serial.printf("[CarminatDisplay::ProcessKey] key=0x%04X isHold=%d currentPage=%s menuActive=%s keyHandler=%s\n",
+                  static_cast<uint16_t>(key), isHold,
+                  _currentPage ? "YES" : "NO",
+                  mainMenu.isActive() ? "YES" : "NO",
+                  keyHandler ? "SET" : "NULL");
+
     if (_currentPage) {
+        Serial.println("[CarminatDisplay::ProcessKey] -> delegating to currentPage");
         _currentPage->handleKey(key, isHold);
         return;
     }
+    Serial.println("[CarminatDisplay::ProcessKey] -> calling mainMenu.handleKey");
     mainMenu.handleKey(key, isHold);
 
-    if (!mainMenu.isActive() && keyHandler)
+    if (!mainMenu.isActive() && keyHandler) {
+        Serial.println("[CarminatDisplay::ProcessKey] -> menu not active, calling keyHandler");
         keyHandler(key, isHold);
+    } else if (!mainMenu.isActive() && !keyHandler) {
+        Serial.println("[CarminatDisplay::ProcessKey] -> menu not active AND keyHandler is NULL, key dropped!");
+    }
 }
 
 void CarminatDisplay::setAuxMode(bool on)

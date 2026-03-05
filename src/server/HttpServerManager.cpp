@@ -123,6 +123,12 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="submit" value="Save" />
     </form>
 
+  <h2>Display Power</h2>
+  <button onclick="fetch('/display/state',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'enable=1'})">Display ON</button>
+  <button onclick="fetch('/display/state',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'enable=0'})">Display OFF</button>
+
+  <hr>
+
   <h2>Show Static Text</h2>
   <form action="/static" method="GET">
     <label>Text (max 8 chars):</label>
@@ -295,22 +301,32 @@ window.addEventListener('DOMContentLoaded', loadConfig);
       <button type="submit">Set AUX mode</button>
     </form>
   </div><br>
+  <div id="keyResult" style="font-family:monospace;font-size:12px;color:#555;margin-bottom:6px"></div>
   <div>
     <button onclick="sendKey(0x0000,0)">Load</button>
     <button onclick="sendKey(0x0000,1)">Load (Hold)</button><br><br>
     <button onclick="sendKey(0x0101,0)">Roll Up</button>
-    <button onclick="sendKey(0x0141,0)">Roll Down</button><br><br>
+    <button onclick="sendKey(0x0101,1)">Roll Up (Hold)</button>
+    <button onclick="sendKey(0x0141,0)">Roll Down</button>
+    <button onclick="sendKey(0x0141,1)">Roll Down (Hold)</button><br><br>
     <button onclick="sendKey(0x0005,0)">Pause</button>
+    <button onclick="sendKey(0x0005,1)">Pause (Hold)</button><br><br>
     <button onclick="sendKey(0x0001,0)">Src&gt;</button>
-    <button onclick="sendKey(0x0002,0)">Src&lt;</button><br><br>
+    <button onclick="sendKey(0x0001,1)">Src&gt; (Hold)</button>
+    <button onclick="sendKey(0x0002,0)">Src&lt;</button>
+    <button onclick="sendKey(0x0002,1)">Src&lt; (Hold)</button><br><br>
     <button onclick="sendKey(0x0003,0)">Vol+</button>
+    <button onclick="sendKey(0x0003,1)">Vol+ (Hold)</button>
     <button onclick="sendKey(0x0004,0)">Vol-</button>
+    <button onclick="sendKey(0x0004,1)">Vol- (Hold)</button>
   </div>
   <script>
   async function sendKey(key, hold) {
     const body = new URLSearchParams({key, hold: hold ? '1' : '0'});
     const r = await fetch('/emulate/key', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
-    console.log(await r.text());
+    const txt = await r.text();
+    document.getElementById('keyResult').textContent = txt;
+    console.log(txt);
   }
   </script>
 
@@ -325,7 +341,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
 void HttpServerManager::begin()
 {
-    _server.config.max_uri_handlers = 32;
+    _server.config.max_uri_handlers = 48;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);
@@ -713,51 +729,18 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return request->reply(200, "text/html", page);
     });
 
-    _server.on("/emulate", HTTP_GET, [](PsychicRequest *request) {
-        const char *page = R"rawliteral(
-        <!DOCTYPE html>
-        <html><head><title>Affa3 Display Button Test</title></head><body>
-        <h2>Emulate Buttons</h2>
-        <form onsubmit="return false">
-        <button onclick="sendKey(0x0000, 0)">Load</button>
-        <button onclick="sendKey(0x0000, 1)">Load (Hold)</button><br>
-        <button onclick="sendKey(0x0001, 0)">SrcRight</button>
-        <button onclick="sendKey(0x0001, 1)">SrcRight (Hold)</button><br>
-        <button onclick="sendKey(0x0002, 0)">SrcLeft</button>
-        <button onclick="sendKey(0x0002, 1)">SrcLeft (Hold)</button><br>
-        <button onclick="sendKey(0x0003, 0)">Vol+</button>
-        <button onclick="sendKey(0x0003, 1)">Vol+ (Hold)</button><br>
-        <button onclick="sendKey(0x0004, 0)">Vol-</button>
-        <button onclick="sendKey(0x0004, 1)">Vol- (Hold)</button><br>
-        <button onclick="sendKey(0x0005, 0)">Pause</button>
-        <button onclick="sendKey(0x0005, 1)">Pause (Hold)</button><br>
-        <button onclick="sendKey(0x0101, 0)">RollUp</button>
-        <button onclick="sendKey(0x0101, 1)">RollUp (Hold)</button><br>
-        <button onclick="sendKey(0x0141, 0)">RollDown</button>
-        <button onclick="sendKey(0x0141, 1)">RollDown (Hold)</button><br>
-        </form>
-        <script>
-        async function sendKey(key, hold) {
-            const formData = new URLSearchParams();
-            formData.append("key", key);
-            formData.append("hold", hold ? "1" : "0");
-            const res = await fetch("/emulate/key", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: formData
-            });
-            const txt = await res.text();
-            console.log("Response:", txt);
-        }
-        </script>
-        </body></html>
-        )rawliteral";
-        return request->reply(200, "text/html", page);
-    });
 
     _server.on("/setaux", HTTP_POST, [this](PsychicRequest *request) {
         _display.setAuxMode(true);
         return request->reply(200, "text/plain", "AUX mode activated");
+    });
+
+    _server.on("/display/state", HTTP_POST, [this](PsychicRequest *request) {
+        bool enable = request->hasParam("enable") &&
+                      request->getParam("enable")->value() == "1";
+        Serial.printf("[HTTP /display/state] enable=%d\n", enable);
+        _display.setState(enable);
+        return request->reply(200, "text/plain", enable ? "Display ON" : "Display OFF");
     });
 
     _server.on("/restart", HTTP_POST, [](PsychicRequest *request) {
@@ -785,8 +768,10 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         uint16_t keyCode = request->getParam("key")->value().toInt();
         bool isHold = request->getParam("hold")->value() == "1";
         AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(keyCode);
+        Serial.printf("[HTTP /emulate/key] keyCode=0x%04X isHold=%d -> calling OnKeyPressed\n", keyCode, isHold);
         _commands.OnKeyPressed(key, isHold);
         String msg = String("Emulated key 0x") + String(keyCode, HEX) + (isHold ? " (Hold)" : " (Press)");
+        Serial.printf("[HTTP /emulate/key] done, reply: %s\n", msg.c_str());
         return request->reply(200, "text/plain", msg.c_str());
     });
 }
