@@ -2,6 +2,7 @@
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 #include "AffaCommonConstants.h" /* Constants related to Affa3 */
 #include <utils/CanUtils.h>
+#include <Arduino.h>
 
 class IDisplay {
 public:
@@ -12,11 +13,20 @@ public:
     virtual AffaCommon::AffaError setText(const char* text, uint8_t digit =255 /* 0-9, or anything else for none */) =0; 
     virtual AffaCommon::AffaError setState(bool enabled) = 0; 
     virtual AffaCommon::AffaError setTime(const char *clock) = 0;   
+    virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) =0;
 
     virtual AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator=0x0B)=0;
-    virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
     
-    virtual bool isAffa3Nav() const { return false; }
+    virtual bool isCarminat() const { return false; }
+
+    // Called when CAN detects AUX source (or from web UI for testing).
+    // Enables AMS media screen. Default no-op for display types without AUX tracking.
+    virtual void setAuxMode(bool on) { (void)on; }
+
+    // Called when BT disconnects so the display can freeze its content.
+    virtual void onBtDisconnected() {}
+protected:
+    virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 
 };
 

@@ -1,17 +1,49 @@
 #pragma once
 
 #include "IDisplay.h"
-#include "AffaCommonConstants.h"
+#include "AffaCommonConstants.h" 
+#include <Arduino.h>   
+
+
+// forward-declare, щоб не тягнути весь apple_media_service.h сюди
+namespace AppleMediaService {
+    struct MediaInformation;
+}
 
 class AffaDisplayBase : public IDisplay
 {
-protected:
+public:
     using SyncStatus = AffaCommon::SyncStatus;
     using FuncStatus = AffaCommon::FuncStatus;
     using AffaError  = AffaCommon::AffaError;
+   // using KeyHandler = std::function<bool(AffaCommon::AffaKey, bool)>;
+     using KeyHandler = bool (*)(AffaCommon::AffaKey, bool);
+    //void setMediaInfo();
+void setKeyHandler(KeyHandler handler)
+{
+    Serial.print("[AffaDisplayBase] setKeyHandler = ");
+    Serial.println(((uint32_t)keyHandler), HEX);
+    keyHandler = handler;
+}
+    // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS
+    virtual void setMediaInfo(const AppleMediaService::MediaInformation& info) {
+        (void)info;
+    }
+    virtual void tickMedia() {}
+
+    // Called by main loop when a new ELM value arrives (key = PID shortName, e.g. "PR071")
+    virtual void onElmUpdate(const char* key, float value) { (void)key; (void)value; }
+    virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) =0;
+
+    // When true, skip function registration (FUNCSREG) handshake.
+    // Set this when connected to a real radio — the radio handles auth itself.
+    void setSkipFuncReg(bool skip) { _skipFuncReg = skip; }
+
+protected:
     static constexpr int SYNC_TIMEOUT = 5;
-    
+    KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
+    bool _skipFuncReg = false;
     struct Affa3Func {
         uint16_t id;
         FuncStatus stat;

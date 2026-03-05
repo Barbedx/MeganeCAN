@@ -172,16 +172,23 @@ uint8_t Menu::getScrollIndicator()
 
 void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
 {
+    Serial.printf("[Menu::handleKey] key=0x%04X isHold=%d active=%s\n",
+                  static_cast<uint16_t>(key), isHold, active ? "YES" : "NO");
     if (!active)
     {
         if (isHold && key == AffaCommon::AffaKey::Load)
         {
+            Serial.println("[Menu::handleKey] -> hold+Load: activating menu");
             active = true;
-            show(); // refresh display
+            show();
+        } else {
+            Serial.println("[Menu::handleKey] -> menu not active, key ignored by menu");
         }
-        return; // not active, do nothing //maybew add another menus later?(by catching new keys)
+        return;
     }
 
+    Serial.printf("[Menu::handleKey] menu active, handling key editing=%s selectedIndex=%d\n",
+                  editing ? "YES" : "NO", selectedIndex);
     switch (key)
     {
 
@@ -225,7 +232,12 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
                 return;            // refresh display
             }
             else
-                enterEditMode();
+            {
+                if (items[selectedIndex].onActivate)
+                    items[selectedIndex].onActivate();
+                else
+                    enterEditMode();
+            }
         }
         break;
     default:
@@ -234,35 +246,13 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
     return;
 }
 
-void Menu::handleMessage(const CAN_FRAME &frame) 
-{ // Ensure frame is from the expected CAN ID and length is valid
-    if (frame.id != 0x151 || frame.length < 8 /**or just it? */)
-        return;
-
-    uint8_t firstByte = frame.data.uint8[0];
-    if (firstByte != 0x5A)
-        return; /*MENU*/
-
-    active = true;
-
-    if (firstByte == 0x10)
-    { /*Text*/
-        active = false;
-    }
-    //     // Save header values from 0x10 frame
-    //     memcpy(header, frame.data.uint8, 8);
-    //     lastHeaderTime = millis();
-    //   } else if (firstByte == 0x21) {
-    //     // Check if a recent header was received
-    //     if (millis() - lastHeaderTime < 200) {
-    //       bool nowAux = isAux(header, frame.data.uint8);
-    //       if (nowAux != auxActive) {
-    //         auxActive = nowAux;
-    //         Serial.print("AUX mode changed: ");
-    //         Serial.println(auxActive ? "ENTERED" : "EXITED");
-    //       }
-    //     }
-    //   }
+void Menu::handleMessage(const CAN_FRAME &frame)
+{
+    // Menu active state is driven by key press only (hold Load).
+    // Do not auto-set active from CAN frames — the radio sends 0x5A frames
+    // for its own menu state which would falsely mark our menu as open and
+    // cause the next hold-Load to close instead of open.
+    (void)frame;
 }
 
 void Menu::editFieldValue(int delta, bool isHold)

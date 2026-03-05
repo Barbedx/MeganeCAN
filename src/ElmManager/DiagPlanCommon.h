@@ -2,16 +2,25 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <Arduino.h>
 #include <functional>
 
 // ---- metric + plan types ----
 struct MetricDef {
   const char* name;
-  const char* shortName;
-  const char* units;     // "" if boolean / raw
+  const char* shortName;  // original code, e.g. "PR001" — used as cache key & JSON key
+  const char* units;      // "" if boolean / raw
   float minVal;
   float maxVal;
   std::function<float(const std::vector<uint8_t>&)> eval; // expects DATA BYTES ONLY
+  const char* label;      // short display label, e.g. "IN"; falls back to shortName if empty
+
+  MetricDef(const char* name_, const char* shortName_, const char* units_,
+            float minVal_, float maxVal_,
+            std::function<float(const std::vector<uint8_t>&)> eval_,
+            const char* label_ = "")
+    : name(name_), shortName(shortName_), units(units_),
+      minVal(minVal_), maxVal(maxVal_), eval(std::move(eval_)), label(label_) {}
 };
 
 struct PidPlan {

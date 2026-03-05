@@ -78,6 +78,7 @@ struct MenuItem {
     String label;                 // Name (e.g. "Brightness")
     std::vector<Field> fields;    // Editable subfields
     std::function<void(const MenuItem&)> onChange; // fires if any field changes
+    std::function<void()> onActivate; // if set, called on short-Load instead of enterEditMode
 
     bool editable = true;         // false → read-only
     String fieldSeparator = " "; // Separator between fields
