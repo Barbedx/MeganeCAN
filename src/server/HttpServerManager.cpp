@@ -170,7 +170,46 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="hidden" name="elm_enabled" value="0" />
     <input type="submit" value="Save &amp; Restart" />
     </form>
-    <p>Live data: <a href="/api/live">/api/live</a> (JSON, only when ELM connected)</p>
+    <h3>Live OBD Data</h3>
+    <div style="margin-bottom:6px">
+      <button onclick="refreshLive()">Refresh</button>
+      <label style="margin-left:12px"><input type="checkbox" id="autoRefresh" checked onchange="toggleAuto(this.checked)"> Auto-refresh (2s)</label>
+    </div>
+    <table id="liveTable" style="border-collapse:collapse;font-family:monospace;font-size:13px">
+      <thead><tr style="background:#ddd">
+        <th style="padding:4px 8px;text-align:left">Description</th>
+        <th style="padding:4px 8px">Code</th>
+        <th style="padding:4px 8px">Label</th>
+        <th style="padding:4px 8px;text-align:right">Value</th>
+      </tr></thead>
+      <tbody id="liveBody"><tr><td colspan="4" style="padding:4px 8px">Loading...</td></tr></tbody>
+    </table>
+    <script>
+    let _liveTimer = null;
+    async function refreshLive() {
+      const res = await fetch('/api/live/full');
+      const tbody = document.getElementById('liveBody');
+      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 8px;color:red">ELM not connected</td></tr>'; return; }
+      const data = await res.json();
+      let html = '';
+      for (const m of data) {
+        const val = m.hasValue ? (parseFloat(m.value).toFixed(2) + (m.unit ? '\xA0' + m.unit : '')) : '\u2014';
+        const clr = m.hasValue ? '' : 'color:#aaa';
+        html += '<tr style="' + clr + '">'
+          + '<td style="padding:2px 8px">' + m.name + '</td>'
+          + '<td style="padding:2px 8px;text-align:center">' + m.shortName + '</td>'
+          + '<td style="padding:2px 8px;text-align:center">' + m.label + '</td>'
+          + '<td style="padding:2px 8px;text-align:right">' + val + '</td>'
+          + '</tr>';
+      }
+      tbody.innerHTML = html || '<tr><td colspan="4" style="padding:4px 8px">No metrics</td></tr>';
+    }
+    function toggleAuto(on) {
+      if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+      if (on) _liveTimer = setInterval(refreshLive, 2000);
+    }
+    window.addEventListener('DOMContentLoaded', () => { refreshLive(); _liveTimer = setInterval(refreshLive, 2000); });
+    </script>
 
   <hr>
 
@@ -478,6 +517,11 @@ void HttpServerManager::setupRoutes()
     _server.on("/api/live", HTTP_GET, [this](PsychicRequest *request) {
         if (!elm) return request->reply(503, "application/json", "{\"error\":\"elm not ready\"}");
         return request->reply(200, "application/json", elm->snapshotJson().c_str());
+    });
+
+    _server.on("/api/live/full", HTTP_GET, [this](PsychicRequest *request) {
+        if (!elm) return request->reply(503, "application/json", "[]");
+        return request->reply(200, "application/json", elm->fullSnapshotJson().c_str());
     });
 
     _server.on("/api/elm/headers", HTTP_GET, [this](PsychicRequest *request) {

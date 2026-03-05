@@ -264,6 +264,41 @@ void MyELMManager::cancelScan() {
     _scanMode    = false;
 }
 
+static String escJson(const char* s) {
+    if (!s) return String("");
+    String r;
+    for (const char* p = s; *p; ++p) {
+        if (*p == '"')  r += "\\\"";
+        else if (*p == '\\') r += "\\\\";
+        else r += *p;
+    }
+    return r;
+}
+
+String MyELMManager::fullSnapshotJson() const {
+    String out = "[";
+    bool first = true;
+    for (const auto& node : plan) {
+        for (const auto& m : node.metrics) {
+            if (!first) out += ",";
+            first = false;
+            auto it = valueCache.find(String(m.shortName));
+            bool has = (it != valueCache.end());
+            float val = has ? it->second : 0.0f;
+            const char* lbl = (m.label && m.label[0]) ? m.label : m.shortName;
+            out += "{\"name\":\"";      out += escJson(m.name);                    out += "\"";
+            out += ",\"shortName\":\""; out += escJson(m.shortName);               out += "\"";
+            out += ",\"label\":\"";     out += escJson(lbl);                       out += "\"";
+            out += ",\"unit\":\"";      out += escJson(m.units ? m.units : "");    out += "\"";
+            out += ",\"value\":";       out += has ? String(val, 3) : "null";
+            out += ",\"hasValue\":";    out += has ? "true" : "false";
+            out += "}";
+        }
+    }
+    out += "]";
+    return out;
+}
+
 String MyELMManager::planJson() const {
     // Build {"7E0":["21A0","21C1"],"743":[...],...}
     std::map<String, std::vector<String>> byHeader;

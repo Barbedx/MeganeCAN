@@ -75,6 +75,7 @@ public:
 
     // Plan introspection for web UI
     String planJson() const; // {"7E0":["21A0",...],...}
+    String fullSnapshotJson() const; // [{name,shortName,label,unit,value,hasValue},...]
 
     // Header enable/disable control
     void setHeaderEnabled(const char* header, bool enabled);
