@@ -240,8 +240,10 @@ void restoreDisplay(IDisplay &display, Preferences &prefs)
 
 void initDisplay()
 {
-    Preferences prefs;
-    prefs.begin("config", true);
+    Serial.println("[NVS] Opening 'config' namespace...");
+    Preferences prefs; 
+    bool nvsOk = prefs.begin("config", true);
+    Serial.printf("[NVS] prefs.begin('config') returned: %s\n", nvsOk ? "OK" : "FAILED - namespace missing, all values will be defaults!");
     String displayType = prefs.getString("display_type", "carminat");
     btMode      = prefs.getString("bt_mode",     "ams");
     _autoTime   = prefs.getBool("auto_time",     true);
@@ -253,6 +255,7 @@ void initDisplay()
     Serial.println("[Display Init] BT mode: " + btMode);
     Serial.println("[Display Init] Auto-time: " + String(_autoTime ? "on" : "off"));
     Serial.println("[Display Init] ELM enabled: " + String(_elmEnabled ? "yes" : "no"));
+    Serial.printf("[Display Init] skip_funcreg raw value from NVS: %s\n", skipFuncReg ? "TRUE" : "FALSE (defaulted)");
 
     if (displayType == "carminat")
     {
@@ -366,8 +369,8 @@ void onDataUpdateCallback(const AppleMediaService::MediaInformation &info)
 void setup()
 {
     delay(2000);
-    initDisplay();
     initSerial();
+    initDisplay();
 
     display->setKeyHandler(HandleKey);  // always set — HandleKey is mode-aware
 
@@ -478,7 +481,7 @@ void loop()
     if (now - last_sync > SYNC_INTERVAL_MS)
     {
         last_sync = now;
-
+        display->tick();
     }
     // 1) Start connecting ONCE (only when ELM is enabled via Web UI)
     if (!wifiBeginIssued)

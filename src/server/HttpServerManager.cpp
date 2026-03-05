@@ -78,7 +78,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 </script>
 </head>
 <body>
-    <h1>Display Control v0.4</h1>
+    <h1>Display Control v0.6</h1>
 
   <h2>Display Type</h2>
     <form action="/setDisplay" method="POST">
@@ -131,8 +131,9 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
   <h2>Show Static Text</h2>
   <form action="/static" method="GET">
-    <label>Text (max 8 chars):</label>
-    <input type="text" name="text" maxlength="8" id="staticTextInput" required />
+    <label>Text:</label>
+    <input type="text" name="text" id="staticTextInput" required oninput="document.getElementById('textWarn').style.display=this.value.length>8?'inline':'none'" />
+    <span id="textWarn" style="display:none;color:orange;font-size:12px"> ⚠ &gt;8 chars, may be truncated on segment displays</span>
     <label><input type="checkbox" name="save" /> Save</label><br><br>
     <input type="submit" value="Show Static Text" />
   </form>

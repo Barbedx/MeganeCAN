@@ -64,8 +64,13 @@ void UpdateListBase::recv(CAN_FRAME *packet)
 
     if (packet->id == UpdateList::PACKET_ID_SYNC_REPLY)
     {
+        Serial.printf("[UL recv] sync 0x%02X 0x%02X | _skipFuncReg=%s sync_status=0x%02X\n",
+                      packet->data.uint8[0], packet->data.uint8[1],
+                      _skipFuncReg ? "TRUE" : "FALSE",
+                      (uint8_t)_sync_status);
         if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
         {
+            Serial.println("[UL recv] -> sync request, sending registration");
             CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
             _sync_status &= ~SyncStatus::FAILED;
             if (packet->data.uint8[2] == 0x01)
@@ -73,11 +78,18 @@ void UpdateListBase::recv(CAN_FRAME *packet)
         }
         else if (packet->data.uint8[0] == 0x69)
         {
+            Serial.println("[UL recv] -> peer alive 0x69");
             _sync_status |= SyncStatus::PEER_ALIVE;
             tick();
         }
+        else
+        {
+            Serial.printf("[UL recv] -> unknown sync packet, ignoring\n");
+        }
         return;
     }
+
+    Serial.printf("[UL recv] non-sync ID=0x%03X data[0]=0x%02X\n", packet->id, packet->data.uint8[0]);
 
     if (packet->id & UpdateList::PACKET_REPLY_FLAG)
     {
@@ -108,23 +120,26 @@ void UpdateListBase::recv(CAN_FRAME *packet)
 
     if (packet->id == UpdateList::PACKET_ID_KEYPRESSED)
     {
-        if (!((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] == 0x89)))
-            return;
+        if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] != 0x89))
+            return; // malformed key packet — no reply (matches archive behavior)
 
-        uint8_t highByte = packet->data.uint8[2];
-        uint8_t lowByte  = packet->data.uint8[3];
-        uint16_t rawKey  = ((uint16_t)highByte << 8) | lowByte;
-
-        bool isHold = false;
-        uint16_t maskedKey = rawKey;
-        if (!(rawKey == 0x0101 || rawKey == 0x0141))
+        if ((packet->data.uint8[0] == 0x03) && (packet->data.uint8[1] == 0x89))
         {
-            isHold    = (lowByte & AffaCommon::KEY_HOLD_MASK) != 0;
-            maskedKey = rawKey & ~AffaCommon::KEY_HOLD_MASK;
-        }
+            // valid key — extract and queue, then fall through to auto-reply like archive
+            uint8_t highByte = packet->data.uint8[2];
+            uint8_t lowByte  = packet->data.uint8[3];
+            uint16_t rawKey  = ((uint16_t)highByte << 8) | lowByte;
 
-        _keyQueue.push({static_cast<AffaCommon::AffaKey>(maskedKey), isHold});
-        return; // key packet needs no CAN reply
+            bool isHold = false;
+            uint16_t maskedKey = rawKey;
+            if (!(rawKey == 0x0101 || rawKey == 0x0141))
+            {
+                isHold    = (lowByte & AffaCommon::KEY_HOLD_MASK) != 0;
+                maskedKey = rawKey & ~AffaCommon::KEY_HOLD_MASK;
+            }
+            _keyQueue.push({static_cast<AffaCommon::AffaKey>(maskedKey), isHold});
+        }
+        // non-key 0x0A9 frames (e.g. 0x70 registration) fall through to auto-reply below
     }
 
     struct CAN_FRAME reply;

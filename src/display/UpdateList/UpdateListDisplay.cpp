@@ -1,4 +1,5 @@
 #include "UpdateListDisplay.h"
+#include "utils/TextUtils.h"
 
 void UpdateListDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
 {
@@ -13,6 +14,7 @@ void UpdateListDisplay::setMediaInfo(const AppleMediaService::MediaInformation &
     else
         full = title;
 
+    full = normalizeTitle(full);
     full += "        "; // 8-space gap before the text loops back
 
     _scrollTitle = full;
