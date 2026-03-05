@@ -316,10 +316,16 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
 
   if (packet->id == Carminat::PACKET_ID_SYNC_REPLY)
   { /* Pakiety synchronizacyjne */
+    if (_skipFuncReg)
+    {
+      AFFA3_PRINT("[recv] skipFuncReg: ignoring sync packet 0x%02X 0x%02X\n",
+                  packet->data.uint8[0], packet->data.uint8[1]);
+      return;
+    }
     if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
     { /* Żądanie synchronizacji */
+      AFFA3_PRINT("[recv] sync request (0x61/0x11), sending registration\n");
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
-      // affa3_is_synced = false;
 
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
@@ -330,8 +336,14 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     }
     else if (packet->data.uint8[0] == 0x69)
     {
+      AFFA3_PRINT("[recv] peer alive (0x69)\n");
       _sync_status |= SyncStatus::PEER_ALIVE;
       tick();
+    }
+    else
+    {
+      AFFA3_PRINT("[recv] unknown sync packet 0x%02X 0x%02X\n",
+                  packet->data.uint8[0], packet->data.uint8[1]);
     }
     return;
   }
@@ -379,9 +391,7 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  bool answerNeeded = false; // TODO:move to settings
-
-  if (answerNeeded)
+  if (!_skipFuncReg)
   {
     struct CAN_FRAME reply;
     /* Wysyłamy odpowiedź */
