@@ -4,8 +4,7 @@
 
 #include "AuxModeTracker.h"
 #include "utils/TextUtils.h"
-#include "bluetooth.h"
-#include <NimBLEDevice.h>
+
 #include <vector>
 #include <Arduino.h>
 #include <queue>
@@ -13,7 +12,7 @@
 #include <time.h>
 
 // _autoTime is defined in main.cpp; flipped by the Auto-time menu item onChange
-extern bool _autoTime;
+//extern bool _autoTime;
 
 inline void AFFA3_PRINT(const char *fmt, ...)
 {
@@ -167,12 +166,13 @@ void CarminatDisplay::initializeMenu()
             MenuItem("Auto-time", Field(std::vector<String>{"Off", "On"}, autoTimeIdx)));
         atItem.onChange = [](const MenuItem &item)
         {
-            _autoTime = (item.fields[0].listIndex == 1);
-            Preferences p;
-            p.begin("config", false);
-            p.putBool("auto_time", _autoTime);
-            p.end();
-            Serial.printf("[Menu] Auto-time: %s\n", _autoTime ? "On" : "Off");
+          //TODO: add auto time here???? 
+           // _autoTime = (item.fields[0].listIndex == 1);
+          //  Preferences p;
+           // p.begin("config", false);
+           // p.putBool("auto_time", _autoTime);
+           // p.end();
+           // Serial.printf("[Menu] Auto-time: %s\n", _autoTime ? "On" : "Off");
         };
     }
 
@@ -611,18 +611,18 @@ void showConfirmBoxWithOffsets(
 
   Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
 }
-void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
+void CarminatDisplay::setMediaInfo(const TrackInfo info)
 {
   // визначаємо: новий трек чи той самий
-  bool titleChanged = (_mediaInfo.mTitle != info.mTitle);
-  bool artistChanged = (_mediaInfo.mArtist != info.mArtist);
-  bool playerChanged = (_mediaInfo.mPlayerName != info.mPlayerName);
+  bool titleChanged = (_mediaInfo.title != info.title);
+  bool artistChanged = (_mediaInfo.artist != info.artist);
+  bool playerChanged = (_mediaInfo.album != info.album);
 
   _mediaInfo = info;
 
   if (playerChanged)
   {
-    _mediaPlayerName = _mediaInfo.mPlayerName.c_str();
+    _mediaPlayerName = _mediaInfo.album.c_str();
     if (_mediaPlayerName.isEmpty())
     {
       _mediaPlayerName = "PLAYER";
@@ -633,17 +633,17 @@ void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
   {
     // побудувати повний рядок 2: "Artist - Title"
     _mediaLine2Full = "";
-    if (!_mediaInfo.mArtist.empty())
+    if (!_mediaInfo.artist.isEmpty())
     {
-      _mediaLine2Full += _mediaInfo.mArtist.c_str();
+      _mediaLine2Full += _mediaInfo.artist.c_str();
     }
-    if (!_mediaInfo.mArtist.empty() && !_mediaInfo.mTitle.empty())
+    if (!_mediaInfo.artist.isEmpty() && !_mediaInfo.title.isEmpty())
     {
       _mediaLine2Full += " - ";
     }
-    if (!_mediaInfo.mTitle.empty())
+    if (!_mediaInfo.title.isEmpty())
     {
-      _mediaLine2Full += _mediaInfo.mTitle.c_str();
+      _mediaLine2Full += _mediaInfo.title.c_str();
     }
 
     _scrollPos = 0; // reset scroll on track change
@@ -684,8 +684,8 @@ void CarminatDisplay::setAuxMode(bool on)
 String CarminatDisplay::buildProgressLine() const
 {
   // AMS дає секунди (float)
-  float posSec = _mediaInfo.mElapsedTime;
-  float durSec = _mediaInfo.mDuration;
+  float posSec = _mediaInfo.durationMs; //todo:duration????
+  float durSec = _mediaInfo.durationMs;
 
   if (durSec <= 0.0f)
   {
@@ -749,7 +749,7 @@ void CarminatDisplay::tickMedia()
   uint32_t now = millis();
 
   // When BT not connected: show what we're doing instead of an empty screen
-  if (!Bluetooth::IsConnected())
+/*  if (!Bluetooth::IsConnected()) //TODO pass client here 
   {
     if (now - _lastMediaRenderMs >= 1000)
     {
@@ -758,9 +758,10 @@ void CarminatDisplay::tickMedia()
     }
     return;
   }
-
+*/
   // Оновлюємо дані про медіа з AMS
-  AppleMediaService::MediaInformation current = AppleMediaService::GetMediaInformation();
+/*
+  TrackInfo current = AppleMediaService::GetMediaInformation();
   _mediaInfo = current;
   _mediaPlayerName = current.mPlayerName.c_str();
 
@@ -774,7 +775,7 @@ void CarminatDisplay::tickMedia()
      _mediaInfo.mElapsedTime = current.mElapsedTime + dtSec * current.mPlaybackRate;
    }
    }
-
+*/
   // Обмежимо частоту перерисовки, наприклад раз на 300ms
   if (!(now - _lastMediaRenderMs >= 300))
     return;
@@ -800,7 +801,9 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
     return;
 
   String status_icon;
-  switch (_mediaInfo.mPlaybackState)
+  
+    status_icon = ">";
+ /* switch (_mediaInfo.mPlaybackState)
   {
   case AppleMediaService::MediaInformation::PlaybackState::Playing:
   {
@@ -819,7 +822,7 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
     status_icon = "D";
     break;
   }
-  }
+  }*/
 
   // 1-й рядок: назва плеєра + час справа (26 символів максимум)
   String headerStr = status_icon + " " + (_mediaPlayerName.length() ? _mediaPlayerName : String("AUX PLAYER"));
@@ -858,12 +861,12 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
 String CarminatDisplay::buildScrollingTitle()
 {
 
-  String full = String(_mediaInfo.mArtist.c_str());
-  if (full.length() > 0 && _mediaInfo.mTitle.size() > 0)
+  String full = String(_mediaInfo.artist.c_str());
+  if (full.length() > 0 && _mediaInfo.title.length() > 0)
   {
     full += ": ";
   }
-  full += String(_mediaInfo.mTitle.c_str());
+  full += String(_mediaInfo.title.c_str());
   full = normalizeTitle(full);
   full += "  "; // trailing spaces AFTER trim/normalize so they aren't stripped
   const int MAX_VISIBLE = 20; // match progress bar row width

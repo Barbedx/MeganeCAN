@@ -3,12 +3,7 @@
 #include "IDisplay.h"
 #include "AffaCommonConstants.h" 
 #include <Arduino.h>   
-
-
-// forward-declare, щоб не тягнути весь apple_media_service.h сюди
-namespace AppleMediaService {
-    struct MediaInformation;
-}
+#include <bluetooth/TrackInfo.h>
 
 class AffaDisplayBase : public IDisplay
 {
@@ -26,8 +21,7 @@ void setKeyHandler(KeyHandler handler)
     keyHandler = handler;
 }
     // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS
-    virtual void setMediaInfo(const AppleMediaService::MediaInformation& info) {
-        (void)info;
+    virtual void setMediaInfo(const TrackInfo info) {
     }
     virtual void tickMedia() {}
 

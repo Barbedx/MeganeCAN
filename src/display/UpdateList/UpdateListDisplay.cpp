@@ -1,12 +1,13 @@
 #include "UpdateListDisplay.h"
 #include "utils/TextUtils.h"
 
-void UpdateListDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
+void UpdateListDisplay::setMediaInfo(const TrackInfo info)
 {
-    bool nowPlaying = (info.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing);
+    //TODO:check play state
+    bool nowPlaying = true;// (info.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing);
 
-    String title  = String(info.mTitle.c_str());
-    String artist = String(info.mArtist.c_str());
+    String title  = String(info.title.c_str());
+    String artist = String(info.artist.c_str());
 
     String full;
     if (artist.length() > 0)

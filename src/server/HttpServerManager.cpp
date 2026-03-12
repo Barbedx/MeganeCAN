@@ -1,8 +1,6 @@
 #include "HttpServerManager.h"
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
-#include "../bluetooth.h"
-#include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
                                                                               _display(display),
@@ -345,7 +343,7 @@ void HttpServerManager::begin()
     _server.config.max_uri_handlers = 48;
     _server.listen(80);
 
-    ElegantOTA.begin(&_server);
+    //ElegantOTA.begin(&_server);
     setupRoutes();
     Serial.println("HTTP Server: routes initialized.");
 }
@@ -522,12 +520,12 @@ void HttpServerManager::setupRoutes()
     });
 
     _server.on("/clearbonds", HTTP_POST, [](PsychicRequest *request) {
-        Bluetooth::ClearBonds();
+       // Bluetooth::ClearBonds();
         return request->reply(200, "text/plain", "BLE bonds cleared. Re-pair on iPhone.");
     });
 
     _server.on("/forgetdevice", HTTP_POST, [](PsychicRequest *request) {
-        Bluetooth::ForgetDevice();
+       // Bluetooth::ForgetDevice();
         return request->reply(200, "text/plain", "Saved device forgotten. Scanning fresh.");
     });
 
@@ -751,15 +749,15 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return ESP_OK;
     });
 
-    _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
-        return request->reply(200, "application/json", Bluetooth::GetStatusJson().c_str());
-    });
+    // _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
+    //     return request->reply(200, "application/json", Bluetooth::GetStatusJson().c_str());
+    // });
 
     _server.on("/bt/try", HTTP_POST, [](PsychicRequest *request) {
         if (!request->hasParam("idx"))
             return request->reply(400, "text/plain", "Missing idx");
         int idx = request->getParam("idx")->value().toInt();
-        Bluetooth::SelectByIndex(idx);
+      //  Bluetooth::SelectByIndex(idx);
         return request->reply(200, "text/plain", "Trying device");
     });
 

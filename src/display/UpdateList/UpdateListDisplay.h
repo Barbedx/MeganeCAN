@@ -1,7 +1,7 @@
 #pragma once
 #include "UpdateListBase.h"
-#include "../../apple_media_service.h"
 #include <Arduino.h>
+#include <bluetooth/TrackInfo.h>
 
 // Affa2 8-segment display.
 // Reuses all Affa2Base CAN logic; adds non-blocking track title scroll
@@ -11,7 +11,7 @@ class UpdateListDisplay : public UpdateListBase
 public:
     UpdateListDisplay() = default;
 
-    void setMediaInfo(const AppleMediaService::MediaInformation &info) override;
+    void setMediaInfo(const TrackInfo info) override;
     void tickMedia() override;
     void onBtDisconnected() override;
 

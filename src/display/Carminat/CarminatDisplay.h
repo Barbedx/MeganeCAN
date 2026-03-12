@@ -1,12 +1,12 @@
 #pragma once
 #include <vector>
 #include <map>
-#include <Arduino.h>
-#include "apple_media_service.h"
+#include <Arduino.h> 
 #include "CarminatConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
+#include <bluetooth/TrackInfo.h>
 
 class IPage;
 class DiagPage;
@@ -48,7 +48,7 @@ public:
  
     void recv(CAN_FRAME *frame) override;
     void processEvents();
-    void setMediaInfo(const AppleMediaService::MediaInformation& info) override;
+    void setMediaInfo(const TrackInfo info) override;
     void tick() override;
 
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
@@ -95,7 +95,7 @@ private:
     MyELMManager*                _elm         = nullptr;
     std::map<String, DiagPage*>  _diagPages;
 
-    AppleMediaService::MediaInformation _mediaInfo;
+    TrackInfo _mediaInfo;
     String _mediaLine2Full;      // повний "Artist - Title"
     String _mediaPlayerName ;      
     uint32_t _lastMediaRenderMs = 0;
