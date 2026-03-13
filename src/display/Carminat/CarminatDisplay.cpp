@@ -621,6 +621,13 @@ void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 void CarminatDisplay::setAuxMode(bool on)
 {
     tracker.SetAuxMode(on);
+    if (!on)
+    {
+      _lastRenderedHeader = "";
+      _lastRenderedRow2 = "";
+      _lastRenderedRow3 = "";
+      _lastRenderedScrollIndicator = 0xFF;
+    }
     Serial.printf("[AUX] setAuxMode(%s)\n", on ? "true" : "false");
 }
 String CarminatDisplay::buildProgressLine() const
@@ -790,8 +797,24 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
   // 3-й рядок: прогрес
   String line3 = buildProgressLine();
   const char *row3 = line3.c_str();
+  const uint8_t scrollLockIndicator = 0x00;
+
+  if (!forceRedraw &&
+      _lastRenderedHeader == headerStr &&
+      _lastRenderedRow2 == line2 &&
+      _lastRenderedRow3 == line3 &&
+      _lastRenderedScrollIndicator == scrollLockIndicator)
+  {
+    return;
+  }
+
+  _lastRenderedHeader = headerStr;
+  _lastRenderedRow2 = line2;
+  _lastRenderedRow3 = line3;
+  _lastRenderedScrollIndicator = scrollLockIndicator;
+
   // scrollLockIndicator = 0 -> без стрілок, бо це не меню
-  showMenu(header, row2, row3, /*scrollLockIndicator*/ 0x00);
+  showMenu(header, row2, row3, scrollLockIndicator);
   // --- 6. Текстове представлення в Serial (для тестів без дисплея) ---
   // Serial.println();
   // Serial.println("===== MEDIA SCREEN =====");

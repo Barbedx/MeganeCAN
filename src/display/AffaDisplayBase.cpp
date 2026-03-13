@@ -11,10 +11,10 @@ void AffaDisplayBase::tick()
     const uint32_t now = millis();
 
     tickSync(now);
-    //onTick(now);
-    //processEvents();
-    //tickMedia();
-    //tickTx();
+    onTick(now);
+    processEvents();
+    tickMedia();
+    tickTx();
 }
 
 void AffaDisplayBase::tickSync(uint32_t now)
@@ -30,9 +30,12 @@ void AffaDisplayBase::tickSync(uint32_t now)
 
     if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
     {
-        AFFA3_PRINT("[sync] handshake requested, sending sync request\n");
-        sendSyncRequestFrame();
-        _sync_status &= ~SyncStatus::START;
+        if (shouldProactivelyRequestSync())
+        {
+            AFFA3_PRINT("[sync] handshake requested, sending sync request\n");
+            sendSyncRequestFrame();
+            _sync_status &= ~SyncStatus::START;
+        }
         return;
     }
 
@@ -54,8 +57,10 @@ void AffaDisplayBase::noteSyncRequest(bool startRequested, uint32_t now)
 {
     _lastPeerAliveMs = now;
     _sync_status &= ~SyncStatus::FAILED;
-    if (startRequested)
+    if (startRequested && shouldProactivelyRequestSync())
         _sync_status |= SyncStatus::START;
+    else
+        _sync_status &= ~SyncStatus::START;
 }
 
 void AffaDisplayBase::markSyncLost()

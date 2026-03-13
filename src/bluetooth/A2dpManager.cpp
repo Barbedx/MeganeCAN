@@ -43,7 +43,7 @@ void A2dpManager::begin(const char* deviceName) {
     Serial.println(F("STARTING A2DP SINK"));
     Serial.println(F("------------------------------------------------------------"));
 
-    s_sink.set_auto_reconnect(true);
+    s_sink.set_auto_reconnect(false);
     s_sink.set_stream_reader(audioDataCallback, false);
     s_sink.set_on_connection_state_changed(connectionStateChanged);
     s_sink.set_on_audio_state_changed(audioStateChanged);

@@ -65,7 +65,7 @@ namespace DisplayBootstrap
     {
         Serial.println("[NVS] Opening 'config' namespace...");
         Preferences prefs;
-        bool nvsOk = prefs.begin("config", true);
+        bool nvsOk = prefs.begin("config", false);
         Serial.printf("[NVS] prefs.begin('config') returned: %s\n",
                       nvsOk ? "OK" : "FAILED - namespace missing, all values will be defaults!");
 

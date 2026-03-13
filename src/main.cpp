@@ -22,6 +22,7 @@ A2dpManager g_a2dp;
 SerialConsole g_console;
 static bool g_canReady = false;
 static uint32_t g_canReadyAt = 0;
+static bool g_softApActive = false;
 // ---- Static IP for V-LINK (STA) ----
 // IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
 // IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
@@ -63,6 +64,31 @@ static bool runStage(const char *name, std::function<bool()> fn)
     Serial.printf("[BOOT] END   %-28s | ok=%s | dt=%lu ms\n",
                   name, ok ? "true" : "false", millis() - t0);
     logStage((String("POST  ") + name).c_str());
+    return ok;
+}
+
+static bool ensureSoftApState(bool shouldBeActive)
+{
+    if (g_app.elmEnabled)
+        return true;
+
+    if (g_softApActive == shouldBeActive)
+        return true;
+
+    if (shouldBeActive)
+    {
+        Serial.println("[WiFi] Restoring SoftAP because BT is disconnected");
+        bool ok = WiFi.softAP(ssid, password);
+        Serial.printf("[WiFi] softAP result=%d ip=%s\n", ok, WiFi.softAPIP().toString().c_str());
+        if (ok)
+            g_softApActive = true;
+        return ok;
+    }
+
+    Serial.println("[WiFi] Disabling SoftAP because BT is connected");
+    bool ok = WiFi.softAPdisconnect(true);
+    if (ok)
+        g_softApActive = false;
     return ok;
 }
 
@@ -121,17 +147,21 @@ void setup() // debug
 
     runStage("WiFi.mode", []
              {
-    WiFi.mode(WIFI_AP_STA);
+    wifi_mode_t mode = g_app.elmEnabled ? WIFI_STA : WIFI_AP;
+    Serial.printf("[WiFi] Selecting mode: %s\n", mode == WIFI_STA ? "WIFI_STA" : "WIFI_AP");
+    WiFi.mode(mode);
     return true; });
 
     runStage("WiFi.setSleep", []
              {
-    WiFi.setSleep(true);
+    bool sleepEnabled = g_app.elmEnabled;
+    Serial.printf("[WiFi] Sleep: %s\n", sleepEnabled ? "on" : "off");
+    WiFi.setSleep(sleepEnabled);
     return true; });
 
     runStage("g_a2dp.begin", []
              {
-   //              g_a2dp.begin("MeganeCAN-A2DP");
+                g_a2dp.begin("MeganeCAN-A2DP");
                  return true; // replace with real return if available
              });
 
@@ -139,11 +169,12 @@ void setup() // debug
              {
     bool ok = WiFi.softAP(ssid, password);
     Serial.printf("[WiFi] softAP result=%d ip=%s\n", ok, WiFi.softAPIP().toString().c_str());
+    g_softApActive = ok;
     return ok; });
 
     runStage("serverManager->begin", []
              {
-   // g_app.serverManager->begin();
+   g_app.serverManager->begin();
     return true; });
 
     runStage("display->begin", []
@@ -181,8 +212,8 @@ void setupOld()
     // Set WiFi mode + sleep first — required before any radio use (BLE or AP).
     // On ESP32-C3 (single radio), BLE must start before softAP to avoid the AP
     // beacon traffic blocking NimBLE init. (BT branch confirmed: BLE before AP.)
-    WiFi.mode(WIFI_AP); //wifiapsta 
-    WiFi.setSleep(true); // required when BT and WiFi coexist on same radio
+    WiFi.mode(g_app.elmEnabled ? WIFI_STA : WIFI_AP);
+    WiFi.setSleep(g_app.elmEnabled);
 
     Serial.println();
     Serial.println(F("ESP32 BOARD INSPECTOR + A2DP SINK"));
@@ -218,6 +249,8 @@ void loop()
 {
     g_console.tick();
     CanUtils::tick();
+
+    ensureSoftApState(!g_a2dp.isConnected());
 
     if (g_app.display)
         g_app.display->tick();

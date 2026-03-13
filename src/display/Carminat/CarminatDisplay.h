@@ -125,6 +125,10 @@ private:
     uint32_t _lastMediaRenderMs = 0;
     uint32_t _lastScrollStepMs = 0;
     uint16_t _scrollPos = 0;
+    String _lastRenderedHeader;
+    String _lastRenderedRow2;
+    String _lastRenderedRow3;
+    uint8_t _lastRenderedScrollIndicator = 0xFF;
 
     static constexpr uint16_t MEDIA_SCROLL_INTERVAL_MS = 400; // швидкість скролу
     static constexpr uint8_t MEDIA_VISIBLE_CHARS = 18;        // видима довжина 2-го рядка (підженеш по факту)
