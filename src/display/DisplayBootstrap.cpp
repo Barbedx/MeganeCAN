@@ -105,7 +105,7 @@ namespace DisplayBootstrap
         g_app.display->setSkipFuncReg(skipFuncReg);
         Serial.println("[Display Init] Skip func-reg: " + String(skipFuncReg ? "yes" : "no"));
 
-        g_app.elmManager = new MyELMManager(*g_app.display);
+        g_app.elmManager = new MyELMManager();
         g_app.serverManager = new HttpServerManager(*g_app.display, g_app.preferences);
         g_app.serverManager->attachElm(g_app.elmManager);
         g_app.elmManager->loadHeaderConfig(g_app.preferences);

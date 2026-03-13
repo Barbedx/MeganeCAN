@@ -6,141 +6,201 @@ using FuncStatus = AffaCommon::FuncStatus;
 using SyncStatus = AffaCommon::SyncStatus;
 using AffaError = AffaCommon::AffaError;
  
-AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
-  {
-    Serial.println("affa3_do_send called");
-    struct CAN_FRAME packet;
-    uint8_t i, stat, num = 0, left = len;
-    int16_t timeout;
 
-    if (!_skipFuncReg && hasFlag(_sync_status, SyncStatus::FAILED))
-      return AffaError::NoSync;
 
-    while (left > 0)
+void AffaDisplayBase::affa3_finish_tx(AffaError result)
+{
+    if (_tx.currentFuncIdx < funcsMax)
+        funcs[_tx.currentFuncIdx].stat = FuncStatus::IDLE;
+
+    _tx.active = false;
+    _tx.waitingAck = false;
+    _tx.registrationPhase = false;
+    _tx.result = result;
+}
+
+
+bool AffaDisplayBase::affa3_start_tx(uint8_t targetFuncIdx, const uint8_t* data, uint8_t len)
+{
+    if (len > AFFA3_MAX_TX_DATA)
     {
-      i = 0;
-
-      packet.id = funcs[idx].id;
-      packet.length = AffaCommon::PACKET_LENGTH;
-
-      if (num > 0)
-      {
-        packet.data.uint8[i++] = 0x20 + num;
-      }
-
-      while ((i < AffaCommon::PACKET_LENGTH) && (left > 0))
-      {
-        packet.data.uint8[i++] = *data++;
-        left--;
-      }
-
-      for (; i < AffaCommon::PACKET_LENGTH; i++)
-      {
-        packet.data.uint8[i] = getPacketFiller();  //Affa3Nav::PACKET_FILLER;
-      }
-
-      AFFA3_PRINT("Sending packet #%d to ID 0x%03X: ", num, packet.id);
-      for (int j = 0; j < packet.length; j++)
-        AFFA3_PRINT("%02X ", packet.data.uint8[j]);
-      AFFA3_PRINT("\n");
-
-      funcs[idx].stat = FuncStatus::WAIT;
-
-      CanUtils::sendFrame(packet);
-
-      /* Czkekamy na odpowiedź */
-      timeout = 2000; /* 2sek */
-      uint16_t wait_counter = 0;
-      while ((funcs[idx].stat == FuncStatus::WAIT) && (--timeout > 0))
-      {
-        delay(1);
-
-        // Log every 500ms
-        if (wait_counter++ % 500 == 0)
-        {
-          AFFA3_PRINT("Waiting... %dms elapsed for packet #%d (ID: 0x%03X)\n", wait_counter, num, packet.id);
-        }
-      }
-
-      stat = funcs[idx].stat;
-      funcs[idx].stat = FuncStatus::IDLE;
-
-      if (!timeout)
-      { /* Nie dostaliśmy odpowiedzi */
-        AFFA3_PRINT("affa3_send(): timeout, num = %d\n", num);
-        return AffaError::Timeout;
-      }
-
-      if (stat == FuncStatus::DONE)
-      {
-        AFFA3_PRINT("affa3_send(): DONE received on packet #%d\n", num);
-        break;
-      }
-      else if (stat == FuncStatus::PARTIAL)
-      {
-        AFFA3_PRINT("affa3_send(): PARTIAL ack on packet #%d, remaining: %d bytes\n", num, left);
-        if (!left)
-        { /* Nie mamy więcej danych */
-          AFFA3_PRINT("affa3_send(): no more data\n");
-          return AffaError::SendFailed;
-        }
-        num++;
-      }
-      else if (stat == FuncStatus::ERROR)
-      {
-        AFFA3_PRINT("affa3_send(): ERROR received on packet #%d\n", num);
-        return AffaError::SendFailed;
-      }
+        AFFA3_PRINT("[tx] payload too large: %u\n", len);
+        return false;
     }
 
-    return AffaError::NoError;
-  }
+    memset(&_tx, 0, sizeof(_tx));
+
+    _tx.active = true;
+    _tx.waitingAck = false;
+    _tx.registrationPhase = (!_skipFuncReg && !hasFlag(_sync_status, SyncStatus::FUNCSREG));
+    _tx.currentFuncIdx = _tx.registrationPhase ? 0 : targetFuncIdx;
+    _tx.targetFuncIdx = targetFuncIdx;
+    _tx.seqNum = 0;
+    _tx.dataLen = len;
+    _tx.dataOffset = 0;
+    _tx.result = AffaError::NoError;
+
+    if (data && len > 0)
+        memcpy(_tx.data, data, len);
+
+    AFFA3_PRINT("[tx] started: target idx=%u, regPhase=%d, len=%u\n",
+                targetFuncIdx, _tx.registrationPhase ? 1 : 0, len);
+    return true;
+}
+
+bool AffaDisplayBase::affa3_queue_next_packet()
+{
+    if (!_tx.active)
+        return false;
+
+    CAN_FRAME packet{};
+    uint8_t i = 0;
+
+    packet.id = funcs[_tx.currentFuncIdx].id;
+    packet.length = AffaCommon::PACKET_LENGTH;
+
+    if (_tx.registrationPhase)
+    {
+        // registration packet = single byte 0x70
+        packet.data.uint8[i++] = 0x70;
+    }
+    else
+    {
+        if (_tx.seqNum > 0)
+            packet.data.uint8[i++] = 0x20 + _tx.seqNum;
+
+        while ((i < AffaCommon::PACKET_LENGTH) && (_tx.dataOffset < _tx.dataLen))
+            packet.data.uint8[i++] = _tx.data[_tx.dataOffset++];
+    }
+
+    for (; i < AffaCommon::PACKET_LENGTH; i++)
+        packet.data.uint8[i] = getPacketFiller();
+
+    funcs[_tx.currentFuncIdx].stat = FuncStatus::WAIT;
+
+    AFFA3_PRINT("[tx] queue packet func=0x%03X seq=%u reg=%d dataOffset=%u/%u\n",
+                packet.id,
+                _tx.seqNum,
+                _tx.registrationPhase ? 1 : 0,
+                _tx.dataOffset,
+                _tx.dataLen);
+
+    if (!CanUtils::enqueueFrame(packet))
+    {
+        AFFA3_PRINT("[tx] queue failed\n");
+        funcs[_tx.currentFuncIdx].stat = FuncStatus::IDLE;
+        affa3_finish_tx(AffaError::SendFailed);
+        return false;
+    }
+
+    _tx.waitingAck = true;
+    _tx.ackDeadlineMs = millis() + AFFA3_ACK_TIMEOUT_MS;
+    return true;
+}
+
+
+
+
+void AffaDisplayBase::tickTx()
+{
+    if (!_tx.active)
+        return;
+
+    if (!_tx.waitingAck)
+    {
+        affa3_queue_next_packet();
+        return;
+    }
+
+    FuncStatus stat = funcs[_tx.currentFuncIdx].stat;
+
+    if (stat == FuncStatus::WAIT)
+    {
+        if ((int32_t)(millis() - _tx.ackDeadlineMs) < 0)
+            return;
+
+        AFFA3_PRINT("[tx] timeout on func idx=%u seq=%u\n", _tx.currentFuncIdx, _tx.seqNum);
+        affa3_finish_tx(AffaError::Timeout);
+        return;
+    }
+
+    funcs[_tx.currentFuncIdx].stat = FuncStatus::IDLE;
+    _tx.waitingAck = false;
+
+    if (_tx.registrationPhase)
+    {
+        if (stat == FuncStatus::DONE)
+        {
+            AFFA3_PRINT("[tx] registration ok for func idx=%u\n", _tx.currentFuncIdx);
+
+            _tx.currentFuncIdx++;
+            if (_tx.currentFuncIdx >= funcsMax)
+            {
+                _sync_status |= SyncStatus::FUNCSREG;
+                _tx.registrationPhase = false;
+                _tx.currentFuncIdx = _tx.targetFuncIdx;
+                _tx.seqNum = 0;
+                _tx.dataOffset = 0;
+                AFFA3_PRINT("[tx] registration phase complete\n");
+            }
+            return;
+        }
+
+        AFFA3_PRINT("[tx] registration failed for func idx=%u stat=%d\n", _tx.currentFuncIdx, (int)stat);
+        affa3_finish_tx(AffaError::SendFailed);
+        return;
+    }
+
+    // normal payload phase
+    if (stat == FuncStatus::DONE)
+    {
+        AFFA3_PRINT("[tx] DONE seq=%u offset=%u/%u\n", _tx.seqNum, _tx.dataOffset, _tx.dataLen);
+        affa3_finish_tx(AffaError::NoError);
+        return;
+    }
+
+    if (stat == FuncStatus::PARTIAL)
+    {
+        AFFA3_PRINT("[tx] PARTIAL seq=%u offset=%u/%u\n", _tx.seqNum, _tx.dataOffset, _tx.dataLen);
+
+        if (_tx.dataOffset >= _tx.dataLen)
+        {
+            AFFA3_PRINT("[tx] PARTIAL but no data left\n");
+            affa3_finish_tx(AffaError::SendFailed);
+            return;
+        }
+
+        _tx.seqNum++;
+        return;
+    }
+
+    AFFA3_PRINT("[tx] ERROR seq=%u stat=%d\n", _tx.seqNum, (int)stat);
+    affa3_finish_tx(AffaError::SendFailed);
+}
 
 AffaError AffaDisplayBase::affa3_send(uint16_t id, uint8_t *data, uint8_t len)
-  {
+{
+    if (!_skipFuncReg && hasFlag(_sync_status, SyncStatus::FAILED))
+        return AffaError::NoSync;
+
+    if (_tx.active)
+    {
+        AFFA3_PRINT("[send] tx busy\n");
+        return AffaError::SendFailed; // replace with Busy if your enum has it
+    }
+
     uint8_t idx;
-    uint8_t regdata[1] = {0x70};
-    AffaError err;
-
-    // if ((_sync_status & AFFA3_SYNC_STAT_FUNCSREG) != AFFA3_SYNC_STAT_FUNCSREG)
-    if (_skipFuncReg)
-    {
-      AFFA3_PRINT("[send] skipFuncReg: skipping registration for 0x%03X, sending direct\n", id);
-    }
-    else if (!hasFlag(_sync_status, SyncStatus::FUNCSREG))
-    {
-      AFFA3_PRINT("[send] Registering supported functions...\n");
-
-      for (idx = 0; idx < funcsMax; idx++)
-      {
-        AFFA3_PRINT("[send] Registering func ID 0x%X\n", funcs[idx].id);
-
-        err = affa3_do_send(idx, regdata, sizeof(regdata));
-        if (err != AffaError::NoError)
-        {
-          //		AFFA3_PRINT("[send] Registration failed for func 0x%X, error %d\n", _funcs[idx].id, err);
-
-          return err;
-        }
-      }
-
-      _sync_status |= SyncStatus::FUNCSREG;
-      // AFFA3_PRINT("[send] All functions registered.\n");
-    }
-
     for (idx = 0; idx < funcsMax; idx++)
     {
-      if (funcs[idx].id == id)
-        break;
+        if (funcs[idx].id == id)
+            break;
     }
 
     if (idx >= funcsMax)
-    {
-      // AFFA3_PRINT("[send] Unknown function ID: 0x%X\n", id);
+        return AffaError::UnknownFunc;
 
-      return AffaError::UnknownFunc;
-    }
-    // AFFA3_PRINT("[send] Sending data to func 0x%X, length: %d\n", id, len);
+    if (!affa3_start_tx(idx, data, len))
+        return AffaError::SendFailed;
 
-    return affa3_do_send(idx, data, len);
-  }
+    return AffaError::NoError;
+}

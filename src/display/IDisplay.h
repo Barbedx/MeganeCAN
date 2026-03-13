@@ -18,7 +18,9 @@ public:
     virtual AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator=0x0B)=0;
     
     virtual bool isCarminat() const { return false; }
-
+    
+    // Called from main loop to advance any async TX state machine.
+    virtual void serviceTx() {}
     // Called when CAN detects AUX source (or from web UI for testing).
     // Enables AMS media screen. Default no-op for display types without AUX tracking.
     virtual void setAuxMode(bool on) { (void)on; }

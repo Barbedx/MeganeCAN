@@ -9,8 +9,7 @@
 #include <freertos/semphr.h>
 
 #include "ELMduino.h"
-#include "display/IDisplay.h"
-#include "commands/DisplayCommands.h"
+
 #include "PidPlan_7E0.h"
 #include "PidPlan_74D.h"
 #include "PidPlan_743.h"
@@ -58,7 +57,7 @@ struct ScanResult {
 class MyELMManager
 {
 public:
-    MyELMManager(IDisplay &display) : display(display)
+    MyELMManager() 
     {
         _scanDoneSem = xSemaphoreCreateBinary();
     }
@@ -135,8 +134,6 @@ private:
     // ---- hw ----
     WiFiClient wifiClient;
     ELM327     elm;
-    IDisplay  &display;
-
     IPAddress host = IPAddress(192, 168, 0, 10);
     uint16_t  port = 35000;
 
@@ -189,7 +186,7 @@ private:
     // ---- reconnect backoff ----
     uint32_t nextTcpAttemptMs = 0;
     uint32_t tcpBackoffMs     = 1000;
-    static constexpr uint32_t kBackoffMaxMs  = 30000;
+        static const uint32_t kBackoffMaxMs;
 
     bool elmReady = false;
 };

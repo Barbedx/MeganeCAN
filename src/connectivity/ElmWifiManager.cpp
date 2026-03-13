@@ -5,8 +5,8 @@
 
 #include "app/AppContext.h"
 
+const uint32_t MyELMManager::kBackoffMaxMs = 30000;
 extern AppContext g_app;
-
 namespace
 {
     IPAddress ELM_STA_IP(192, 168, 0, 151);

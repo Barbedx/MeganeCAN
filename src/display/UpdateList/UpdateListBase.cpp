@@ -15,8 +15,7 @@ void UpdateListBase::tick()
 {
     // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
     if (_skipFuncReg) return;
-
-    struct CAN_FRAME packet;
+ 
     static int8_t timeout = SYNC_TIMEOUT;
 
     CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x79, 0x00, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
@@ -160,7 +159,7 @@ void UpdateListBase::recv(CAN_FRAME *packet)
         // non-key 0x0A9 frames (e.g. 0x70 registration) fall through to auto-reply below
     }
 
-    struct CAN_FRAME reply;
+    CAN_FRAME reply{};
     reply.id = packet->id | UpdateList::PACKET_REPLY_FLAG;
     reply.length = AffaCommon::PACKET_LENGTH;
     i = 0;
