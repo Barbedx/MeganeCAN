@@ -1,52 +1,21 @@
 #include "UpdateListBase.h"
 #include <string.h>
+#include "utils/AffaDebug.h"
 
-inline void AFFA2_PRINT(const char *fmt, ...)
+void UpdateListBase::sendAliveFrame()
 {
-#ifdef DEBUG
-    va_list args;
-    va_start(args, fmt);
-    vprintf(fmt, args);
-    va_end(args);
-#endif
+    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x79, 0x00,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
 }
 
-void UpdateListBase::tick()
+void UpdateListBase::sendSyncRequestFrame()
 {
-    // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
-    if (_skipFuncReg) return;
-
-    struct CAN_FRAME packet;
-    static int8_t timeout = SYNC_TIMEOUT;
-
-    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x79, 0x00, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
-
-    if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
-    {
-        AFFA2_PRINT("[tick] Sync failed or requested, sending sync request\n");
-        CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
-        _sync_status &= ~SyncStatus::START;
-        delay(100);
-    }
-    else
-    {
-        if (hasFlag(_sync_status, SyncStatus::PEER_ALIVE))
-        {
-            timeout = SYNC_TIMEOUT;
-            _sync_status &= ~SyncStatus::PEER_ALIVE;
-        }
-        else
-        {
-            timeout--;
-            AFFA2_PRINT("[tick] Waiting for peer... timeout in %d\n", timeout);
-            if (timeout <= 0)
-            {
-                _sync_status = SyncStatus::FAILED;
-                _sync_status &= ~SyncStatus::FUNCSREG;
-                AFFA2_PRINT("ping timeout!\n");
-            }
-        }
-    }
+    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x7A, 0x01,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
 }
 
 AffaCommon::AffaError UpdateListBase::setState(bool enabled)
@@ -64,32 +33,28 @@ void UpdateListBase::recv(CAN_FRAME *packet)
 
     if (packet->id == UpdateList::PACKET_ID_SYNC_REPLY)
     {
-        Serial.printf("[UL recv] sync 0x%02X 0x%02X | _skipFuncReg=%s sync_status=0x%02X\n",
-                      packet->data.uint8[0], packet->data.uint8[1],
-                      _skipFuncReg ? "TRUE" : "FALSE",
-                      (uint8_t)_sync_status);
+        AFFA3_PRINT("[UL recv] sync 0x%02X 0x%02X | _skipFuncReg=%s sync_status=0x%02X\n",
+                    packet->data.uint8[0], packet->data.uint8[1],
+                    _skipFuncReg ? "TRUE" : "FALSE",
+                    (uint8_t)_sync_status);
         if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
         {
-            Serial.println("[UL recv] -> sync request, sending registration");
+            AFFA3_PRINT("[UL recv] -> sync request, sending registration\n");
             CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
-            _sync_status &= ~SyncStatus::FAILED;
-            if (packet->data.uint8[2] == 0x01)
-                _sync_status |= SyncStatus::START;
+            noteSyncRequest(packet->data.uint8[2] == 0x01, millis());
         }
         else if (packet->data.uint8[0] == 0x69)
         {
-            Serial.println("[UL recv] -> peer alive 0x69");
-            _sync_status |= SyncStatus::PEER_ALIVE;
-            tick();
+            markPeerAlive(millis());
         }
         else
         {
-            Serial.printf("[UL recv] -> unknown sync packet, ignoring\n");
+            AFFA3_PRINT("[UL recv] -> unknown sync packet, ignoring\n");
         }
         return;
     }
 
-    Serial.printf("[UL recv] non-sync ID=0x%03X data[0]=0x%02X\n", packet->id, packet->data.uint8[0]);
+    AFFA3_PRINT("[UL recv] non-sync ID=0x%03X data[0]=0x%02X\n", packet->id, packet->data.uint8[0]);
 
     if (packet->id & UpdateList::PACKET_REPLY_FLAG)
     {
@@ -131,7 +96,7 @@ void UpdateListBase::recv(CAN_FRAME *packet)
                      packet->data.uint8[6] == 'U' &&
                      packet->data.uint8[7] == 'X');
         }
-        Serial.printf("[UL recv] radio SETTEXT, isAux=%d\n", isAux);
+        AFFA3_PRINT("[UL recv] radio SETTEXT, isAux=%d\n", isAux);
         onRadioText(isAux);
         return; // do NOT auto-reply — this frame was addressed to the display, not to us
     }

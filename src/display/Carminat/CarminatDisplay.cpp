@@ -110,6 +110,23 @@ void CarminatDisplay::begin()
     // BT init is handled entirely in main.cpp; nothing to do here
 }
 
+void CarminatDisplay::sendAliveFrame()
+{
+  CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB9, 0x00,
+                    Carminat::PACKET_FILLER, Carminat::PACKET_FILLER,
+                    Carminat::PACKET_FILLER, Carminat::PACKET_FILLER,
+                    Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
+}
+
+void CarminatDisplay::sendSyncRequestFrame()
+{
+  CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA,
+                    Carminat::PACKET_FILLER, Carminat::PACKET_FILLER,
+                    Carminat::PACKET_FILLER, Carminat::PACKET_FILLER,
+                    Carminat::PACKET_FILLER, Carminat::PACKET_FILLER,
+                    Carminat::PACKET_FILLER);
+}
+
 void CarminatDisplay::initializeMenu()
 {
     // Live read-only items (updated via onElmUpdate)
@@ -206,49 +223,6 @@ void CarminatDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
     // Kept for base-class contract; logic moved to ProcessKey
 }
 
-void CarminatDisplay::tick()
-{
-  // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
-  if (_skipFuncReg) return;
-
-  struct CAN_FRAME packet;
-  static int8_t timeout = SYNC_TIMEOUT;
-
-  /* Wysyłamy pakiet informujący o tym że żyjemy */
-  CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB9, 0x00, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
-
-  if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
-  { /* Błąd synchronizacji */
-    /* Wysyłamy pakiet z żądaniem synchronizacji */
-    AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
-    CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
-    _sync_status &= ~SyncStatus::START;
-    delay(100);
-  }
-  else
-  {
-    if (hasFlag(_sync_status, SyncStatus::PEER_ALIVE))
-    {
-      //	AFFA3_PRINT("[tick] Peer is alive, resetting timeout\n");
-      timeout = SYNC_TIMEOUT;
-      _sync_status &= ~SyncStatus::PEER_ALIVE;
-    }
-    else
-    {
-      timeout--;
-      AFFA3_PRINT("[tick] Waiting for peer... timeout in %d\n", timeout);
-      if (timeout <= 0)
-      { /* Nic nie odpowiada, wymuszamy resynchronizację */
-        _sync_status = SyncStatus::FAILED;
-        /* Wszystkie funkcje tracą rejestracje */
-        _sync_status &= ~SyncStatus::FUNCSREG;
-
-        AFFA3_PRINT("ping timeout!\n");
-      }
-    }
-  }
-}
-
 #define VOLTAGE_PIN 33 // Use  GPIO32
 struct VoltageInfo
 {
@@ -317,30 +291,48 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
 
   if (packet->id == Carminat::PACKET_ID_SYNC_REPLY)
   { /* Pakiety synchronizacyjne */
-    Serial.printf("[recv] sync packet 0x%02X 0x%02X | _skipFuncReg=%s\n",
-                  packet->data.uint8[0], packet->data.uint8[1],
-                  _skipFuncReg ? "TRUE (will ignore)" : "FALSE (will process!)");
+    const bool isPeerAlive = (packet->data.uint8[0] == 0x69);
+    if (!isPeerAlive)
+    {
+      Serial.printf("[recv] sync packet 0x%02X 0x%02X | _skipFuncReg=%s\n",
+                    packet->data.uint8[0], packet->data.uint8[1],
+                    _skipFuncReg ? "TRUE (will ignore)" : "FALSE (will process!)");
+    }
     if (_skipFuncReg)
     {
       return;
     }
     if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
     { /* Żądanie synchronizacji */
-      AFFA3_PRINT("[recv] sync request (0x61/0x11), sending registration\n");
+      const uint32_t now = millis();
+      const bool startRequested = (packet->data.uint8[2] == 0x01);
+      noteSyncRequest(startRequested, now);
+
+      if (_lastSyncRegistrationMs != 0 &&
+          (now - _lastSyncRegistrationMs) < SYNC_REGISTRATION_DEBOUNCE_MS)
+      {
+        AFFA3_PRINT("[recv] sync request (0x61/0x11), registration already queued recently (%lu ms ago, q=%u)\n",
+                    (unsigned long)(now - _lastSyncRegistrationMs),
+                    (unsigned)CanUtils::queuedCount());
+        return;
+      }
+
+      _lastSyncRegistrationMs = now;
+      AFFA3_PRINT("[recv] sync request (0x61/0x11), sending registration (q=%u)\n",
+                  (unsigned)CanUtils::queuedCount());
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
 
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
-
-      _sync_status &= ~SyncStatus::FAILED;
-      if (packet->data.uint8[2] == 0x01)
-        _sync_status |= SyncStatus::START;
+      if (startRequested)
+      {
+        AFFA3_PRINT("[recv] start requested, queueing sync follow-up (0xBA)\n");
+        sendSyncRequestFrame();
+      }
     }
     else if (packet->data.uint8[0] == 0x69)
     {
-      AFFA3_PRINT("[recv] peer alive (0x69)\n");
-      _sync_status |= SyncStatus::PEER_ALIVE;
-      tick();
+      markPeerAlive(millis());
     }
     else
     {
@@ -349,6 +341,9 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     }
     return;
   }
+
+  if (packet->id == Carminat::PACKET_ID_SYNC)
+    return;
 
   if (packet->id & Carminat::PACKET_REPLY_FLAG)
   {

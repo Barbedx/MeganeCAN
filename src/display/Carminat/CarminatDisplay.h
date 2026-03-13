@@ -49,7 +49,6 @@ public:
     void recv(CAN_FRAME *frame) override;
     void processEvents();
     void setMediaInfo(const AppleMediaService::MediaInformation& info) override;
-    void tick() override;
 
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;
@@ -89,6 +88,8 @@ protected:
             {Carminat::PACKET_ID_SETTEXT, AffaCommon::FuncStatus::IDLE},
             {Carminat::PACKET_ID_NAV, AffaCommon::FuncStatus::IDLE}};
     }
+    void sendAliveFrame() override;
+    void sendSyncRequestFrame() override;
 
 private:
     IPage*                       _currentPage = nullptr;
@@ -101,9 +102,11 @@ private:
     uint32_t _lastMediaRenderMs = 0;
     uint32_t _lastScrollStepMs = 0;
     uint16_t _scrollPos = 0;
+    uint32_t _lastSyncRegistrationMs = 0;
 
     static constexpr uint16_t MEDIA_SCROLL_INTERVAL_MS = 400; // швидкість скролу
     static constexpr uint8_t MEDIA_VISIBLE_CHARS = 18;        // видима довжина 2-го рядка (підженеш по факту)
+    static constexpr uint32_t SYNC_REGISTRATION_DEBOUNCE_MS = 500;
 
     void renderMediaScreen(bool forceRedraw = false);
     String buildProgressLine() const;

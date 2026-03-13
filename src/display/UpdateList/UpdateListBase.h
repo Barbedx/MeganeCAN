@@ -8,7 +8,6 @@ class UpdateListBase : public AffaDisplayBase
 {
 public:
     UpdateListBase() { initializeFuncs(); }
-    void tick() override;
     void recv(CAN_FRAME *frame) override;
     void processEvents() override;
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
@@ -43,6 +42,8 @@ protected:
             {UpdateList::PACKET_ID_SETTEXT,      AffaCommon::FuncStatus::IDLE},
             {UpdateList::PACKET_ID_DISPLAY_CTRL, AffaCommon::FuncStatus::IDLE}};
     }
+    void sendAliveFrame() override;
+    void sendSyncRequestFrame() override;
 
     uint8_t getPacketFiller() const override
     {

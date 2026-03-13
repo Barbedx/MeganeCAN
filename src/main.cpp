@@ -14,6 +14,7 @@
 #include "display/UpdateList/UpdateListMenuDisplay.h"
 #include "display/UpdateList/UpdateListBase.h"
 #include "display/Carminat/CarminatDisplay.h"
+#include "utils/CanUtils.h"
 #include "bluetooth.h"
 #include "apple_media_service.h"
 #include "BleMediaKeyboard.h"
@@ -410,10 +411,12 @@ void setup()
 
     display->begin();
 
+    CanUtils::begin();
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);
     CAN0.watchFor();
+    CanUtils::setReady(true);
     Serial.println(" CAN...............INIT");
 
     Serial.println(" all............inited");
@@ -422,9 +425,6 @@ void setup()
     delay(2000);
     restoreDisplay(*display, preferences);
 }
-
-#define SYNC_INTERVAL_MS 1000
-static uint32_t last_sync = 0;
 
 // Helper to print human-readable WiFi status
 const char *wlStr(wl_status_t s)
@@ -453,6 +453,7 @@ void loop()
 {
     serialCommands.ReadSerial();
     ElegantOTA.loop();
+    CanUtils::tick();
 
     if (btMode == "ams")
     {
@@ -464,8 +465,6 @@ void loop()
         if (_prevBtConnected && !_curBtConnected)
             display->onBtDisconnected();
         _prevBtConnected = _curBtConnected;
-
-        display->tickMedia();
 
         // Auto-time: sync display clock once per BT connection via CTS
         if (_autoTime && Bluetooth::IsConnected() && Bluetooth::IsTimeSet() && !_timeSyncDone)
@@ -484,13 +483,7 @@ void loop()
             _timeSyncDone = false;  // reset so we sync again on next connect
     }
 
-    display->processEvents();
-    uint32_t now = millis();
-    if (now - last_sync > SYNC_INTERVAL_MS)
-    {
-        last_sync = now;
-        display->tick();
-    }
+    display->tick();
     // 1) Start connecting ONCE (only when ELM is enabled via Web UI)
     if (!wifiBeginIssued)
     {
