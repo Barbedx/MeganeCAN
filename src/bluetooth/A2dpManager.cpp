@@ -2,9 +2,33 @@
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
 #include <esp_heap_caps.h>
+#include <nvs.h>
 
 static BluetoothA2DPSink s_sink;
 static A2dpManager* s_instance = nullptr;
+
+namespace {
+class NullAudioSinkPrint : public Print {
+public:
+    size_t write(uint8_t) override { return 1; }
+    size_t write(const uint8_t *, size_t size) override { return size; }
+};
+
+NullAudioSinkPrint s_nullAudioSink;
+
+void ensureA2dpNamespace()
+{
+    nvs_handle handle;
+    const esp_err_t err = nvs_open("connected_bda", NVS_READWRITE, &handle);
+    if (err == ESP_OK) {
+        nvs_close(handle);
+        return;
+    }
+
+    Serial.printf("[A2DP] Failed to initialize connected_bda namespace: %s\n",
+                  esp_err_to_name(err));
+}
+} // namespace
 
 const char* A2dpManager::playStatusToString(esp_avrc_playback_stat_t status) {
     switch (status) {
@@ -56,6 +80,12 @@ void A2dpManager::begin(const char* deviceName) {
     Serial.println(F("STARTING A2DP SINK"));
     Serial.println(F("------------------------------------------------------------"));
 
+    ensureA2dpNamespace();
+
+    // We consume PCM via the stream callback only, so bind a dummy Print output
+    // to keep the library off the legacy I2S path and avoid spurious i2s_set_clk
+    // errors on connection.
+    s_sink.set_output(s_nullAudioSink);
     s_sink.set_auto_reconnect(true);
     s_sink.set_stream_reader(audioDataCallback, false);
     s_sink.set_on_connection_state_changed(connectionStateChanged);

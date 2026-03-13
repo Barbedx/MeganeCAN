@@ -840,6 +840,10 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return ESP_OK;
     });
 
+    _server.on("/favicon.ico", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(204);
+    });
+
     _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
         return request->reply(200, "application/json", btStatusJson().c_str());
     });

@@ -160,6 +160,13 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold)
 }
 void setup() // debug
 {
+    runStage("CPU freq", []
+             {
+    if (getCpuFrequencyMhz() != 240)
+        setCpuFrequencyMhz(240);
+    Serial.printf("[CPU] Frequency now %u MHz\n", getCpuFrequencyMhz());
+    return getCpuFrequencyMhz() == 240; });
+
     runStage("console.begin", []
              {
     g_console.begin();
