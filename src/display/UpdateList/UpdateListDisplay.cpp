@@ -3,8 +3,7 @@
 
 void UpdateListDisplay::setMediaInfo(const TrackInfo info)
 {
-    //TODO:check play state
-    bool nowPlaying = true;// (info.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing);
+    bool nowPlaying = info.isPlaying();
 
     String title  = String(info.title.c_str());
     String artist = String(info.artist.c_str());

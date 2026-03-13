@@ -18,6 +18,39 @@ extern AppContext g_app;
 
 namespace
 {
+    void ensureDefaultConfigNamespace(Preferences &prefs)
+    {
+        prefs.begin("config", false);
+
+        if (!prefs.isKey("display_type"))
+            prefs.putString("display_type", "carminat");
+        if (!prefs.isKey("bt_mode"))
+            prefs.putString("bt_mode", "ams");
+        if (!prefs.isKey("auto_time"))
+            prefs.putBool("auto_time", true);
+        if (!prefs.isKey("elm_enabled"))
+            prefs.putBool("elm_enabled", false);
+        if (!prefs.isKey("skip_funcreg"))
+            prefs.putBool("skip_funcreg", false);
+
+        prefs.end();
+    }
+
+    void ensureDefaultDisplayNamespace()
+    {
+        Preferences prefs;
+        prefs.begin("display", false);
+
+        if (!prefs.isKey("autoRestore"))
+            prefs.putBool("autoRestore", false);
+        if (!prefs.isKey("lastText"))
+            prefs.putString("lastText", "");
+        if (!prefs.isKey("welcomeText"))
+            prefs.putString("welcomeText", "");
+
+        prefs.end();
+    }
+
     void restoreDisplayImpl(IDisplay &display, Preferences &prefs)
     {
         prefs.begin("display", true);
@@ -68,6 +101,12 @@ namespace DisplayBootstrap
         bool nvsOk = prefs.begin("config", false);
         Serial.printf("[NVS] prefs.begin('config') returned: %s\n",
                       nvsOk ? "OK" : "FAILED - namespace missing, all values will be defaults!");
+        prefs.end();
+
+        ensureDefaultConfigNamespace(prefs);
+        ensureDefaultDisplayNamespace();
+
+        prefs.begin("config", true);
 
         String displayType = prefs.getString("display_type", "carminat");
         g_app.autoTime = prefs.getBool("auto_time", true);

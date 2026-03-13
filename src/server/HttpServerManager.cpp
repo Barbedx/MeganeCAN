@@ -1,6 +1,115 @@
 #include "HttpServerManager.h"
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
+#include "bluetooth/A2dpManager.h"
+
+extern A2dpManager g_a2dp;
+
+namespace
+{
+String jsonEscape(const String &value)
+{
+    String escaped;
+    escaped.reserve(value.length() + 8);
+
+    for (size_t i = 0; i < value.length(); ++i)
+    {
+        const char c = value[i];
+        switch (c)
+        {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped += c;
+            break;
+        }
+    }
+
+    return escaped;
+}
+
+String btStatusJson()
+{
+    const TrackInfo &track = g_a2dp.trackInfo();
+    const wifi_mode_t wifiMode = WiFi.getMode();
+    const bool apActive = (wifiMode == WIFI_AP || wifiMode == WIFI_AP_STA);
+
+    String json;
+    json.reserve(384);
+    json = "{";
+    json += "\"status\":\"" + String(g_a2dp.connectionStateName()) + "\",";
+    json += "\"connected\":" + String(g_a2dp.isConnected() ? "true" : "false") + ",";
+    json += "\"connectionActive\":" + String(g_a2dp.isConnectionActive() ? "true" : "false") + ",";
+    json += "\"playing\":" + String(g_a2dp.isPlaying() ? "true" : "false") + ",";
+    json += "\"audioState\":\"" + String(g_a2dp.audioStateName()) + "\",";
+    json += "\"playbackStatus\":\"" + String(g_a2dp.playbackStatusName()) + "\",";
+    json += "\"wifi\":{";
+    json += "\"mode\":" + String(static_cast<int>(wifiMode)) + ",";
+    json += "\"apActive\":" + String(apActive ? "true" : "false") + ",";
+    json += "\"apStations\":" + String(apActive ? WiFi.softAPgetStationNum() : 0) + ",";
+    json += "\"apIp\":\"" + jsonEscape(WiFi.softAPIP().toString()) + "\"";
+    json += "},";
+    json += "\"track\":{";
+    json += "\"title\":\"" + jsonEscape(track.title) + "\",";
+    json += "\"artist\":\"" + jsonEscape(track.artist) + "\",";
+    json += "\"album\":\"" + jsonEscape(track.album) + "\",";
+    json += "\"trackNumber\":" + String(track.trackNumber) + ",";
+    json += "\"totalTracks\":" + String(track.totalTracks) + ",";
+    json += "\"durationMs\":" + String(track.durationMs) + ",";
+    json += "\"positionMs\":" + String(track.positionMs) + ",";
+    json += "\"playbackState\":\"" + String(TrackInfo::playbackStateName(track.playbackState)) + "\"";
+    json += "}";
+    json += "}";
+
+    return json;
+}
+
+String configJson(Preferences &prefs)
+{
+    String json;
+    json.reserve(256);
+
+    prefs.begin("config", true);
+    const String displayType = prefs.getString("display_type", "carminat");
+    const String btMode = prefs.getString("bt_mode", "ams");
+    const bool autoTime = prefs.getBool("auto_time", true);
+    const bool skipFuncReg = prefs.getBool("skip_funcreg", false);
+    const bool elmEnabled = prefs.getBool("elm_enabled", false);
+    prefs.end();
+
+    prefs.begin("display", true);
+    const bool autoRestore = prefs.getBool("autoRestore", false);
+    const String lastText = prefs.getString("lastText", "");
+    const String welcomeText = prefs.getString("welcomeText", "");
+    prefs.end();
+
+    json = "{";
+    json += "\"displayType\":\"" + jsonEscape(displayType) + "\",";
+    json += "\"btMode\":\"" + jsonEscape(btMode) + "\",";
+    json += "\"autoTime\":" + String(autoTime ? "true" : "false") + ",";
+    json += "\"skipFuncReg\":" + String(skipFuncReg ? "true" : "false") + ",";
+    json += "\"elmEnabled\":" + String(elmEnabled ? "true" : "false") + ",";
+    json += "\"autoRestore\":" + String(autoRestore ? "true" : "false") + ",";
+    json += "\"lastText\":\"" + jsonEscape(lastText) + "\",";
+    json += "\"welcomeText\":\"" + jsonEscape(welcomeText) + "\"";
+    json += "}";
+
+    return json;
+}
+}
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
                                                                               _display(display),
@@ -16,57 +125,38 @@ const char *htmlPage = R"rawliteral(
 <script>
 async function loadConfig() {
   try {
-    // Fetch ELM enabled
-    const elmRes = await fetch('/getelmenabled');
-    const elmEnabled = await elmRes.text();
-    document.getElementById('elmEnabledCheckbox').checked = (elmEnabled === '1');
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
 
-    // Fetch display type and pre-select the correct option
-    const dtRes = await fetch('/getdisplaytype');
-    const displayType = await dtRes.text();
+    document.getElementById('elmEnabledCheckbox').checked = !!cfg.elmEnabled;
+
     const sel = document.getElementById('displayTypeSelect');
     for (let i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === displayType) {
+      if (sel.options[i].value === cfg.displayType) {
         sel.selectedIndex = i;
         break;
       }
     }
 
-    // Fetch BT mode
-    const btRes = await fetch('/getbtmode');
-    const btMode = await btRes.text();
     const btSel = document.getElementById('btModeSelect');
     for (let i = 0; i < btSel.options.length; i++) {
-      if (btSel.options[i].value === btMode) {
+      if (btSel.options[i].value === cfg.btMode) {
         btSel.selectedIndex = i;
         break;
       }
     }
 
-    // Fetch auto_time
-    const atRes = await fetch('/getautotime');
-    const autoTime = await atRes.text();
-    document.getElementById('autoTimeCheckbox').checked = (autoTime === '1');
+    document.getElementById('autoTimeCheckbox').checked = !!cfg.autoTime;
+    document.getElementById('skipFuncRegCheckbox').checked = !!cfg.skipFuncReg;
+    document.getElementById('autoRestoreCheckbox').checked = !!cfg.autoRestore;
+    document.getElementById('staticTextInput').value = cfg.lastText || '';
+    document.getElementById('welcomeTextInput').value = cfg.welcomeText || '';
 
-    // Fetch skip_funcreg
-    const sfrRes = await fetch('/getskipfuncreg');
-    const sfr = await sfrRes.text();
-    document.getElementById('skipFuncRegCheckbox').checked = (sfr === '1');
-
-    // Fetch autoRestore
-    const restoreRes = await fetch('/config/restore');
-    const autoRestore = await restoreRes.text();
-    document.getElementById('autoRestoreCheckbox').checked = (autoRestore === '1');
-
-    // Fetch lastText
-    const lastTextRes = await fetch('/getlasttext');
-    const lastText = await lastTextRes.text();
-    document.getElementById('staticTextInput').value = lastText;
-
-    // Fetch welcomeText
-    const welcomeTextRes = await fetch('/getwelcometext');
-    const welcomeText = await welcomeTextRes.text();
-    document.getElementById('welcomeTextInput').value = welcomeText;
+    window._elmEnabled = !!cfg.elmEnabled;
+    const autoRefresh = document.getElementById('autoRefresh');
+    autoRefresh.checked = !!cfg.elmEnabled;
+    toggleAuto(!!cfg.elmEnabled);
+    if (window._elmEnabled) refreshLive();
   } catch (e) {
     console.error('Failed to load config', e);
   }
@@ -192,6 +282,10 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <script>
     let _liveTimer = null;
     async function refreshLive() {
+      if (!window._elmEnabled) {
+        document.getElementById('liveBody').innerHTML = '<tr><td colspan="4" style="padding:4px 8px;color:#666">ELM is disabled</td></tr>';
+        return;
+      }
       const res = await fetch('/api/live/full');
       const tbody = document.getElementById('liveBody');
       if (!res.ok) { tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 8px;color:red">ELM not connected</td></tr>'; return; }
@@ -211,9 +305,9 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     }
     function toggleAuto(on) {
       if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
-      if (on) _liveTimer = setInterval(refreshLive, 2000);
+      if (on && window._elmEnabled) _liveTimer = setInterval(refreshLive, 2000);
     }
-    window.addEventListener('DOMContentLoaded', () => { refreshLive(); _liveTimer = setInterval(refreshLive, 2000); });
+    window.addEventListener('DOMContentLoaded', () => { refreshLive(); });
     </script>
 
   <hr>
@@ -245,43 +339,36 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
   <h2>Bluetooth</h2>
     <div id="btStatus" style="font-family:monospace;background:#f4f4f4;padding:8px;margin-bottom:8px;">Loading BT status...</div>
-    <form action="/clearbonds" method="POST"
-          onsubmit="return confirm('Clear BLE bonds? You will need to re-pair on the iPhone too.');">
-    <input type="submit" value="Clear BLE Bonds" />
-    </form>
-    <form action="/forgetdevice" method="POST" style="margin-top:6px"
-          onsubmit="return confirm('Forget saved device? Clears preferred address and bonds. Next boot scans fresh.');">
-    <input type="submit" value="Forget Saved Device" />
-    </form>
     <script>
-    async function tryCandidate(idx) {
-      await fetch('/bt/try?idx=' + idx, {method:'POST'});
+    async function btControl(action) {
+      await fetch('/api/bt/' + action, {method:'POST'});
+      refreshBt();
     }
     async function refreshBt() {
       try {
         const r = await fetch('/api/bt');
         const d = await r.json();
-        let html = '<b>Status:</b> ' + d.status + '<br>';
-        if (d.candidates && d.candidates.length > 0) {
-          html += '<b>Discovered Apple devices (RSSI = signal strength, higher = closer):</b>';
-          html += '<table style="border-collapse:collapse;font-size:13px;margin-top:4px">';
-          html += '<tr style="background:#ddd"><th>#</th><th>Addr</th><th>Name</th><th>RSSI</th><th>Type</th><th></th></tr>';
-          for (let i = 0; i < d.candidates.length; i++) {
-            const c = d.candidates[i];
-            const sel = c.selected;
-            html += '<tr style="' + (sel ? 'font-weight:bold;background:#fffacc' : '') + '">';
-            html += '<td style="padding:2px 6px">' + (i+1) + '</td>';
-            html += '<td style="padding:2px 6px;font-family:monospace">' + c.addr + '</td>';
-            html += '<td style="padding:2px 6px">' + (c.name || '<i>(no name)</i>') + '</td>';
-            html += '<td style="padding:2px 6px">' + c.rssi + ' dBm</td>';
-            html += '<td style="padding:2px 6px;font-family:monospace">' + (c.type || '?') + '</td>';
-            html += '<td style="padding:2px 4px"><button onclick="tryCandidate(' + i + ')">Try</button></td>';
-            html += '</tr>';
-          }
-          html += '</table>';
-        } else {
-          html += '<i>No Apple devices found yet</i>';
-        }
+        const t = d.track || {};
+        const fmtMs = (ms) => {
+          if (!ms) return '--:--';
+          const total = Math.floor(ms / 1000);
+          const min = Math.floor(total / 60);
+          const sec = total % 60;
+          return min + ':' + String(sec).padStart(2, '0');
+        };
+        let html = '';
+        html += '<b>Status:</b> ' + d.status + '<br>';
+        html += '<b>Audio:</b> ' + d.audioState + ' / ' + d.playbackStatus + '<br>';
+        html += '<b>Playing:</b> ' + (d.playing ? 'yes' : 'no') + '<br>';
+        html += '<b>AP active:</b> ' + (d.wifi.apActive ? 'yes' : 'no') + ' (' + d.wifi.apStations + ' clients)<br>';
+        html += '<b>Track:</b> ' + (t.artist || '-') + ' - ' + (t.title || '-') + '<br>';
+        html += '<b>Album:</b> ' + (t.album || '-') + '<br>';
+        html += '<b>Progress:</b> ' + fmtMs(t.positionMs) + ' / ' + fmtMs(t.durationMs) + ' (' + (t.playbackState || '-') + ')<br>';
+        html += '<div style="margin-top:8px">';
+        html += '<button onclick="btControl(\'previous\')">Previous</button> ';
+        html += '<button onclick="btControl(\'playpause\')">Play/Pause</button> ';
+        html += '<button onclick="btControl(\'next\')">Next</button>';
+        html += '</div>';
         document.getElementById('btStatus').innerHTML = html;
       } catch(e) { console.error('BT status fetch failed', e); document.getElementById('btStatus').textContent = 'BT status unavailable'; }
     }
@@ -426,6 +513,10 @@ void HttpServerManager::setupRoutes()
         _commands.setVoltage(str.toInt());
         String msg = "voltage set to: " + str;
         return request->reply(200, "text/plain", msg.c_str());
+    });
+
+    _server.on("/api/config", HTTP_GET, [this](PsychicRequest *request) {
+        return request->reply(200, "application/json", configJson(_prefs).c_str());
     });
 
     _server.on("/getdisplaytype", HTTP_GET, [](PsychicRequest *request) {
@@ -749,9 +840,24 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return ESP_OK;
     });
 
-    // _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
-    //     return request->reply(200, "application/json", Bluetooth::GetStatusJson().c_str());
-    // });
+    _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", btStatusJson().c_str());
+    });
+
+    _server.on("/api/bt/playpause", HTTP_POST, [](PsychicRequest *request) {
+        g_a2dp.playPause();
+        return request->reply(200, "application/json", btStatusJson().c_str());
+    });
+
+    _server.on("/api/bt/next", HTTP_POST, [](PsychicRequest *request) {
+        g_a2dp.next();
+        return request->reply(200, "application/json", btStatusJson().c_str());
+    });
+
+    _server.on("/api/bt/previous", HTTP_POST, [](PsychicRequest *request) {
+        g_a2dp.previous();
+        return request->reply(200, "application/json", btStatusJson().c_str());
+    });
 
     _server.on("/bt/try", HTTP_POST, [](PsychicRequest *request) {
         if (!request->hasParam("idx"))

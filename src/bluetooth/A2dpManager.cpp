@@ -1,6 +1,7 @@
 #include "A2dpManager.h"
 #include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
+#include <esp_heap_caps.h>
 
 static BluetoothA2DPSink s_sink;
 static A2dpManager* s_instance = nullptr;
@@ -36,6 +37,18 @@ const char* A2dpManager::audioStateToString(esp_a2d_audio_state_t state) {
     }
 }
 
+TrackInfo::PlaybackState A2dpManager::playbackStateFromAvrc(esp_avrc_playback_stat_t status) {
+    switch (status) {
+        case ESP_AVRC_PLAYBACK_STOPPED: return TrackInfo::PlaybackState::Stopped;
+        case ESP_AVRC_PLAYBACK_PLAYING: return TrackInfo::PlaybackState::Playing;
+        case ESP_AVRC_PLAYBACK_PAUSED: return TrackInfo::PlaybackState::Paused;
+        case ESP_AVRC_PLAYBACK_FWD_SEEK: return TrackInfo::PlaybackState::ForwardSeek;
+        case ESP_AVRC_PLAYBACK_REV_SEEK: return TrackInfo::PlaybackState::ReverseSeek;
+        case ESP_AVRC_PLAYBACK_ERROR: return TrackInfo::PlaybackState::Error;
+        default: return TrackInfo::PlaybackState::Unknown;
+    }
+}
+
 void A2dpManager::begin(const char* deviceName) {
     s_instance = this;
 
@@ -43,16 +56,33 @@ void A2dpManager::begin(const char* deviceName) {
     Serial.println(F("STARTING A2DP SINK"));
     Serial.println(F("------------------------------------------------------------"));
 
-    s_sink.set_auto_reconnect(false);
+    s_sink.set_auto_reconnect(true);
     s_sink.set_stream_reader(audioDataCallback, false);
     s_sink.set_on_connection_state_changed(connectionStateChanged);
     s_sink.set_on_audio_state_changed(audioStateChanged);
     s_sink.set_avrc_metadata_callback(avrcMetadataCallback);
     s_sink.set_avrc_rn_playstatus_callback(avrcPlayStatusCallback);
+    s_sink.set_avrc_rn_play_pos_callback(avrcPlayPositionCallback, 1);
+    s_sink.set_avrc_rn_track_change_callback(avrcTrackChangeCallback);
     s_sink.start(deviceName);
 }
 
 void A2dpManager::tick() {
+    if (!isConnectionActive()) {
+        return;
+    }
+
+    if (_trackInfo.playbackState != TrackInfo::PlaybackState::Playing) {
+        return;
+    }
+
+    const uint32_t now = millis();
+    const uint32_t elapsedMs = now - _positionBaseTickMs;
+    uint32_t positionMs = _positionBaseMs + elapsedMs;
+    if (_trackInfo.durationMs > 0 && positionMs > _trackInfo.durationMs) {
+        positionMs = _trackInfo.durationMs;
+    }
+    _trackInfo.positionMs = positionMs;
 }
 
 bool A2dpManager::isConnected() const {
@@ -65,6 +95,18 @@ bool A2dpManager::isConnectionActive() const {
 
 bool A2dpManager::isPlaying() const {
     return _playing;
+}
+
+const char* A2dpManager::connectionStateName() const {
+    return connectionStateToString(_connectionState);
+}
+
+const char* A2dpManager::audioStateName() const {
+    return audioStateToString(_audioState);
+}
+
+const char* A2dpManager::playbackStatusName() const {
+    return playStatusToString(_playbackStatus);
 }
 
 const TrackInfo& A2dpManager::trackInfo() const {
@@ -101,18 +143,42 @@ void A2dpManager::connectionStateChanged(esp_a2d_connection_state_t state, void*
 
     s_instance->_connectionState = state;
     s_instance->_connected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
+    s_instance->_trackInfo.connected = s_instance->_connected;
     if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
         s_instance->_playing = false;
+        s_instance->_audioState = ESP_A2D_AUDIO_STATE_STOPPED;
+        s_instance->_playbackStatus = ESP_AVRC_PLAYBACK_STOPPED;
+        s_instance->_trackInfo.playbackState = TrackInfo::PlaybackState::Stopped;
+        s_instance->_trackInfo.positionMs = 0;
+        s_instance->_positionBaseMs = 0;
+        s_instance->_positionBaseTickMs = millis();
     }
-    Serial.printf("[A2DP] Connection state: %s\n", connectionStateToString(state));
+    Serial.printf("[A2DP] Connection state: %s free=%u min=%u largest=%u int=%u\n",
+                  connectionStateToString(state),
+                  ESP.getFreeHeap(),
+                  ESP.getMinFreeHeap(),
+                  heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+                  heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }
 
 void A2dpManager::audioStateChanged(esp_a2d_audio_state_t state, void* ptr) {
     (void)ptr;
     if (!s_instance) return;
 
+    s_instance->_audioState = state;
     s_instance->_playing = (state == ESP_A2D_AUDIO_STATE_STARTED);
-    Serial.printf("[A2DP] Audio state: %s\n", audioStateToString(state));
+    if (state == ESP_A2D_AUDIO_STATE_STARTED &&
+        s_instance->_trackInfo.playbackState == TrackInfo::PlaybackState::Paused) {
+        s_instance->_trackInfo.playbackState = TrackInfo::PlaybackState::Playing;
+        s_instance->_positionBaseMs = s_instance->_trackInfo.positionMs;
+        s_instance->_positionBaseTickMs = millis();
+    }
+    Serial.printf("[A2DP] Audio state: %s free=%u min=%u largest=%u int=%u\n",
+                  audioStateToString(state),
+                  ESP.getFreeHeap(),
+                  ESP.getMinFreeHeap(),
+                  heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+                  heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 }
 
 void A2dpManager::avrcMetadataCallback(uint8_t id, const uint8_t* text) {
@@ -153,5 +219,34 @@ void A2dpManager::avrcMetadataCallback(uint8_t id, const uint8_t* text) {
 
 void A2dpManager::avrcPlayStatusCallback(esp_avrc_playback_stat_t status) {
     if (!s_instance) return;
+    s_instance->_playbackStatus = status;
+    s_instance->_trackInfo.playbackState = playbackStateFromAvrc(status);
+    s_instance->_playing = (status == ESP_AVRC_PLAYBACK_PLAYING);
+    if (s_instance->_trackInfo.playbackState == TrackInfo::PlaybackState::Playing) {
+        s_instance->_positionBaseMs = s_instance->_trackInfo.positionMs;
+    }
+    s_instance->_positionBaseTickMs = millis();
     Serial.printf("[AVRCP] Playback status: %s\n", playStatusToString(status));
+}
+
+void A2dpManager::avrcPlayPositionCallback(uint32_t playPosMs) {
+    if (!s_instance) return;
+    s_instance->_positionBaseMs = playPosMs;
+    s_instance->_positionBaseTickMs = millis();
+    s_instance->_trackInfo.positionMs = playPosMs;
+    if (s_instance->_trackInfo.durationMs > 0 && s_instance->_trackInfo.positionMs > s_instance->_trackInfo.durationMs) {
+        s_instance->_trackInfo.positionMs = s_instance->_trackInfo.durationMs;
+        s_instance->_positionBaseMs = s_instance->_trackInfo.positionMs;
+    }
+    Serial.printf("[AVRCP] Playback position: %u ms\n", s_instance->_trackInfo.positionMs);
+}
+
+void A2dpManager::avrcTrackChangeCallback(uint8_t *id) {
+    (void)id;
+    if (!s_instance) return;
+
+    s_instance->_trackInfo.positionMs = 0;
+    s_instance->_positionBaseMs = 0;
+    s_instance->_positionBaseTickMs = millis();
+    Serial.println("[AVRCP] Track changed");
 }

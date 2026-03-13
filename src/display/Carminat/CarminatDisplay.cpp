@@ -555,25 +555,17 @@ void showConfirmBoxWithOffsets(
 }
 void CarminatDisplay::setMediaInfo(const TrackInfo info)
 {
-  // визначаємо: новий трек чи той самий
   bool titleChanged = (_mediaInfo.title != info.title);
   bool artistChanged = (_mediaInfo.artist != info.artist);
-  bool playerChanged = (_mediaInfo.album != info.album);
+  bool albumChanged = (_mediaInfo.album != info.album);
+  bool durationChanged = (_mediaInfo.durationMs != info.durationMs);
+  bool playbackChanged = (_mediaInfo.playbackState != info.playbackState);
+  bool connectionChanged = (_mediaInfo.connected != info.connected);
 
   _mediaInfo = info;
 
-  if (playerChanged)
-  {
-    _mediaPlayerName = _mediaInfo.album.c_str();
-    if (_mediaPlayerName.isEmpty())
-    {
-      _mediaPlayerName = "PLAYER";
-    }
-  }
-
   if (titleChanged || artistChanged)
   {
-    // побудувати повний рядок 2: "Artist - Title"
     _mediaLine2Full = "";
     if (!_mediaInfo.artist.isEmpty())
     {
@@ -588,10 +580,18 @@ void CarminatDisplay::setMediaInfo(const TrackInfo info)
       _mediaLine2Full += _mediaInfo.title.c_str();
     }
 
-    _scrollPos = 0; // reset scroll on track change
-    //_lastScrollMs = millis(); // оновити таймер
+    if (_mediaLine2Full.isEmpty() && !_mediaInfo.album.isEmpty())
+    {
+      _mediaLine2Full = _mediaInfo.album;
+    }
+
+    _scrollPos = 0;
   }
-  _eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
+
+  if (titleChanged || artistChanged || albumChanged || durationChanged || playbackChanged || connectionChanged)
+  {
+    _eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
+  }
 }
 
 void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
@@ -632,13 +632,12 @@ void CarminatDisplay::setAuxMode(bool on)
 }
 String CarminatDisplay::buildProgressLine() const
 {
-  // AMS дає секунди (float)
-  float posSec = _mediaInfo.durationMs; //todo:duration????
-  float durSec = _mediaInfo.durationMs;
+  float posSec = _mediaInfo.positionMs / 1000.0f;
+  float durSec = _mediaInfo.durationMs / 1000.0f;
 
   if (durSec <= 0.0f)
   {
-    return "[----------] --:--/--:--"; // calc by lentght
+    return "[----------] --:--/--:--";
   }
 
   float progress = posSec / durSec;
@@ -655,7 +654,7 @@ String CarminatDisplay::buildProgressLine() const
   bar.reserve(BAR_WIDTH);
   for (int i = 0; i < BAR_WIDTH; ++i)
   {
-    bar += (i < filled) ? 'X' : '_';
+    bar += (i < filled) ? '=' : '-';
   }
 
   auto fmtTime = [](float secF) -> String
@@ -680,7 +679,7 @@ String CarminatDisplay::buildProgressLine() const
   line += "/";
   line += fmtTime(durSec);
 
-  const int MAX_CHARS = 20; // скільки реально влазить в 3-й рядок
+  const int MAX_CHARS = 20;
   if (line.length() > MAX_CHARS)
     line = line.substring(0, MAX_CHARS);
 
@@ -749,32 +748,33 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
   if (!tracker.isInAuxMode())
     return;
 
-  String status_icon;
-  
-    status_icon = ">";
- /* switch (_mediaInfo.mPlaybackState)
+  String statusIcon;
+  switch (_mediaInfo.playbackState)
   {
-  case AppleMediaService::MediaInformation::PlaybackState::Playing:
-  {
-    status_icon = ">";
+  case TrackInfo::PlaybackState::Playing:
+    statusIcon = ">";
     break;
-  }
-  case AppleMediaService::MediaInformation::PlaybackState::Paused:
-  {
-
-    status_icon = "||";
+  case TrackInfo::PlaybackState::Paused:
+    statusIcon = "||";
     break;
-  }
+  case TrackInfo::PlaybackState::Stopped:
+    statusIcon = "[]";
+    break;
+  case TrackInfo::PlaybackState::ForwardSeek:
+    statusIcon = ">>";
+    break;
+  case TrackInfo::PlaybackState::ReverseSeek:
+    statusIcon = "<<";
+    break;
+  case TrackInfo::PlaybackState::Error:
+    statusIcon = "!!";
+    break;
   default:
-  {
-
-    status_icon = "D";
+    statusIcon = _mediaInfo.connected ? "?" : "x";
     break;
   }
-  }*/
 
-  // 1-й рядок: назва плеєра + час справа (26 символів максимум)
-  String headerStr = status_icon + " " + (_mediaPlayerName.length() ? _mediaPlayerName : String("AUX PLAYER"));
+  String headerStr = statusIcon + " " + String(_mediaInfo.connected ? "BT AUDIO" : "BT IDLE");
   struct tm ti;
   if (getLocalTime(&ti, 0))
   {
@@ -829,9 +829,17 @@ String CarminatDisplay::buildScrollingTitle()
   String full = String(_mediaInfo.artist.c_str());
   if (full.length() > 0 && _mediaInfo.title.length() > 0)
   {
-    full += ": ";
+    full += " - ";
   }
   full += String(_mediaInfo.title.c_str());
+  if (full.length() == 0 && _mediaInfo.album.length() > 0)
+  {
+    full = _mediaInfo.album;
+  }
+  if (full.length() == 0)
+  {
+    full = _mediaInfo.connected ? "Waiting for metadata" : "Bluetooth disconnected";
+  }
   full = normalizeTitle(full);
   full += "  "; // trailing spaces AFTER trim/normalize so they aren't stripped
   const int MAX_VISIBLE = 20; // match progress bar row width

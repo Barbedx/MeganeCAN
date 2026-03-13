@@ -24,6 +24,7 @@ static bool g_canReady = false;
 static uint32_t g_canReadyAt = 0;
 static bool g_softApActive = false;
 static bool g_lastBtConnectionActive = false;
+static constexpr bool kKeepSoftApDuringBt = true;
 // ---- Static IP for V-LINK (STA) ----
 // IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
 // IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
@@ -85,6 +86,47 @@ static bool ensureSoftApState(bool shouldBeActive)
     return ok;
 }
 
+static const char *wifiModeName(wifi_mode_t mode)
+{
+    switch (mode)
+    {
+    case WIFI_OFF:
+        return "OFF";
+    case WIFI_STA:
+        return "STA";
+    case WIFI_AP:
+        return "AP";
+    case WIFI_AP_STA:
+        return "AP_STA";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+    switch (event)
+    {
+    case ARDUINO_EVENT_WIFI_AP_START:
+        Serial.println("[WiFiEvt] AP_START");
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STOP:
+        Serial.println("[WiFiEvt] AP_STOP");
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+        Serial.printf("[WiFiEvt] AP_STACONNECTED aid=%u\n", info.wifi_ap_staconnected.aid);
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+        Serial.printf("[WiFiEvt] AP_STADISCONNECTED aid=%u\n", info.wifi_ap_stadisconnected.aid);
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
+        Serial.println("[WiFiEvt] AP_STAIPASSIGNED");
+        break;
+    default:
+        break;
+    }
+}
+
 void gotFrame(CAN_FRAME *frame)
 {
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
@@ -136,6 +178,11 @@ void setup() // debug
     runStage("display->setKeyHandler", []
              {
     g_app.display->setKeyHandler(HandleKey);
+    return true; });
+
+    runStage("WiFi.onEvent", []
+             {
+    WiFi.onEvent(onWiFiEvent);
     return true; });
 
     runStage("WiFi.mode", []
@@ -250,15 +297,21 @@ void loop()
     CanUtils::tick();
     g_a2dp.tick();
 
-    bool btConnectionActive = g_a2dp.isConnectionActive();
-    if (btConnectionActive != g_lastBtConnectionActive)
+    if (!kKeepSoftApDuringBt)
     {
-        ensureSoftApState(!btConnectionActive);
-        g_lastBtConnectionActive = btConnectionActive;
+        bool btConnectionActive = g_a2dp.isConnectionActive();
+        if (btConnectionActive != g_lastBtConnectionActive)
+        {
+            ensureSoftApState(!btConnectionActive);
+            g_lastBtConnectionActive = btConnectionActive;
+        }
     }
 
     if (g_app.display)
+    {
+        g_app.display->setMediaInfo(g_a2dp.trackInfo());
         g_app.display->tick();
+    }
 
     // Auto-time: sync display clock once per BT connection via CTS
     /*   if (_autoTime && Bluetooth::IsConnected() && Bluetooth::IsTimeSet() && !_timeSyncDone)
@@ -279,17 +332,20 @@ void loop()
     //}
 
    // ElmWifiManager::tick();
-/*
     static uint32_t lastDiag = 0;
-    if (millis() - lastDiag >= 2000) {
+    if (millis() - lastDiag >= 5000) {
         lastDiag = millis();
-        Serial.printf("[HEAP] free=%u min=%u largest=%u int=%u\n",
+        Serial.printf("[COEX] wifi=%s apClients=%d bt=%s audio=%s play=%s free=%u min=%u largest=%u int=%u\n",
+            wifiModeName(WiFi.getMode()),
+            WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA ? WiFi.softAPgetStationNum() : 0,
+            g_a2dp.connectionStateName(),
+            g_a2dp.audioStateName(),
+            g_a2dp.playbackStatusName(),
             ESP.getFreeHeap(),
             ESP.getMinFreeHeap(),
             heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
             heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
-    */
 
     // Arduino-as-component on ESP-IDF does not implicitly yield on dual-core,
     // so give IDLE1 a chance to run and service the task watchdog.
