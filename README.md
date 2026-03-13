@@ -41,6 +41,22 @@ Pinout (ESP32-C3):
 
 ---
 
+## Build targets
+
+- `pio run -e esp32dev`
+  Legacy Arduino-only environment.
+- `pio run -e esp32dev-idf`
+  ESP-IDF + Arduino-as-component migration target. This environment uses the
+  repo-root `sdkconfig.defaults` for coexistence and WiFi/BT tuning while
+  keeping the current application code and libraries intact for the first
+  migration milestone.
+
+PlatformIO materializes an environment-specific `sdkconfig.<env>` file during
+the first ESP-IDF build. That generated file is intentionally ignored; edit
+`sdkconfig.defaults` for repo-managed defaults.
+
+---
+
 ## Architecture
 
 ### Class diagram

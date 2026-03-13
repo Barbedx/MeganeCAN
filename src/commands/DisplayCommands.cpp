@@ -62,7 +62,10 @@ namespace DisplayCommands
 
     void Manager::setTextBig(const String &caption, const String &row1, const String &row2)
     {
-        throw std::logic_error("setTextBig not implemented for Affa3NAVDisplay");
+        (void)caption;
+        (void)row1;
+        (void)row2;
+        Serial.println("[DisplayCommands] setTextBig not implemented for this display");
         //  _display.showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
     } // namespace DisplayCommands
 

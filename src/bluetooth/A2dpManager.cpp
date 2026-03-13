@@ -59,6 +59,10 @@ bool A2dpManager::isConnected() const {
     return _connected;
 }
 
+bool A2dpManager::isConnectionActive() const {
+    return _connectionState != ESP_A2D_CONNECTION_STATE_DISCONNECTED;
+}
+
 bool A2dpManager::isPlaying() const {
     return _playing;
 }
@@ -95,7 +99,11 @@ void A2dpManager::connectionStateChanged(esp_a2d_connection_state_t state, void*
     (void)ptr;
     if (!s_instance) return;
 
+    s_instance->_connectionState = state;
     s_instance->_connected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
+    if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
+        s_instance->_playing = false;
+    }
     Serial.printf("[A2DP] Connection state: %s\n", connectionStateToString(state));
 }
 

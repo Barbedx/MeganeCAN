@@ -11,6 +11,7 @@ public:
     void tick();
 
     bool isConnected() const;
+    bool isConnectionActive() const;
     bool isPlaying() const;
 
     const TrackInfo& trackInfo() const;
@@ -33,5 +34,6 @@ private:
 private:
     bool _connected = false;
     bool _playing = false;
+    esp_a2d_connection_state_t _connectionState = ESP_A2D_CONNECTION_STATE_DISCONNECTED;
     TrackInfo _trackInfo;
 };

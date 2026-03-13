@@ -96,7 +96,7 @@ bool AffaDisplayBase::affa3_start_tx(uint8_t targetFuncIdx, const uint8_t* data,
         return false;
     }
 
-    memset(&_tx, 0, sizeof(_tx));
+    _tx = {};
 
     _tx.active = true;
     _tx.waitingAck = false;

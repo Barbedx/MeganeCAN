@@ -665,7 +665,7 @@ String CarminatDisplay::buildProgressLine() const
     uint32_t totalSec = (uint32_t)(secF + 0.5f); // округляємо
     uint32_t min = totalSec / 60;
     uint32_t sec = totalSec % 60;
-    char buf[8];
+    char buf[16];
     snprintf(buf, sizeof(buf), "%lu:%02lu",
              (unsigned long)min,
              (unsigned long)sec);

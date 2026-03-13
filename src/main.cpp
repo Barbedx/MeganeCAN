@@ -23,6 +23,7 @@ SerialConsole g_console;
 static bool g_canReady = false;
 static uint32_t g_canReadyAt = 0;
 static bool g_softApActive = false;
+static bool g_lastBtConnectionActive = false;
 // ---- Static IP for V-LINK (STA) ----
 // IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
 // IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
@@ -50,16 +51,7 @@ static bool runStage(const char *name, std::function<bool()> fn)
     uint32_t t0 = millis();
     logStage((String("BEGIN ") + name).c_str());
 
-    bool ok = false;
-    try
-    {
-        ok = fn();
-    }
-    catch (...)
-    {
-        Serial.printf("[BOOT] EXCEPTION in %s\n", name);
-        ok = false;
-    }
+    bool ok = fn();
 
     Serial.printf("[BOOT] END   %-28s | ok=%s | dt=%lu ms\n",
                   name, ok ? "true" : "false", millis() - t0);
@@ -87,8 +79,9 @@ static bool ensureSoftApState(bool shouldBeActive)
 
     Serial.println("[WiFi] Disabling SoftAP because BT is connected");
     bool ok = WiFi.softAPdisconnect(true);
-    if (ok)
-        g_softApActive = false;
+    g_softApActive = false;
+    if (!ok)
+        Serial.println("[WiFi] softAPdisconnect reported false; treating AP as disabled for coexistence");
     return ok;
 }
 
@@ -167,6 +160,12 @@ void setup() // debug
 
     runStage("WiFi.softAP", []
              {
+    if (g_app.elmEnabled)
+    {
+        Serial.println("[WiFi] SoftAP skipped in STA/ELM mode");
+        g_softApActive = false;
+        return true;
+    }
     bool ok = WiFi.softAP(ssid, password);
     Serial.printf("[WiFi] softAP result=%d ip=%s\n", ok, WiFi.softAPIP().toString().c_str());
     g_softApActive = ok;
@@ -249,8 +248,14 @@ void loop()
 {
     g_console.tick();
     CanUtils::tick();
+    g_a2dp.tick();
 
-    ensureSoftApState(!g_a2dp.isConnected());
+    bool btConnectionActive = g_a2dp.isConnectionActive();
+    if (btConnectionActive != g_lastBtConnectionActive)
+    {
+        ensureSoftApState(!btConnectionActive);
+        g_lastBtConnectionActive = btConnectionActive;
+    }
 
     if (g_app.display)
         g_app.display->tick();
@@ -285,4 +290,8 @@ void loop()
             heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
     */
+
+    // Arduino-as-component on ESP-IDF does not implicitly yield on dual-core,
+    // so give IDLE1 a chance to run and service the task watchdog.
+    delay(1);
 }
