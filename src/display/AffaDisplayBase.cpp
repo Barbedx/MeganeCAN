@@ -5,7 +5,70 @@
 using FuncStatus = AffaCommon::FuncStatus;
 using SyncStatus = AffaCommon::SyncStatus;
 using AffaError = AffaCommon::AffaError;
- 
+
+void AffaDisplayBase::tick()
+{
+    const uint32_t now = millis();
+
+    tickSync(now);
+    //onTick(now);
+    //processEvents();
+    //tickMedia();
+    //tickTx();
+}
+
+void AffaDisplayBase::tickSync(uint32_t now)
+{
+    if (_skipFuncReg)
+        return;
+
+    if (_lastSyncTickMs != 0 && (now - _lastSyncTickMs) < getSyncIntervalMs())
+        return;
+
+    _lastSyncTickMs = now;
+    sendAliveFrame();
+
+    if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
+    {
+        AFFA3_PRINT("[sync] handshake requested, sending sync request\n");
+        sendSyncRequestFrame();
+        _sync_status &= ~SyncStatus::START;
+        return;
+    }
+
+    if (_lastPeerAliveMs == 0 || (now - _lastPeerAliveMs) > getPeerTimeoutMs())
+    {
+        AFFA3_PRINT("[sync] peer timeout\n");
+        markSyncLost();
+    }
+}
+
+void AffaDisplayBase::markPeerAlive(uint32_t now)
+{
+    _lastPeerAliveMs = now;
+    _sync_status |= SyncStatus::PEER_ALIVE;
+    _sync_status &= ~SyncStatus::FAILED;
+}
+
+void AffaDisplayBase::noteSyncRequest(bool startRequested, uint32_t now)
+{
+    _lastPeerAliveMs = now;
+    _sync_status &= ~SyncStatus::FAILED;
+    if (startRequested)
+        _sync_status |= SyncStatus::START;
+}
+
+void AffaDisplayBase::markSyncLost()
+{
+    _sync_status |= SyncStatus::FAILED;
+    _sync_status &= ~SyncStatus::FUNCSREG;
+}
+
+void AffaDisplayBase::resetSyncSchedule()
+{
+    _lastSyncTickMs = 0;
+    _lastPeerAliveMs = 0;
+}
 
 
 void AffaDisplayBase::affa3_finish_tx(AffaError result)

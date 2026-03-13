@@ -8,9 +8,7 @@ class UpdateListBase : public AffaDisplayBase
 {
 public:
     UpdateListBase() { initializeFuncs(); }
-    void tick() override;
     void recv(CAN_FRAME *frame) override;
-    void processEvents() override;
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;
     AffaCommon::AffaError setTime(const char *clock) override;
@@ -34,8 +32,11 @@ protected:
 private:
     struct KeyEvent { AffaCommon::AffaKey key; bool isHold; };
     std::queue<KeyEvent> _keyQueue;
+    char _transientText[13]{};
+    uint32_t _transientUntilMs = 0;
 
 protected:
+    void processEvents() override;
     void initializeFuncs() override
     {
         funcsMax = 2;
@@ -43,9 +44,17 @@ protected:
             {UpdateList::PACKET_ID_SETTEXT,      AffaCommon::FuncStatus::IDLE},
             {UpdateList::PACKET_ID_DISPLAY_CTRL, AffaCommon::FuncStatus::IDLE}};
     }
+    void sendAliveFrame() override;
+    void sendSyncRequestFrame() override;
 
     uint8_t getPacketFiller() const override
     {
         return UpdateList::PACKET_FILLER;
+    }
+
+    void showTransientText(const char *text, uint32_t durationMs);
+    bool isTransientActive(uint32_t now) const
+    {
+        return _transientUntilMs != 0 && now < _transientUntilMs;
     }
 };

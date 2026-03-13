@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <can_common.h>
 #include <esp32_can.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 class CanUtils
 {
@@ -29,6 +31,7 @@ private:
     static volatile size_t _txHead;
     static volatile size_t _txTail;
     static volatile size_t _txCount;
+    static portMUX_TYPE _txMux;
 
     static bool _ready;
     static uint32_t _readyAt;

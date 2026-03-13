@@ -11,41 +11,20 @@ inline void AFFA2_PRINT(const char *fmt, ...)
 #endif
 }
 
-void UpdateListBase::tick()
+void UpdateListBase::sendAliveFrame()
 {
-    // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
-    if (_skipFuncReg) return;
- 
-    static int8_t timeout = SYNC_TIMEOUT;
+    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x79, 0x00,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
+}
 
-    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x79, 0x00, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
-
-    if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
-    {
-        AFFA2_PRINT("[tick] Sync failed or requested, sending sync request\n");
-        CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x7A, 0x01, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81);
-        _sync_status &= ~SyncStatus::START;
-        delay(100);
-    }
-    else
-    {
-        if (hasFlag(_sync_status, SyncStatus::PEER_ALIVE))
-        {
-            timeout = SYNC_TIMEOUT;
-            _sync_status &= ~SyncStatus::PEER_ALIVE;
-        }
-        else
-        {
-            timeout--;
-            AFFA2_PRINT("[tick] Waiting for peer... timeout in %d\n", timeout);
-            if (timeout <= 0)
-            {
-                _sync_status = SyncStatus::FAILED;
-                _sync_status &= ~SyncStatus::FUNCSREG;
-                AFFA2_PRINT("ping timeout!\n");
-            }
-        }
-    }
+void UpdateListBase::sendSyncRequestFrame()
+{
+    CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x7A, 0x01,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER,
+                      UpdateList::PACKET_FILLER, UpdateList::PACKET_FILLER);
 }
 
 AffaCommon::AffaError UpdateListBase::setState(bool enabled)
@@ -71,15 +50,12 @@ void UpdateListBase::recv(CAN_FRAME *packet)
         {
             Serial.println("[UL recv] -> sync request, sending registration");
             CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
-            _sync_status &= ~SyncStatus::FAILED;
-            if (packet->data.uint8[2] == 0x01)
-                _sync_status |= SyncStatus::START;
+            noteSyncRequest(packet->data.uint8[2] == 0x01, millis());
         }
         else if (packet->data.uint8[0] == 0x69)
         {
             Serial.println("[UL recv] -> peer alive 0x69");
-            _sync_status |= SyncStatus::PEER_ALIVE;
-            tick();
+            markPeerAlive(millis());
         }
         else
         {
@@ -230,15 +206,18 @@ void UpdateListBase::ProcessKey(AffaCommon::AffaKey key, bool isHold)
         _amsKeysEnabled = !_amsKeysEnabled;
         const char *msg = _amsKeysEnabled ? "AMS  ON " : "AMS OFF ";
         Serial.printf("[UL] AMS keys %s\n", _amsKeysEnabled ? "enabled" : "disabled");
-        // Send 3x so the message stays visible past the next tickMedia scroll step.
-        for (int i = 0; i < 3; i++)
-        {
-            setText(msg);
-            delay(100);
-        }
+        showTransientText(msg, 1200);
         return;
     }
 
     if (_amsKeysEnabled && keyHandler)
         keyHandler(key, isHold);
+}
+
+void UpdateListBase::showTransientText(const char *text, uint32_t durationMs)
+{
+    strncpy(_transientText, text, sizeof(_transientText) - 1);
+    _transientText[sizeof(_transientText) - 1] = '\0';
+    _transientUntilMs = millis() + durationMs;
+    setText(_transientText);
 }

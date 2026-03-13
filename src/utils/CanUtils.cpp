@@ -5,16 +5,18 @@ CAN_FRAME CanUtils::_txQueue[CanUtils::TX_QUEUE_SIZE]{};
 volatile size_t CanUtils::_txHead = 0;
 volatile size_t CanUtils::_txTail = 0;
 volatile size_t CanUtils::_txCount = 0;
+portMUX_TYPE CanUtils::_txMux = portMUX_INITIALIZER_UNLOCKED;
 
 bool CanUtils::_ready = false;
 uint32_t CanUtils::_readyAt = 0;
 
 void CanUtils::begin()
 {
-    
+    portENTER_CRITICAL(&_txMux);
     _txHead = 0;
     _txTail = 0;
     _txCount = 0;
+    portEXIT_CRITICAL(&_txMux);
     _ready = false;
     _readyAt = 0;
 }
@@ -49,8 +51,12 @@ bool CanUtils::enqueueFrame(const CAN_FRAME &frame)
         return false;
     }
 
+    bool queued = false;
+
+    portENTER_CRITICAL(&_txMux);
     if (_txCount >= TX_QUEUE_SIZE)
     {
+        portEXIT_CRITICAL(&_txMux);
         Serial.printf("[CAN-TX] queue full, dropping frame id=0x%03lX\n", (unsigned long)frame.id);
         return false;
     }
@@ -58,18 +64,27 @@ bool CanUtils::enqueueFrame(const CAN_FRAME &frame)
     _txQueue[_txTail] = frame;
     _txTail = (_txTail + 1) % TX_QUEUE_SIZE;
     _txCount++;
-    return true;
+    queued = true;
+    portEXIT_CRITICAL(&_txMux);
+
+    return queued;
 }
 
 bool CanUtils::dequeueFrame(CAN_FRAME &frame)
 {
-    if (_txCount == 0)
-        return false;
+    bool dequeued = false;
 
-    frame = _txQueue[_txHead];
-    _txHead = (_txHead + 1) % TX_QUEUE_SIZE;
-    _txCount--;
-    return true;
+    portENTER_CRITICAL(&_txMux);
+    if (_txCount > 0)
+    {
+        frame = _txQueue[_txHead];
+        _txHead = (_txHead + 1) % TX_QUEUE_SIZE;
+        _txCount--;
+        dequeued = true;
+    }
+    portEXIT_CRITICAL(&_txMux);
+
+    return dequeued;
 }
 
 void CanUtils::tick()

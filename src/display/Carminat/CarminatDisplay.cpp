@@ -30,78 +30,6 @@ namespace
 {
 
   AuxModeTracker tracker;
-
-  void emulateKey(AffaCommon::AffaKey key, bool hold = false)
-  {
-
-    uint16_t raw = static_cast<uint16_t>(key);
-    CAN_FRAME frame;
-    frame.id = 0x1C1; //
-    frame.length = 8;
-    frame.extended = 0; // standard frame
-
-    frame.data.uint8[0] = 0x03;              // must be 0x03
-    frame.data.uint8[1] = 0x89;              // must be 0x89
-    frame.data.uint8[2] = (raw >> 8) & 0xFF; // key high byte
-    frame.data.uint8[3] = raw & 0xFF;        // key low byte
-
-    // Fill the rest with 0 or whatever is standard
-    frame.data.uint8[4] = 0;
-    frame.data.uint8[5] = 0;
-    frame.data.uint8[6] = 0;
-    frame.data.uint8[7] = 0;
-
-    if (hold)
-    {
-      frame.data.uint8[3] |= AffaCommon::KEY_HOLD_MASK;
-    }
-
-    CanUtils::sendFrame(frame);
-
-    Serial.print("Emulated key press: 0x");
-    // Serial.println(key, HEX);
-  }
-
-  void sendPasswordSequence()
-  {
-    // 5
-    for (int i = 0; i < 5; i++)
-    {
-      emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(200);
-    }
-    emulateKey(AffaCommon::AffaKey::Load);
-    delay(200);
-
-    // 3
-    for (int i = 0; i < 3; i++)
-    {
-      emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(200);
-    }
-    emulateKey(AffaCommon::AffaKey::Load);
-    delay(200);
-
-    // 2
-    for (int i = 0; i < 2; i++)
-    {
-      emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(200);
-    }
-    emulateKey(AffaCommon::AffaKey::Load);
-    delay(200);
-
-    // 1
-    for (int i = 0; i < 1; i++)
-    {
-      emulateKey(AffaCommon::AffaKey::RollUp);
-      delay(200);
-    }
-
-    emulateKey(AffaCommon::AffaKey::Load, true); // <-- hold
-    delay(200);
-  }
-
 }
 
 void CarminatDisplay::begin()
@@ -206,46 +134,85 @@ void CarminatDisplay::onKeyPressed(AffaCommon::AffaKey key, bool isHold)
     // Kept for base-class contract; logic moved to ProcessKey
 }
 
-void CarminatDisplay::tick()
+void CarminatDisplay::sendAliveFrame()
 {
-  // In radio mode the radio owns sync — ESP32 only injects data, never sends sync packets.
-  if (_skipFuncReg) return;
-
-  struct CAN_FRAME packet;
-  static int8_t timeout = SYNC_TIMEOUT;
-
-  /* Wysyłamy pakiet informujący o tym że żyjemy */
   CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB9, 0x00, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
+}
 
-  if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
-  { /* Błąd synchronizacji */
-    /* Wysyłamy pakiet z żądaniem synchronizacji */
-    AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
-    CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
-    _sync_status &= ~SyncStatus::START;
-    delay(100);
-  }
-  else
+void CarminatDisplay::sendSyncRequestFrame()
+{
+  CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
+}
+
+void CarminatDisplay::onTick(uint32_t now)
+{
+  serviceEmulatedKeys(now);
+
+  if (_currentPage)
+    _currentPage->onTick();
+}
+
+void CarminatDisplay::queueEmulatedKey(AffaCommon::AffaKey key, bool hold, uint32_t dueAtMs)
+{
+  _emulatedKeyQueue.push({key, hold, dueAtMs});
+}
+
+void CarminatDisplay::queuePasswordSequence(uint32_t now)
+{
+  while (!_emulatedKeyQueue.empty())
+    _emulatedKeyQueue.pop();
+
+  static constexpr uint32_t INITIAL_DELAY_MS = 1000;
+  static constexpr uint32_t STEP_DELAY_MS = 200;
+
+  uint32_t dueAtMs = now + INITIAL_DELAY_MS;
+  const struct SequenceStep
   {
-    if (hasFlag(_sync_status, SyncStatus::PEER_ALIVE))
-    {
-      //	AFFA3_PRINT("[tick] Peer is alive, resetting timeout\n");
-      timeout = SYNC_TIMEOUT;
-      _sync_status &= ~SyncStatus::PEER_ALIVE;
-    }
-    else
-    {
-      timeout--;
-      AFFA3_PRINT("[tick] Waiting for peer... timeout in %d\n", timeout);
-      if (timeout <= 0)
-      { /* Nic nie odpowiada, wymuszamy resynchronizację */
-        _sync_status = SyncStatus::FAILED;
-        /* Wszystkie funkcje tracą rejestracje */
-        _sync_status &= ~SyncStatus::FUNCSREG;
+    AffaCommon::AffaKey key;
+    uint8_t repeat;
+    bool hold;
+  } steps[] = {
+      {AffaCommon::AffaKey::RollUp, 5, false},
+      {AffaCommon::AffaKey::Load, 1, false},
+      {AffaCommon::AffaKey::RollUp, 3, false},
+      {AffaCommon::AffaKey::Load, 1, false},
+      {AffaCommon::AffaKey::RollUp, 2, false},
+      {AffaCommon::AffaKey::Load, 1, false},
+      {AffaCommon::AffaKey::RollUp, 1, false},
+      {AffaCommon::AffaKey::Load, 1, true},
+  };
 
-        AFFA3_PRINT("ping timeout!\n");
-      }
+  for (const SequenceStep &step : steps)
+  {
+    for (uint8_t repeat = 0; repeat < step.repeat; ++repeat)
+    {
+      queueEmulatedKey(step.key, step.hold, dueAtMs);
+      dueAtMs += STEP_DELAY_MS;
     }
+  }
+}
+
+void CarminatDisplay::serviceEmulatedKeys(uint32_t now)
+{
+  while (!_emulatedKeyQueue.empty() && static_cast<int32_t>(now - _emulatedKeyQueue.front().dueAtMs) >= 0)
+  {
+    const EmulatedKeyEvent event = _emulatedKeyQueue.front();
+    _emulatedKeyQueue.pop();
+
+    uint16_t raw = static_cast<uint16_t>(event.key);
+    CAN_FRAME frame{};
+    frame.id = Carminat::PACKET_ID_KEYPRESSED;
+    frame.length = 8;
+    frame.extended = 0;
+    frame.rtr = 0;
+    frame.data.uint8[0] = 0x03;
+    frame.data.uint8[1] = 0x89;
+    frame.data.uint8[2] = (raw >> 8) & 0xFF;
+    frame.data.uint8[3] = raw & 0xFF;
+    if (event.hold)
+      frame.data.uint8[3] |= AffaCommon::KEY_HOLD_MASK;
+
+    CanUtils::sendFrame(frame);
   }
 }
 
@@ -296,20 +263,6 @@ void ShowMyInfoMenu()
 
   // showMenu("MeganeCAN", row1, "Color: ORANGE");
 }
-struct Event
-{
-  enum Type
-  {
-    KeyPress,
-    MediaInfoUpdate,
-    Other
-  } type;
-  AffaCommon::AffaKey key;
-  bool isHold;
-};
-
-std::queue<Event> eventQueue;
-
 void CarminatDisplay::recv(CAN_FRAME *packet)
 {
 
@@ -331,16 +284,12 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
 
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
       CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xB0, 0x14, 0x11, 0x00, 0x1F, 0x00, 0x00, 0x00);
-
-      _sync_status &= ~SyncStatus::FAILED;
-      if (packet->data.uint8[2] == 0x01)
-        _sync_status |= SyncStatus::START;
+      noteSyncRequest(packet->data.uint8[2] == 0x01, millis());
     }
     else if (packet->data.uint8[0] == 0x69)
     {
       AFFA3_PRINT("[recv] peer alive (0x69)\n");
-      _sync_status |= SyncStatus::PEER_ALIVE;
-      tick();
+      markPeerAlive(millis());
     }
     else
     {
@@ -384,9 +333,7 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     {
       if (packet->data.uint8[1] == 0x20 && packet->data.uint8[2] == 0x20 && packet->data.uint8[3] == 0xB0 && packet->data.uint8[4] == 0x30 && packet->data.uint8[5] == 0x30 && packet->data.uint8[6] == 0x30 && packet->data.uint8[7] == 0x20)
       {
-        // input password
-        delay(1000);
-        sendPasswordSequence();
+        queuePasswordSequence(millis());
       }
     }
     // Process the NAV data here
@@ -441,17 +388,17 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
 
     // // Detect hold status
     // bool isHold = (rawKey & AffaCommon::KEY_HOLD_MASK) != 0;
-    eventQueue.push({Event::KeyPress, key, isHold});
+    _eventQueue.push({Event::KeyPress, key, isHold});
     // onKeyPressed(key, isHold);
   }
 }
 
 void CarminatDisplay::processEvents()
 {
-  while (!eventQueue.empty())
+  while (!_eventQueue.empty())
   {
-    Event e = eventQueue.front();
-    eventQueue.pop();
+    Event e = _eventQueue.front();
+    _eventQueue.pop();
     switch (e.type)
     {
     case Event::KeyPress:
@@ -469,10 +416,6 @@ void CarminatDisplay::processEvents()
     }
     }
   }
-
-  // Tick the active page (rate-limited internally by DiagPage)
-  if (_currentPage)
-      _currentPage->onTick();
 }
 /**
  * Sends a text string to the car display over CAN bus.
@@ -606,7 +549,6 @@ void showConfirmBoxWithOffsets(
     Serial.printf("  [CAN] %03X -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
                   0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
 
-    delay(5); // Small delay between frames
   }
 
   Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
@@ -649,7 +591,7 @@ void CarminatDisplay::setMediaInfo(const TrackInfo info)
     _scrollPos = 0; // reset scroll on track change
     //_lastScrollMs = millis(); // оновити таймер
   }
-  eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
+  _eventQueue.push({Event::MediaInfoUpdate, AffaCommon::AffaKey::Load, false});
 }
 
 void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
@@ -916,9 +858,7 @@ void showInfoMenu(
     Serial.println("\"");
 
     CanUtils::sendCan(0x151, 0x10, 0x0B, 0x76, infoPrefix, offset, padded[0], padded[1], padded[2]);
-    delay(5);
     CanUtils::sendCan(0x151, 0x21, padded[3], padded[4], padded[5], padded[6], padded[7], 0x00, 0x00);
-    delay(5);
   };
 
   sendMenuItem(offset1, item1, "Item1");

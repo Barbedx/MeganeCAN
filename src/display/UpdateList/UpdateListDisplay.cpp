@@ -38,6 +38,11 @@ void UpdateListDisplay::setMediaInfo(const TrackInfo info)
 
 void UpdateListDisplay::tickMedia()
 {
+    uint32_t now = millis();
+
+    if (isTransientActive(now))
+        return;
+
     if (_scrollTitle.length() == 0)
         return;
 
@@ -56,7 +61,6 @@ void UpdateListDisplay::tickMedia()
         return;
     }
 
-    uint32_t now = millis();
     if (now - _lastScrollMs < SCROLL_INTERVAL_MS)
         return;
     _lastScrollMs = now;

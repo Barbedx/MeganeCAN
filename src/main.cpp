@@ -131,7 +131,7 @@ void setup() // debug
 
     runStage("g_a2dp.begin", []
              {
-                 g_a2dp.begin("MeganeCAN-A2DP");
+   //              g_a2dp.begin("MeganeCAN-A2DP");
                  return true; // replace with real return if available
              });
 
@@ -143,7 +143,7 @@ void setup() // debug
 
     runStage("serverManager->begin", []
              {
-    g_app.serverManager->begin();
+   // g_app.serverManager->begin();
     return true; });
 
     runStage("display->begin", []
@@ -214,23 +214,13 @@ void setupOld()
     // DisplayBootstrap::restore();
 }
 
-#define SYNC_INTERVAL_MS 1000
-static uint32_t last_sync = 0;
-
 void loop()
 {
     g_console.tick();
-    
-
-    // advance display tx state machine
-    g_app.display->serviceTx(); //TODO implement media and events
- 
     CanUtils::tick();
 
-  //  g_app.display->tickMedia(); // TODO: Implement and move to ProcessEvents! or better TICKS! 
-    
-    
-  ///  Serial.println("LOOP AFTEER DISPLAY TICK MEDIA........done");
+    if (g_app.display)
+        g_app.display->tick();
 
     // Auto-time: sync display clock once per BT connection via CTS
     /*   if (_autoTime && Bluetooth::IsConnected() && Bluetooth::IsTimeSet() && !_timeSyncDone)
@@ -249,18 +239,6 @@ void loop()
           _timeSyncDone = false;  // reset so we sync again on next connect
           */
     //}
-
-  //  Serial.println("LOOP BEFORE DISPLAY processEvents ........done");
-  //  g_app.display->processEvents();
-  //  Serial.println("LOOP AFTEER DISPLAY processEvents........done");
-    uint32_t now = millis();
-    if (now - last_sync > SYNC_INTERVAL_MS)
-    {
-        last_sync = now;
-   // Serial.println("LOOP BEFORE DISPLAY  g_app.display->tick(); ........done");
-   //     g_app.display->tick();
-   // Serial.println("LOOP AFTEER DISPLAY  g_app.display->tick();........done");
-    }
 
    // ElmWifiManager::tick();
 /*

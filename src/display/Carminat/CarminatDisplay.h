@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <map>
+#include <queue>
 #include <Arduino.h> 
 #include "CarminatConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
@@ -47,9 +48,8 @@ public:
     //void setKeyHandler(KeyHandler handler) { keyHandler = handler; }
  
     void recv(CAN_FRAME *frame) override;
-    void processEvents();
+    void processEvents() override;
     void setMediaInfo(const TrackInfo info) override;
-    void tick() override;
 
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;
@@ -76,6 +76,9 @@ protected:
     Menu mainMenu;
     void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
     void initializeMenu();  // implemented in .cpp (reads NVS for BT mode items)
+    void sendAliveFrame() override;
+    void sendSyncRequestFrame() override;
+    void onTick(uint32_t now) override;
 
     uint8_t getPacketFiller() const override
     {
@@ -91,9 +94,30 @@ protected:
     }
 
 private:
+    struct Event
+    {
+        enum Type
+        {
+            KeyPress,
+            MediaInfoUpdate
+        } type;
+
+        AffaCommon::AffaKey key;
+        bool isHold;
+    };
+
+    struct EmulatedKeyEvent
+    {
+        AffaCommon::AffaKey key;
+        bool hold;
+        uint32_t dueAtMs;
+    };
+
     IPage*                       _currentPage = nullptr;
     MyELMManager*                _elm         = nullptr;
     std::map<String, DiagPage*>  _diagPages;
+    std::queue<Event>            _eventQueue;
+    std::queue<EmulatedKeyEvent> _emulatedKeyQueue;
 
     TrackInfo _mediaInfo;
     String _mediaLine2Full;      // повний "Artist - Title"
@@ -108,5 +132,8 @@ private:
     void renderMediaScreen(bool forceRedraw = false);
     String buildProgressLine() const;
     String buildScrollingTitle();
+    void queueEmulatedKey(AffaCommon::AffaKey key, bool hold, uint32_t dueAtMs);
+    void queuePasswordSequence(uint32_t now);
+    void serviceEmulatedKeys(uint32_t now);
 
 };

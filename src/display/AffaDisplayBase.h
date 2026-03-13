@@ -5,19 +5,21 @@
 #include <Arduino.h>
 #include <bluetooth/TrackInfo.h>
 
-    using SyncStatus = AffaCommon::SyncStatus;
-    using FuncStatus = AffaCommon::FuncStatus;
-    using AffaError = AffaCommon::AffaError;
-    
-    using KeyHandler = bool (*)(AffaCommon::AffaKey, bool);
+using SyncStatus = AffaCommon::SyncStatus;
+using FuncStatus = AffaCommon::FuncStatus;
+using AffaError = AffaCommon::AffaError;
+
+using KeyHandler = bool (*)(AffaCommon::AffaKey, bool);
 
 class AffaDisplayBase : public IDisplay
 {
-    private:
+private:
+    static constexpr uint32_t DEFAULT_SYNC_INTERVAL_MS = 1000;
+    static constexpr uint32_t DEFAULT_PEER_TIMEOUT_MS = DEFAULT_SYNC_INTERVAL_MS * 5;
 
     static constexpr uint8_t AFFA3_MAX_TX_DATA = 32;
     static constexpr uint32_t AFFA3_ACK_TIMEOUT_MS = 2000;
-     struct Affa3TxState
+    struct Affa3TxState
     {
         bool active = false;
         bool waitingAck = false;
@@ -37,10 +39,14 @@ class AffaDisplayBase : public IDisplay
     };
 
     Affa3TxState _tx;
+    uint32_t _lastSyncTickMs = 0;
+    uint32_t _lastPeerAliveMs = 0;
+
     bool affa3_start_tx(uint8_t targetFuncIdx, const uint8_t* data, uint8_t len);
     bool affa3_queue_next_packet();
     void affa3_finish_tx(AffaError result);
     void tickTx();
+    void tickSync(uint32_t now);
 
 public:
 
@@ -67,6 +73,7 @@ public:
     }
     
     virtual void begin() {}     
+    void tick() override;
     
 
     // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS
@@ -87,6 +94,7 @@ public:
 
     }
     virtual void ProcessKey(AffaCommon::AffaKey key, bool isHold) = 0;
+    virtual void processEvents() override {}
 
     // When true, skip function registration (FUNCSREG) handshake.
     // Set this when connected to a real radio — the radio handles auth itself.
@@ -102,6 +110,7 @@ protected:
     KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
     bool _skipFuncReg = false;
+
     struct Affa3Func
     {
         uint16_t id;
@@ -114,7 +123,17 @@ protected:
 
     virtual void initializeFuncs() = 0;
     virtual uint8_t getPacketFiller() const = 0; 
+    virtual void sendAliveFrame() = 0;
+    virtual void sendSyncRequestFrame() = 0;
+    virtual bool shouldProactivelyRequestSync() const { return false; }
+    virtual void onTick(uint32_t now) { (void)now; }
     
+    void markPeerAlive(uint32_t now);
+    void noteSyncRequest(bool startRequested, uint32_t now);
+    void markSyncLost();
+    void resetSyncSchedule();
+    uint32_t getSyncIntervalMs() const { return DEFAULT_SYNC_INTERVAL_MS; }
+    uint32_t getPeerTimeoutMs() const { return DEFAULT_PEER_TIMEOUT_MS; }
 
     // async tx state machine
     // bool affa3_start_tx(uint8_t targetFuncIdx, const uint8_t* data, uint8_t len);
