@@ -1,4 +1,5 @@
 #include "CanUtils.h"
+#include "WireProto.h"
 
 // Live-bus gate state. lastRxMs == 0 until the first frame is received; the bus
 // is considered alive while traffic was seen within BUS_ALIVE_WINDOW_MS.
@@ -40,13 +41,7 @@ void CanUtils::sendFrame(CAN_FRAME &frame)
     // gate below, so frames are captured even when bench TX is suppressed. Skip
     // the high-rate sync chatter (0x3AF) to keep the channel readable.
     if (frame.id != 0x3AF)
-    {
-        char buf[64];
-        int p = snprintf(buf, sizeof(buf), "@TX %03X", (unsigned)frame.id);
-        for (int i = 0; i < frame.length && p < (int)sizeof(buf) - 4; i++)
-            p += snprintf(buf + p, sizeof(buf) - p, " %02X", frame.data.uint8[i]);
-        Serial.println(buf);
-    }
+        WireProto::emitTx(frame.id, frame.data.uint8, frame.length);
     // Only transmit onto a confirmed-live bus. No RX traffic (e.g. bench board
     // with no transceiver) -> drop the frame so TX never drives the controller
     // BUS_OFF and trips the IDF auto-recovery assert (twai.c:184). On the car
