@@ -1,4 +1,5 @@
 #include "bluetooth.h"
+#include "utils/Log.h"
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
@@ -22,41 +23,32 @@ namespace Bluetooth
         NimBLEClient *Client = nullptr; // GATT client bound to the phone-initiated connection
 
         volatile bool Connected = false; // AMS is up
-        volatile bool NeedSetup = false; // phone connected, services not started yet
+        volatile bool NeedSetup = false; // phone connected, services not all started yet
         volatile bool Secured   = false; // link encrypted/bonded
         RTC_DATA_ATTR bool TimeSet = false;
+
+        // Each Apple service is brought up independently and retried until it
+        // appears (iOS exposes AMS/ANCS/CTS with slightly different timing).
+        bool AmsUp = false, AncsUp = false, CtsUp = false;
+        uint32_t ConnectMs = 0;                 // when the phone connected
+        const uint32_t SETUP_DEADLINE_MS = 20000; // stop retrying missing services after this
 
         std::string PeerAddr;
         const char *StatusText = "Pair from iPhone";
         uint32_t    lastSetupAttempt = 0;
 
-        bool startServices(NimBLEClient *c)
+        bool startCTS(NimBLEClient *c)
         {
-            if (!AppleMediaService::StartMediaService(c))
-            {
-                Serial.println("[BT] StartMediaService not ready yet (will retry)");
-                return false;
-            }
-            Serial.println("[BT] AMS started");
-
-            // ANCS (notifications) is optional — log and continue if absent.
-            AppleNotificationService::StartNotificationService(c);
-
             CurrentTimeService::CurrentTime ct;
-            if (CurrentTimeService::StartTimeService(c, &ct))
+            if (!CurrentTimeService::StartTimeService(c, &ct))
+                return false;
+            if (ct.mYear >= 2020 && ct.mYear <= 2100)
             {
-                if (ct.mYear >= 2020 && ct.mYear <= 2100)
-                {
-                    timeval tv;
-                    tv.tv_sec  = ct.ToTimeT();
-                    tv.tv_usec = static_cast<long>(ct.mSecondsFraction * 1000000.0f);
-                    if (settimeofday(&tv, nullptr) == 0)
-                        TimeSet = true;
-                }
-            }
-            else
-            {
-                Serial.println("[BT] StartTimeService failed (continuing)");
+                timeval tv;
+                tv.tv_sec  = ct.ToTimeT();
+                tv.tv_usec = static_cast<long>(ct.mSecondsFraction * 1000000.0f);
+                if (settimeofday(&tv, nullptr) == 0)
+                    TimeSet = true;
             }
             return true;
         }
@@ -65,22 +57,25 @@ namespace Bluetooth
         {
             void onConnect(NimBLEServer *s, NimBLEConnInfo &connInfo) override
             {
-                Serial.printf("[BT] Phone connected: %s\n", connInfo.getAddress().toString().c_str());
+                Log::printf("[BT] Phone connected: %s\n", connInfo.getAddress().toString().c_str());
                 Client     = s->getClient(connInfo); // client over the inbound connection
                 PeerAddr   = connInfo.getAddress().toString();
                 Secured    = connInfo.isEncrypted();
                 NeedSetup  = true;
                 Connected  = false;
+                AmsUp = AncsUp = CtsUp = false;
+                ConnectMs  = millis();
                 StatusText = "Connecting...";
             }
 
             void onDisconnect(NimBLEServer *s, NimBLEConnInfo &connInfo, int reason) override
             {
-                Serial.printf("[BT] Phone disconnected: %s reason=%d\n",
+                Log::printf("[BT] Phone disconnected: %s reason=%d\n",
                               connInfo.getAddress().toString().c_str(), reason);
                 Connected  = false;
                 NeedSetup  = false;
                 Secured    = false;
+                AmsUp = AncsUp = CtsUp = false;
                 Client     = nullptr;
                 PeerAddr.clear();
                 StatusText = HasBond() ? "Waiting for phone" : "Pair from iPhone";
@@ -89,7 +84,7 @@ namespace Bluetooth
 
             void onAuthenticationComplete(NimBLEConnInfo &connInfo) override
             {
-                Serial.printf("[BT] Auth complete: bonded=%d encrypted=%d authenticated=%d\n",
+                Log::printf("[BT] Auth complete: bonded=%d encrypted=%d authenticated=%d\n",
                               connInfo.isBonded(), connInfo.isEncrypted(), connInfo.isAuthenticated());
                 Secured = connInfo.isEncrypted();
             }
@@ -118,13 +113,13 @@ namespace Bluetooth
 
             adv->setAdvertisementData(advData);
             adv->start();
-            Serial.printf("[BT] Advertising as '%s' — pair from iPhone Settings > Bluetooth\n", name.c_str());
+            Log::printf("[BT] Advertising as '%s' — pair from iPhone Settings > Bluetooth\n", name.c_str());
         }
     } // anonymous namespace
 
     void Begin(const std::string &device_name)
     {
-        Serial.println("[BT] Begin() AMS/ANCS peripheral");
+        Log::printf("[BT] Begin() AMS/ANCS peripheral");
         esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
         NimBLEDevice::init(device_name);
@@ -141,7 +136,7 @@ namespace Bluetooth
         startAdvertising(device_name);
 
         StatusText = HasBond() ? "Waiting for phone" : "Pair from iPhone";
-        Serial.printf("[BT] Begin finished (bonds stored: %d)\n", NimBLEDevice::getNumBonds());
+        Log::printf("[BT] Begin finished (bonds stored: %d)\n", NimBLEDevice::getNumBonds());
     }
 
     void Service()
@@ -150,7 +145,9 @@ namespace Bluetooth
         if (Connected && Client && Client->isConnected())
             AppleNotificationService::Process();
 
-        if (!(NeedSetup && Client && Client->isConnected() && !Connected))
+        // Keep running setup (retrying missing services) until NeedSetup clears —
+        // not gated on !Connected, so ANCS/CTS still come up after AMS does.
+        if (!(NeedSetup && Client && Client->isConnected()))
             return;
 
         if (millis() - lastSetupAttempt < 800)
@@ -160,22 +157,38 @@ namespace Bluetooth
         // Secure first, then discover (order matters — NimBLE issue #1033).
         if (!Secured)
         {
-            Serial.println("[BT] Securing link — accept the pairing prompt on your iPhone...");
+            Log::printf("[BT] Securing link — accept the pairing prompt on your iPhone...");
             if (!Client->secureConnection())
             {
-                Serial.println("[BT] Pairing not complete yet, will retry");
+                Log::printf("[BT] Pairing not complete yet, will retry");
                 return;
             }
             Secured = true;
         }
 
-        if (startServices(Client))
+        // Bring up each service independently and keep retrying the missing ones
+        // (iOS exposes AMS/ANCS/CTS with slightly different timing).
+        if (!AmsUp && AppleMediaService::StartMediaService(Client))
         {
-            Connected  = true;
-            NeedSetup  = false;
+            AmsUp = true;
+            Connected = true;
             StatusText = "Connected";
-            Serial.println("[BT] Connected — AMS + ANCS + CTS up");
+            Log::printf("[BT] AMS started");
         }
+        if (AmsUp && !AncsUp && AppleNotificationService::StartNotificationService(Client))
+        {
+            AncsUp = true;
+            Log::printf("[BT] ANCS started");
+        }
+        if (AmsUp && !CtsUp && startCTS(Client))
+        {
+            CtsUp = true;
+            Log::printf("[BT] CTS started");
+        }
+
+        // Done once everything is up, or give up on stragglers after the deadline.
+        if ((AmsUp && AncsUp && CtsUp) || (millis() - ConnectMs > SETUP_DEADLINE_MS))
+            NeedSetup = false;
     }
 
     bool IsConnected() { return Connected && Client && Client->isConnected(); }
@@ -184,7 +197,7 @@ namespace Bluetooth
 
     void ClearBonds()
     {
-        Serial.println("[BT] Clearing all bonds...");
+        Log::printf("[BT] Clearing all bonds...");
         NimBLEDevice::deleteAllBonds();
         if (Client && Client->isConnected())
             Client->disconnect();
@@ -192,7 +205,7 @@ namespace Bluetooth
         NeedSetup  = false;
         Secured    = false;
         StatusText = "Pair from iPhone";
-        Serial.println("[BT] Bonds cleared. Also 'Forget this device' on the iPhone, then re-pair.");
+        Log::printf("[BT] Bonds cleared. Also 'Forget this device' on the iPhone, then re-pair.");
     }
 
     const char *GetStatusText() { return StatusText; }

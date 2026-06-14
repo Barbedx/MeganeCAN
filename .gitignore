@@ -8,3 +8,4 @@
 .clang_complete
 .gcc-flags.json
 logs
+logs/

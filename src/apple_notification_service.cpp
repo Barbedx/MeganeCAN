@@ -1,4 +1,5 @@
 #include "apple_notification_service.h"
+#include "utils/Log.h"
 
 #include <NimBLEDevice.h>
 #include <Arduino.h>
@@ -111,7 +112,7 @@ namespace AppleNotificationService
                     }
                     gPending.push_back(uid); // fetch details from the loop task
                 }
-                Serial.printf("[ANCS] event=%d uid=%u category=%s\n", eventId, uid, CategoryName(categoryId));
+                Log::printf("[ANCS] event=%d uid=%u category=%s\n", eventId, uid, CategoryName(categoryId));
             }
         }
 
@@ -158,7 +159,7 @@ namespace AppleNotificationService
             }
             if (have)
             {
-                Serial.printf("[ANCS] %s | %s: %s\n", copy.appId.c_str(), copy.title.c_str(), copy.message.c_str());
+                Log::printf("[ANCS] %s | %s: %s\n", copy.appId.c_str(), copy.title.c_str(), copy.message.c_str());
                 if (gCallback)
                     gCallback(copy);
             }
@@ -229,7 +230,7 @@ namespace AppleNotificationService
         auto svc = client->getService(ANCS_SERVICE_UUID);
         if (!svc)
         {
-            Serial.println("ANCS service not found (iOS may not expose it yet)");
+            Log::printf("ANCS service not found (iOS may not expose it yet)");
             return false;
         }
 
@@ -238,13 +239,13 @@ namespace AppleNotificationService
         auto notifSource = svc->getCharacteristic(ANCS_NOTIFICATION_SOURCE_UUID);
         if (!gControlPoint || !dataSource || !notifSource)
         {
-            Serial.println("ANCS characteristics not found");
+            Log::printf("ANCS characteristics not found");
             return false;
         }
 
         dataSource->subscribe(true, onDataSource); // subscribe first so responses aren't missed
         notifSource->subscribe(true, onNotificationSource);
-        Serial.println("ANCS started");
+        Log::printf("ANCS started");
         return true;
     }
 }

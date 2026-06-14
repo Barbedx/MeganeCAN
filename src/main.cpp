@@ -17,6 +17,7 @@
 #include "bluetooth.h"
 #include "apple_media_service.h"
 #include "wifi_manager.h"
+#include "utils/CanLog.h"
 #include "BleMediaKeyboard.h"
 
 AffaDisplayBase *display = nullptr;
@@ -42,6 +43,7 @@ void gotFrame(CAN_FRAME *frame)
 {
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
+    CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
     display->recv(frame);
 }
 
@@ -366,6 +368,7 @@ void setup()
 
     display->begin();
 
+    CanLog::begin(); // load CAN-log config (enabled + ID filter) from NVS
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);

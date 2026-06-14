@@ -1,4 +1,5 @@
 #include "wifi_manager.h"
+#include "utils/Log.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -38,11 +39,11 @@ namespace WiFiManager
             if (MDNS.begin(gHostname.c_str()))
             {
                 MDNS.addService("http", "tcp", 80);
-                Serial.printf("mDNS up: http://%s.local\n", gHostname.c_str());
+                Log::printf("mDNS up: http://%s.local\n", gHostname.c_str());
             }
             else
             {
-                Serial.println("mDNS start failed");
+                Log::printf("mDNS start failed");
             }
         }
 
@@ -50,10 +51,11 @@ namespace WiFiManager
         {
             gSta = false;
             WiFi.mode(WIFI_AP);
+            WiFi.setSleep(true); // modem sleep — required for WiFi+BLE radio coexistence
             WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
             bool ok = WiFi.softAP(gApSsid.c_str(), gApPass.empty() ? nullptr : gApPass.c_str());
             gSsid = gApSsid;
-            Serial.printf("WiFi AP '%s' %s, IP: %s\n", gApSsid.c_str(),
+            Log::printf("WiFi AP '%s' %s, IP: %s\n", gApSsid.c_str(),
                           ok ? "up" : "FAILED", WiFi.softAPIP().toString().c_str());
             dns.start(DNS_PORT, "*", apIP); // captive portal
             startMDNS();
@@ -63,6 +65,7 @@ namespace WiFiManager
         {
             gSta = false;
             WiFi.mode(WIFI_STA);
+            WiFi.setSleep(true); // modem sleep — required for WiFi+BLE radio coexistence
             WiFi.setHostname(gHostname.c_str());
             WiFi.setAutoReconnect(true);
 
@@ -78,24 +81,24 @@ namespace WiFiManager
             }
 
             WiFi.begin(ssid.c_str(), pass.c_str());
-            Serial.printf("WiFi: joining '%s'", ssid.c_str());
+            Log::printf("WiFi: joining '%s'", ssid.c_str());
             uint32_t start = millis();
             while (WiFi.status() != WL_CONNECTED && millis() - start < 12000)
             {
                 delay(250);
                 Serial.print(".");
             }
-            Serial.println();
+            Log::printf("");
 
             if (WiFi.status() == WL_CONNECTED)
             {
                 gSta  = true;
                 gSsid = ssid.c_str();
-                Serial.printf("WiFi STA connected, IP: %s\n", WiFi.localIP().toString().c_str());
+                Log::printf("WiFi STA connected, IP: %s\n", WiFi.localIP().toString().c_str());
                 startMDNS();
                 return true;
             }
-            Serial.println("WiFi STA connect failed");
+            Log::printf("WiFi STA connect failed");
             return false;
         }
     } // anonymous namespace
@@ -185,7 +188,7 @@ namespace WiFiManager
         prefs.putString("pass", pass.c_str());
         prefs.putString("staticip", staticIp.c_str());
         prefs.end();
-        Serial.printf("WiFi creds saved (ssid='%s', staticip='%s')\n", ssid.c_str(), staticIp.c_str());
+        Log::printf("WiFi creds saved (ssid='%s', staticip='%s')\n", ssid.c_str(), staticIp.c_str());
     }
 
     void ClearCredentials()
@@ -193,7 +196,7 @@ namespace WiFiManager
         prefs.begin("wifi", false);
         prefs.clear();
         prefs.end();
-        Serial.println("WiFi creds cleared");
+        Log::printf("WiFi creds cleared");
     }
 
 } // namespace WiFiManager
