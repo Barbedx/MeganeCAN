@@ -329,7 +329,9 @@ setInterval(refreshMedia,1000);setInterval(refreshNotifs,3000);setInterval(refre
 
 void HttpServerManager::begin()
 {
-    _server.config.max_uri_handlers = 48;
+    // 46 app routes + ElegantOTA's handlers exceed 48 -> the tail routes failed
+    // to register (ESP_ERR_HTTPD_HANDLERS_FULL). Bump the cap so every route fits.
+    _server.config.max_uri_handlers = 64;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);

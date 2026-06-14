@@ -86,6 +86,16 @@ namespace Bluetooth
                 AmsUp = AncsUp = CtsUp = false;
                 ConnectMs  = millis();
                 StatusText = "Connecting...";
+
+                // WiFi and BLE share one radio on the ESP32. By default iOS holds
+                // a short connection interval (~15-30ms) and BLE monopolises the
+                // radio, starving the WiFi STA (dashboard becomes unreachable).
+                // Ask the phone for a relaxed link: 30-50ms interval + slave
+                // latency 4 (skip idle events) + 4s supervision timeout. This
+                // frees airtime for WiFi without dropping BLE, and stays within
+                // Apple's BLE connection-parameter rules so iOS accepts it.
+                // Units: interval = 1.25ms, timeout = 10ms.
+                s->updateConnParams(connInfo.getConnHandle(), 24, 40, 4, 400);
             }
 
             void onDisconnect(NimBLEServer *s, NimBLEConnInfo &connInfo, int reason) override
