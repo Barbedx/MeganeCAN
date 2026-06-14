@@ -262,7 +262,7 @@ function mmss(s){s=Math.max(0,Math.floor(s));return Math.floor(s/60)+':'+('0'+(s
 function showStatic(){let u='/static?text='+encodeURIComponent(g('staticTextInput').value);if(g('staticSave').checked)u+='&save=on';getq(u).then(()=>toast('Shown'));}
 function showScroll(){let u='/scroll?text='+encodeURIComponent(g('welcomeTextInput').value);if(g('scrollSave').checked)u+='&save=on';getq(u).then(()=>toast('Scrolling'));}
 
-async function refreshMedia(){try{const d=await(await fetch('/api/media')).json();
+function renderMedia(d){try{
   if(!d.connected){g('npPlayer').textContent='Not connected';g('npTitle').textContent='-';g('npArtist').textContent='';g('npBar').value=0;g('npProg').textContent='';return;}
   g('npPlayer').textContent=(d.player||'')+' · '+d.state+' · vol '+Math.round(d.volume*100)+'%';
   g('npTitle').textContent=d.title||'-';
@@ -270,14 +270,14 @@ async function refreshMedia(){try{const d=await(await fetch('/api/media')).json(
   g('npBar').value=d.duration>0?100*d.elapsed/d.duration:0;
   g('npProg').textContent=mmss(d.elapsed)+' / '+mmss(d.duration)+'  ·  '+(d.queueIndex+1)+'/'+d.queueCount;
 }catch(e){}}
-async function refreshNotifs(){try{const l=await(await fetch('/api/notifs')).json();
+function renderNotifs(l){try{
   g('notifCard').style.display=l.length?'block':'none';let h='';
   l.forEach(n=>{h+='<div class="notif"><b>'+esc(n.title||'(no title)')+'</b><br><span class="muted">'+esc(n.msg||'')+'</span><br><span class="muted">'+esc(n.cat+' · '+n.app)+'</span></div>';});
   g('notifs').innerHTML=h;}catch(e){}}
-async function refreshBt(){try{const d=await(await fetch('/api/bt')).json();
+function renderBt(d){try{
   g('btStatus').innerHTML='Status: '+esc(d.status)+'<br>Connected: '+(d.connected?'yes '+esc(d.address||''):'no')+'<br>Bonded: '+(d.bonded?'yes':'no');
   g('hdrStatus').textContent=(d.connected?'BT connected':'BT '+d.status);}catch(e){}}
-async function refreshWifi(){try{const d=await(await fetch('/api/wifi')).json();
+function renderWifi(d){try{
   g('wifiStatus').innerHTML='Mode: '+esc(d.mode)+' · SSID: '+esc(d.ssid)+'<br>IP: '+esc(d.ip)+' · http://'+esc(d.host)+'.local';}catch(e){}}
 async function scanWifi(){const sel=g('ssidSel');sel.innerHTML='<option value="">-- scanning --</option>';await fetch('/api/wifi/scan');
   let n=0,t=setInterval(async()=>{const d=await(await fetch('/api/wifi/networks')).json();
@@ -316,15 +316,18 @@ async function loadConfig(){try{
 }catch(e){}}
 
 async function loadCan(){const d=await(await fetch('/api/can/config')).json();g('canEn').checked=d.enabled;g('canIds').value=d.filter||'';}
-async function refreshCanSeen(){try{const d=await(await fetch('/api/can/config')).json();const seen=(d.seen||[]).sort((a,b)=>b.n-a.n);
+function renderCanSeen(d){try{const seen=(d.seen||[]).sort((a,b)=>b.n-a.n);
   let h='';seen.forEach(s=>{h+='<button class="sec" style="margin:2px;padding:5px 8px" onclick="addId(\''+s.id+'\')">'+s.id+' ('+s.n+')</button>';});
   g('canSeen').innerHTML=h||'<span class="muted">none yet</span>';}catch(e){}}
+async function refreshCanSeen(){try{const d=await(await fetch('/api/can/config')).json();renderCanSeen(d);}catch(e){}}
+async function refreshDashboard(){try{const d=await(await fetch('/api/dashboard')).json();
+  renderMedia(d.media);renderNotifs(d.notifs);renderBt(d.bt);renderWifi(d.wifi);renderCanSeen(d.can);}catch(e){}}
 function addId(id){const f=g('canIds');const cur=f.value.split(/[,\s]+/).filter(Boolean);if(!cur.includes(id))cur.push(id);f.value=cur.join(',');}
 async function saveCan(){await postf('/api/can/config',{enabled:g('canEn').checked?'1':'0',ids:g('canIds').value});toast('CAN config saved');}
 
 buildKeys();loadConfig();loadElmHeaders();loadCan();
-refreshMedia();refreshNotifs();refreshBt();refreshWifi();refreshCanSeen();
-setInterval(refreshMedia,2000);setInterval(refreshNotifs,4000);setInterval(refreshBt,4000);setInterval(refreshWifi,8000);setInterval(refreshCanSeen,5000);
+refreshDashboard();
+setInterval(refreshDashboard,2500);
 </script></body></html>
 )rawliteral";
 
@@ -770,6 +773,27 @@ window.addEventListener('DOMContentLoaded', loadPlan);
 
     _server.on("/api/media", HTTP_GET, [](PsychicRequest *request) {
         return request->reply(200, "application/json", buildMediaJson().c_str());
+    });
+
+    // Consolidated dashboard poll: one request returns media + notifs + bt + wifi
+    // + can, so the page polls a single keep-alive socket instead of 5 in parallel
+    // (fewer connection buffers, less heap churn on a RAM-tight ESP32). Reuses the
+    // same builders as the individual /api/* routes.
+    _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {
+        String j = "{\"media\":";
+        j += buildMediaJson();
+        j += ",\"notifs\":";
+        j += buildNotifsJson();
+        j += ",\"bt\":";
+        j += Bluetooth::GetStatusJson();
+        j += ",\"wifi\":{\"mode\":\"" + String(WiFiManager::ModeStr().c_str()) +
+             "\",\"ssid\":\"" + String(WiFiManager::SSID().c_str()) +
+             "\",\"ip\":\"" + String(WiFiManager::IP().c_str()) +
+             "\",\"host\":\"" + String(WiFiManager::Hostname().c_str()) + "\"}";
+        j += ",\"can\":";
+        j += CanLog::configJson().c_str();
+        j += "}";
+        return request->reply(200, "application/json", j.c_str());
     });
 
     _server.on("/api/notifs", HTTP_GET, [](PsychicRequest *request) {
