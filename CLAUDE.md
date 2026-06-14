@@ -22,7 +22,10 @@ pio device monitor
 pio run -t upload --upload-port <device-ip>
 ```
 
-Target: `esp32-c3-devkitm-1` (ESP32-C3 mini). CAN pins: RX=GPIO3, TX=GPIO4.
+Two envs: **`esp32dev-mini`** (ESP32-C3 SuperMini — the car board, native USB) and **`esp32dev`**
+(classic ESP32 WROOM — the bench board, CP210x UART). Build/flash a specific board and repo path:
+`pio run -e esp32dev -t upload --upload-port COMx -d <repo>`. CAN pins: RX=GPIO3, TX=GPIO4.
+If BLE bonds won't persist on a board, `pio run -e <env> -t erase` first (corrupt NVS).
 
 ## Secrets
 
@@ -30,20 +33,93 @@ Target: `esp32-c3-devkitm-1` (ESP32-C3 mini). CAN pins: RX=GPIO3, TX=GPIO4.
 - `Soft_AP_WIFI_SSID` — soft AP name for the web UI
 - `Soft_AP_WIFI_PASS` — soft AP password
 
-## Architecture
+## Role in the car (the big picture)
 
-### Display Abstraction Layer
+The ESP32 sits on the car CAN bus **between the head-unit radio and the dashboard display**, and
+can **emulate the radio** to drive the display directly — that is the point of the project (augment
+or replace the OEM radio). To replace the radio it must present itself to the display *as* the
+radio: the **function-registration** handshake (see `skip_funcreg` below).
 
-`IDisplay` (pure interface) → `AffaDisplayBase` (CAN send logic, sync state machine) → concrete implementations:
+### Radio protocols × displays (validated matrix)
 
-- **`Affa3Display`** — "Update" mode display. Supports `setText`, `setState`, `setTime`. No menu/key support.
-- **`Affa3NavDisplay`** — "Carminat/Nav" mode display. Full feature set: menus, key press handling, highlight, info panels, BLE keyboard for AMS.
+Two physical displays — **monochrome** (large, graphical: menus, media, notifications) and
+**segment** (text-only) — and two radio protocols the firmware emulates:
 
-`initDisplay()` in `main.cpp` reads the `display_type` key from NVS (`Preferences`) and instantiates the correct variant at runtime. All other subsystems take `IDisplay&`.
+| Radio protocol | Monochrome display | Segment display |
+|---|---|---|
+| **Carminat** (`CarminatDisplay`) | ✅ only this | ❌ |
+| **UpdateList** | ✅ `UpdateListMenuDisplay` (`updatelist_menu`) | ✅ `UpdateListDisplay` (`updatelist`, 8-seg) |
 
-### CAN Bus Communication
+The *real* monochrome display identifies the connecting radio during its registration handshake;
+our firmware does **not** auto-detect — `display_type` (NVS) statically selects the driver
+(`carminat` / `updatelist` / `updatelist_menu` / fallback `UpdateListBase`).
 
-CAN frames are received via `gotFrame()` callback registered with `CAN0.setGeneralCallback()`. Each display variant implements `recv(CAN_FRAME*)` to handle inbound frames (key presses, sync responses). Outbound display commands are 8-byte CAN frames sent via `affa3_send()` / `affa3_do_send()` in `AffaDisplayBase`.
+### Display abstraction
+
+`IDisplay` (pure interface) → `AffaDisplayBase` (shared CAN/ISO-TP send + sync state machine) →
+`CarminatDisplay`, `UpdateListBase`, `UpdateListDisplay` (8-seg), `UpdateListMenuDisplay` (mono LCD).
+`initDisplay()` in `main.cpp` builds the driver from NVS; the global `AffaDisplayBase *display` is
+used by `loop()` (`tick`/`tickMedia`/`processEvents`), `gotFrame()` (`recv`), the AMS callback
+(`setMediaInfo`), and HTTP routes (`/emulate/key`, `showMenu`, …).
+
+### CAN / AFFA3 wire protocol
+
+Inbound frames arrive via `gotFrame()` (`CAN0.setGeneralCallback`) → `display->recv()`. Outbound
+goes through `affa3_send()` → `affa3_do_send()` → `CanUtils::sendFrame()` → `CAN0.sendFrame()`.
+
+- **ISO-TP framing:** first frame = 7 raw bytes; consecutive = `[0x20+N][6 bytes]`; padded with the
+  protocol filler (Carminat `0x00`, UpdateList `0x81`).
+- **Per-frame ACK:** `affa3_do_send` blocks ≤2s waiting for a reply on `(sentID | 0x400)`:
+  `[0x74…]`=DONE, `[0x30 0x01 0x00…]`=PARTIAL, else ERROR.
+- **CAN IDs:** Carminat sync `0x3AF`/reply `0x3CF`, ctrl+text `0x151`, keys `0x1C1`.
+  UpdateList sync `0x3DF`/reply `0x3CF`, ctrl `0x1B1`, text `0x121`, keys `0x0A9`.
+- **Registration:** radio→`0x3CF [0x61 0x11]` → ESP replies `0x70…` (Carminat also 2×`0xB0`);
+  keepalive `0xB9`/`0x79`, peer-alive `0x69`.
+
+**`skip_funcreg` (NVS `config`):** `false` = ESP acts as the radio and runs the registration
+handshake (replace-radio mode); `true` = a real radio is present and owns registration, ESP is
+passive (no sync, no auto-reply). Auto-detect of the radio is impossible while passive — hence
+`display_type` is manual.
+
+### CAN bus emulator (PC-side virtual display)
+
+`CanUtils::sendFrame()` mirrors every outbound frame to serial as `@TX <id> <bytes>` (before the
+live-bus gate, so frames are captured even when bench TX is suppressed). A PC tool decodes the
+AFFA3 stream and renders a virtual display; injecting `(id | 0x400)` ACKs back over serial closes
+the loop so the bench runs without the 2s no-display timeouts. Live serial is shared with the
+developer via `tools/serial_proxy.py` (SSE at `http://localhost:8080`). Goal: reverse-engineer the
+AFFA3NAV navigation screen to drive turn arrows from iPhone ANCS/Maps.
+
+### Bench vs car (CAN safety)
+
+A bare bench board has **no CAN transceiver**. Transmitting onto a bus that never ACKs drives the
+TWAI controller bus-off, and the esp32_can watchdog's auto-recovery then asserts (`twai.c:184
+tx_msg_count`) into a reboot loop. `CanUtils::busAlive()` gates TX on received traffic — no RX
+(bench) → TX suppressed; a live bus (car) → TX within milliseconds. No build flag needed.
+
+### Bluetooth (peripheral AMS/ANCS — NOT central)
+
+The ESP advertises as a **BLE peripheral**; the iPhone connects from Settings → Bluetooth and the
+ESP takes a GATT *client* over that inbound link (`NimBLEServer::getClient`). It reads AMS
+(now-playing + remote commands), ANCS (notifications), CTS (clock). See `src/bluetooth.cpp`.
+Hard-won invariants:
+- Advertise the name **and** the AMS solicitation in the **primary** packet (≤31 bytes → name must
+  be short); a scan-response-only solicitation is not surfaced to a fresh iPhone.
+- BLE notification callbacks must never block / never do a GATT write-with-response (deadlocks the
+  host); defer writes to the loop.
+- Bonds must persist (`getNumBonds()>0`); if they don't on a given board, the NVS is corrupt — a
+  full `erase_flash` fixes it (not code).
+
+### WiFi + memory discipline (the device is RAM-tight)
+
+WiFiManager: STA (NVS creds) → AP fallback; mDNS `meganecan.local` (STA only). Heap is tight with
+BLE+WiFi+HTTP+AMS all live (~62KB free / ~45KB largest contiguous block). Keep it stable:
+- `WiFi.setSleep(true)` **and** relax the BLE connection on connect
+  (`updateConnParams` ~30–50ms interval + slave latency) or the dashboard is starved.
+- PsychicHttp: `lru_purge_enable=true`, small `max_open_sockets`; don't auto-scan WiFi from the
+  dashboard; gate scans on the largest *contiguous* block (`getMaxAllocHeap`).
+- Prefer fixed `char[]`/streaming over `String`/`std::string` churn in HTTP responses; the RAM ring
+  log was removed (use the serial proxy). A loop heap watchdog logs `[heap] free/min/maxblk`.
 
 ### ELM327 / OBD Diagnostics
 
@@ -57,9 +133,11 @@ PID plans live in `src/ElmManager/PidPlan_*.h`. Each plan defines `MetricDef` en
 
 `DisplayCommands::Manager` (`src/commands/DisplayCommands.*`) translates HTTP requests into `IDisplay` calls.
 
-### WiFi Dual-Mode
+### WiFi (see "WiFi + memory discipline" above)
 
-The device runs `WIFI_AP_STA`: AP mode hosts the web UI, STA mode connects to the ELM327 WiFi adapter ("V-LINK"). WiFi STA connection is managed with a retry loop in `loop()`.
+`WiFiManager` owns networking: STA with NVS-persisted home creds → AP fallback (`ESP32_MeganeCan_AP`,
+secrets.h) for config; mDNS only in STA. (ELM327's separate STA to the "V-LINK" adapter is mutually
+exclusive with home STA on one radio — reconcile if ELM is re-enabled; it's disabled by default.)
 
 ### Serial Commands
 
@@ -72,7 +150,8 @@ The device runs `WIFI_AP_STA`: AP mode hosts the web UI, STA mode connects to th
 ### NVS Persistence
 
 `Preferences` namespaces used:
-- `"config"` — `display_type` (string: `"affa3"` or `"affa3nav"`)
+- `"config"` — `display_type` (`"carminat"` | `"updatelist"` | `"updatelist_menu"`), `bt_mode`
+  (`"ams"` | `"keyboard"`), `auto_time`, `elm_enabled`, `skip_funcreg`
 - `"display"` — `autoRestore` (bool), `lastText` (string), `welcomeText` (string)
 
 ### Key Data Types
