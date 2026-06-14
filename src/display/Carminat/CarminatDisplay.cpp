@@ -220,7 +220,14 @@ void CarminatDisplay::tick()
   if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
   { /* Błąd synchronizacji */
     /* Wysyłamy pakiet z żądaniem synchronizacji */
-    AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
+    // Throttle this log: with no display answering (bench) it would spam the
+    // serial channel every tick. The sync packet below is still sent each time.
+    static uint32_t _lastSyncLog = 0;
+    if (millis() - _lastSyncLog > 10000)
+    {
+      _lastSyncLog = millis();
+      AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
+    }
     CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
     _sync_status &= ~SyncStatus::START;
     delay(100);

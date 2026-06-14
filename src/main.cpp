@@ -330,7 +330,14 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold)
 static AppleMediaService::MediaInformation g_mediaInfo;
 void onDataUpdateCallback(const AppleMediaService::MediaInformation &info)
 {
-    info.dump();
+    // info.dump() is 8 serial lines; AMS fires often during playback, so throttle
+    // the log to keep the serial channel readable. Display update runs every time.
+    static uint32_t _lastDump = 0;
+    if (millis() - _lastDump > 5000)
+    {
+        _lastDump = millis();
+        info.dump();
+    }
     display->setMediaInfo(info);
     g_mediaInfo = info;
 }
@@ -422,6 +429,19 @@ void loop()
     }
 
     WiFiManager::Handle(); // pump captive DNS while in AP fallback mode
+
+    // Heap watchdog — BLE+WiFi+HTTP+AMS are tight on a classic ESP32. Log free,
+    // all-time-min, and largest contiguous block (fragmentation) every 10s so we
+    // can see headroom and cut load if it runs low.
+    static uint32_t lastHeapLog = 0;
+    if (millis() - lastHeapLog > 10000)
+    {
+        lastHeapLog = millis();
+        Serial.printf("[heap] free=%u min=%u maxblk=%u\n",
+                      (unsigned)ESP.getFreeHeap(),
+                      (unsigned)ESP.getMinFreeHeap(),
+                      (unsigned)ESP.getMaxAllocHeap());
+    }
 
     display->processEvents();
     uint32_t now = millis();

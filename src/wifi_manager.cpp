@@ -127,9 +127,31 @@ namespace WiFiManager
             dns.processNextRequest();
     }
 
+    // A WiFi scan allocates a result buffer; with BLE connected the heap is
+    // fragmented (largest contiguous block ~28KB) and the Arduino WiFi lib's
+    // new[] in _scanDone can throw bad_alloc, which (exceptions off) aborts ->
+    // reboot. Gate on the largest *contiguous* block, not total free, since the
+    // scan needs a contiguous buffer. In practice this lets scans run when BLE
+    // is idle (plenty of headroom) and skips them when BLE is connected (tight).
+    static const size_t SCAN_MIN_CONTIG_HEAP = 40000;
+
+    bool scanHeapOk()
+    {
+        size_t maxBlock = ESP.getMaxAllocHeap();
+        if (maxBlock < SCAN_MIN_CONTIG_HEAP)
+        {
+            Log::printf("[WiFi] scan skipped: heap too fragmented (maxblk %u, need %u) "
+                        "— disconnect BLE to scan", (unsigned)maxBlock, (unsigned)SCAN_MIN_CONTIG_HEAP);
+            return false;
+        }
+        return true;
+    }
+
     void StartScan()
     {
         if (WiFi.scanComplete() == WIFI_SCAN_RUNNING)
+            return;
+        if (!scanHeapOk())
             return;
         WiFi.scanDelete();
         WiFi.scanNetworks(/*async=*/true, /*show_hidden=*/false);
@@ -140,6 +162,8 @@ namespace WiFiManager
         int n = WiFi.scanComplete();
         if (n == WIFI_SCAN_FAILED) // -2: never triggered → start one now
         {
+            if (!scanHeapOk())
+                return "{\"scanning\":false,\"nets\":[],\"lowmem\":true}";
             WiFi.scanNetworks(true, false);
             n = WIFI_SCAN_RUNNING;
         }

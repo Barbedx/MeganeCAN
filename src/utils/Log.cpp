@@ -1,23 +1,15 @@
 #include "Log.h"
 
 #include <stdarg.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 
+// The RAM ring log was removed: under load it wrapped within seconds (so it held
+// almost no useful history) yet cost ~16KB of static RAM plus a same-size
+// transient std::string on every /api/log read, which fragmented a memory-tight
+// ESP32 and helped wedge the web server. Live debugging now uses the serial
+// console / the serial proxy (tools/serial_proxy.py). Log::printf still mirrors
+// to Serial so all call sites keep working unchanged.
 namespace Log
 {
-    namespace
-    {
-        const size_t      CAP  = 16384;
-        char              rb[CAP];
-        size_t            head = 0;
-        bool              wrapped = false;
-        SemaphoreHandle_t mtx = nullptr;
-
-        void ensure() { if (!mtx) mtx = xSemaphoreCreateMutex(); }
-        inline void put(char c) { rb[head++] = c; if (head >= CAP) { head = 0; wrapped = true; } }
-    }
-
     void printf(const char *fmt, ...)
     {
         char line[256];
@@ -25,42 +17,10 @@ namespace Log
         va_start(ap, fmt);
         vsnprintf(line, sizeof(line), fmt, ap);
         va_end(ap);
-
-        char out[288];
-        snprintf(out, sizeof(out), "[%lu] %s\n", (unsigned long)millis(), line);
-        Serial.print(out); // mirror to serial
-
-        ensure();
-        if (xSemaphoreTake(mtx, pdMS_TO_TICKS(50)) == pdTRUE)
-        {
-            for (char *p = out; *p; ++p) put(*p);
-            xSemaphoreGive(mtx);
-        }
+        Serial.printf("[%lu] %s\n", (unsigned long)millis(), line);
     }
 
-    String dump()
-    {
-        ensure();
-        String s;
-        if (xSemaphoreTake(mtx, pdMS_TO_TICKS(200)) == pdTRUE)
-        {
-            s.reserve((wrapped ? CAP : head) + 1);
-            if (wrapped)
-                for (size_t i = head; i < CAP; ++i) s += rb[i];
-            for (size_t i = 0; i < head; ++i) s += rb[i];
-            xSemaphoreGive(mtx);
-        }
-        return s;
-    }
+    String dump() { return String("RAM log disabled — use the serial console / proxy."); }
 
-    void clear()
-    {
-        ensure();
-        if (xSemaphoreTake(mtx, pdMS_TO_TICKS(50)) == pdTRUE)
-        {
-            head = 0;
-            wrapped = false;
-            xSemaphoreGive(mtx);
-        }
-    }
+    void clear() {}
 }

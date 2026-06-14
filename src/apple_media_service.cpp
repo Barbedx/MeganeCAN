@@ -203,12 +203,13 @@ namespace AppleMediaService
   {
     if (remote_command_characteristic != nullptr)
     {
-      remote_command_characteristic->writeValue(&commandID, sizeof(commandID), true);
-      return true;
+      bool ok = remote_command_characteristic->writeValue(&commandID, sizeof(commandID), true);
+      Serial.printf("[AMS] remote cmd id=%u write -> %s\n", commandID, ok ? "ok" : "FAIL");
+      return ok;
     }
     else
     {
-      Serial.println("Remote command characteristic is not initialized!");
+      Serial.println("[AMS] remote command characteristic is not initialized!");
       return false;
     }
   }

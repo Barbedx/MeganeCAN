@@ -322,8 +322,8 @@ function addId(id){const f=g('canIds');const cur=f.value.split(/[,\s]+/).filter(
 async function saveCan(){await postf('/api/can/config',{enabled:g('canEn').checked?'1':'0',ids:g('canIds').value});toast('CAN config saved');}
 
 buildKeys();loadConfig();loadElmHeaders();loadCan();
-refreshMedia();refreshNotifs();refreshBt();refreshWifi();scanWifi();refreshLive();refreshCanSeen();_liveTimer=setInterval(refreshLive,2000);
-setInterval(refreshMedia,1000);setInterval(refreshNotifs,3000);setInterval(refreshBt,3000);setInterval(refreshWifi,5000);setInterval(refreshCanSeen,3000);
+refreshMedia();refreshNotifs();refreshBt();refreshWifi();refreshCanSeen();
+setInterval(refreshMedia,2000);setInterval(refreshNotifs,4000);setInterval(refreshBt,4000);setInterval(refreshWifi,8000);setInterval(refreshCanSeen,5000);
 </script></body></html>
 )rawliteral";
 
@@ -332,6 +332,13 @@ void HttpServerManager::begin()
     // 46 app routes + ElegantOTA's handlers exceed 48 -> the tail routes failed
     // to register (ESP_ERR_HTTPD_HANDLERS_FULL). Bump the cap so every route fits.
     _server.config.max_uri_handlers = 64;
+    // The dashboard opens several parallel keep-alive sockets; on a memory-tight
+    // ESP32 they pin ~4KB each and the server eventually can't accept new ones
+    // (dashboard wedges, heap stuck). LRU purge lets it drop the oldest idle
+    // socket to serve a new request, and a smaller socket cap bounds the RAM the
+    // connections hold. Slower (some requests queue) but stable.
+    _server.config.lru_purge_enable = true;
+    _server.config.max_open_sockets = 4;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);
