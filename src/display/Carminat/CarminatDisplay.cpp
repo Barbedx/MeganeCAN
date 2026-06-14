@@ -877,18 +877,18 @@ void CarminatDisplay::renderNotificationScreen(const AppleNotificationService::N
   if (mainMenu.isActive())
     return;
 
-  // Header: category (e.g. "Social", "IncomingCall"), padded to 26.
-  String header = String(AppleNotificationService::CategoryName(n.categoryId));
-  if (header.length() > 26)
-    header = header.substring(0, 26);
+  // Line 1: source app (e.g. "Telegram") + sender — answers "звідки + від кого".
+  // The Carminat charset can't render UTF-8, so transliterate Cyrillic -> Latin.
+  String app    = String(AppleNotificationService::AppName(n.appId).c_str());
+  String sender = transliterateToAscii(String(n.title.c_str()));
+  String header = app;
+  if (sender.length()) header += ": " + sender;
+  if (header.length() > 26) header = header.substring(0, 26);
 
-  // Line 2: title (sender / app), Line 3: message — truncated to the row width.
-  String line2 = String(n.title.c_str());
-  if (line2.length() > 20)
-    line2 = line2.substring(0, 20);
-  String line3 = String(n.message.c_str());
-  if (line3.length() > 20)
-    line3 = line3.substring(0, 20);
+  // Lines 2-3: the message body across both 20-char rows (more of it visible).
+  String msg = transliterateToAscii(String(n.message.c_str()));
+  String line2 = msg.substring(0, 20);
+  String line3 = (msg.length() > 20) ? msg.substring(20, 40) : String("");
 
   showMenu(header.c_str(), line2.c_str(), line3.c_str(), 0x00);
 }

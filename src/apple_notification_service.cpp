@@ -159,7 +159,11 @@ namespace AppleNotificationService
             }
             if (have)
             {
-                Log::printf("[ANCS] %s | %s: %s\n", copy.appId.c_str(), copy.title.c_str(), copy.message.c_str());
+                // Full combo (raw UTF-8 — the web log renders it fine), so app/category
+                // mappings can be worked out from a downloaded log.
+                Log::printf("[ANCS] cat=%s app=%s | %s: %s\n",
+                            CategoryName(copy.categoryId), copy.appId.c_str(),
+                            copy.title.c_str(), copy.message.c_str());
                 if (gCallback)
                     gCallback(copy);
             }
@@ -210,6 +214,40 @@ namespace AppleNotificationService
         case 11: return "Entertainment";
         default: return "Unknown";
         }
+    }
+
+    std::string AppName(const std::string &appId)
+    {
+        struct Map { const char *id; const char *name; };
+        static const Map kMap[] = {
+            {"com.apple.MobileSMS", "Messages"},
+            {"com.apple.mobilephone", "Phone"},
+            {"com.apple.facetime", "FaceTime"},
+            {"com.apple.mobilecal", "Calendar"},
+            {"com.apple.mobilemail", "Mail"},
+            {"com.apple.mobiletimer", "Clock"},
+            {"com.apple.Maps", "Maps"},
+            {"ph.telegra.Telegraph", "Telegram"},
+            {"net.whatsapp.WhatsApp", "WhatsApp"},
+            {"com.google.Gmail", "Gmail"},
+            {"com.google.Maps", "G-Maps"},
+            {"com.google.photos", "Photos"},
+            {"com.google.ios.youtube", "YouTube"},
+            {"com.facebook.Messenger", "Messenger"},
+            {"com.facebook.Facebook", "Facebook"},
+            {"com.burbn.instagram", "Instagram"},
+            {"com.viber", "Viber"},
+            {"com.viber.app", "Viber"},
+            {"com.microsoft.Office.Outlook", "Outlook"},
+            {"com.spotify.client", "Spotify"},
+            {"com.toyopagroup.picaboo", "Snapchat"},
+            {"com.atebits.Tweetie2", "Twitter"},
+        };
+        for (const auto &e : kMap)
+            if (appId == e.id) return e.name;
+        // Fallback: last dotted component (e.g. "com.foo.BarApp" -> "BarApp").
+        size_t pos = appId.find_last_of('.');
+        return (pos == std::string::npos) ? appId : appId.substr(pos + 1);
     }
 
     bool StartNotificationService(BLEClient *client)

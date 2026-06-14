@@ -28,6 +28,8 @@ namespace AppleNotificationService
     // when iOS sends a Removed event). Kept in RAM, capped to a small history.
     std::vector<NotificationInfo> GetRecent();
     const char *CategoryName(uint8_t categoryId);
+    // Friendly source name from a bundle id (e.g. "ph.telegra.Telegraph" -> "Telegram").
+    std::string AppName(const std::string &appId);
 
     bool StartNotificationService(BLEClient *client);
 
