@@ -69,6 +69,8 @@ stored=1` then `AMS started`.
 - `538cf97` `AppConfig` — cache NVS config in RAM at boot (getters read RAM, not NVS) → stops the
   `nvs_open failed: NOT_FOUND` spam + per-request churn. (Task **A1**, done + verified.)
 - `ef95650` consolidate 5 dashboard pollers into one `/api/dashboard` (Task **A2**, done + verified).
+- `a10d54d` README: BLE peripheral + radio/display matrix + display_type values (Task **C**).
+- `ae47a80` `WireProto.h` UART contract; CanUtils emits `@TX` through it (Task **B1**, verified).
 
 Heap after all this: ~62KB free / ~45KB largest contiguous block with BLE connected, stable under
 dashboard hammering (was wedging at ~24KB/14KB before).
@@ -84,18 +86,24 @@ dashboard hammering (was wedging at ~24KB/14KB before).
   spiffs partition); A5 fixed `char[]` over `String` churn. Also: `/getlasttext`/`/getwelcometext`
   still open the `"display"` NVS namespace (2 residual NOT_FOUND) — fold into a cache too.
 
-**B — CAN display emulator (the big goal, foundation started):**
-- B1 `WireProto.h` — one documented UART contract (user's idea): `@TX`/`@RX`/`@EV` (fw→PC),
-  `@KEY`/`@INJ` (PC→fw). v1 compact tags, v2 optional JSON. Header + the proxy parser = single truth.
-- B2 PC-side AFFA3 decoder + virtual display in the proxy page: reassemble ISO-TP (single `[len]`,
-  multi `0x20+N`), decode caption (offset 0x1A) + rows (`0xD` separators), render the screen.
+**B — CAN display emulator (the big goal, foundation built):**
+- B1 ✅ `WireProto.h` — one documented UART contract (commit `ae47a80`): `@TX`/`@RX`/`@EV` (fw→PC),
+  `@KEY`/`@INJ` (PC→fw), incl. the `@INJ` ACK recipe. `CanUtils` emits `@TX` through it (verified).
+  This header is the spec to build the PC decoder against; keep it and the proxy parser in sync.
+- B2 ⏳ NEXT (big chunk) — PC-side AFFA3 decoder + virtual display in the proxy page: parse `@TX`,
+  reassemble ISO-TP (single `[len]`, multi `0x20+N`), decode caption (offset 0x1A) + rows (`0xD`
+  separators), render the screen. To capture full menu frames on the bench you must OPEN the menu
+  first (a long-press / specific key — plain `key=321` with `menuActive=NO` just does media control)
+  AND have `skip_funcreg=TRUE` (already set) so text frames are sent.
 - B3 closed-loop ACK: PC injects `@INJ (id|0x400) 74…` (DONE) / `30 01 00…` (PARTIAL) so
-  `affa3_do_send` skips its 2s no-display timeout → bench runs full speed = real test rig.
+  `affa3_do_send` skips its 2s no-display timeout → bench runs full speed = real test rig. (Needs an
+  `@INJ` serial-command handler on the ESP that feeds the frame to `display->recv()`.)
 - **Goal:** reverse-engineer the **AFFA3NAV navigation screen** so iPhone ANCS/Apple-Maps drive
   turn-by-turn arrows. User will record real CAN logs **in the car** next.
 
-**C — docs:** `README.md` still says BLE **central** (stale — we're peripheral) + lacks the
-radio/display matrix. Fix it. (`CLAUDE.md` already updated.)
+**C ✅ — docs:** `README.md` Bluetooth fixed (central→peripheral), radio/display matrix added,
+`display_type` table corrected (commit `a10d54d`). Deep README rewrite of the detail sections (still
+use pre-rename class names `Affa2*`/`Affa3Nav*`) deferred — `CLAUDE.md` is authoritative.
 
 ## Architecture quick-reference (full detail in CLAUDE.md + Claude memory)
 ESP sits between radio and display on CAN; emulates the radio. Two displays (monochrome large /
