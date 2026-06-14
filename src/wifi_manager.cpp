@@ -58,7 +58,8 @@ namespace WiFiManager
             Log::printf("WiFi AP '%s' %s, IP: %s\n", gApSsid.c_str(),
                           ok ? "up" : "FAILED", WiFi.softAPIP().toString().c_str());
             dns.start(DNS_PORT, "*", apIP); // captive portal
-            startMDNS();
+            // No mDNS in AP mode: multicast send fails (ENOMEM flood) and clients
+            // just use 192.168.4.1 anyway. mDNS only matters/works in STA mode.
         }
 
         bool tryStation(const String &ssid, const String &pass, const String &staticIp)

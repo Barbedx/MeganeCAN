@@ -96,24 +96,32 @@ namespace Bluetooth
         {
             NimBLEAdvertising *adv = Server->getAdvertising();
 
-            // Name in the PRIMARY packet (iOS Settings hides scan-response-only names)
-            // + AMS UUID as a *solicited* service (AD type 0x15, 128-bit). addData()
-            // does not prepend the AD length byte, so build [0x11][0x15][16 UUID LE].
-            // Once bonded iOS exposes both AMS and ANCS (NimBLE issue #1033).
+            // The primary 31-byte packet can't hold flags(3) + name + the 128-bit
+            // AMS solicitation(18) once the name is long (e.g. "MeganeCAN" -> 32 > 31),
+            // which silently drops the solicitation and iOS never treats us as an AMS
+            // accessory. So: NAME in the primary packet (iOS Settings shows it), and
+            // the AMS *solicitation* (AD 0x15) in the SCAN RESPONSE — iOS reads
+            // solicited-service UUIDs from the combined active-scan data. addData()
+            // has no length byte, so build [0x11][0x15][16 UUID LE].
             NimBLEAdvertisementData advData;
             advData.setFlags(0x06);
             advData.setName(name);
+            adv->setAdvertisementData(advData);
 
+            NimBLEAdvertisementData scanData;
             NimBLEUUID ams(APPLE_MEDIA_SERVICE_UUID);
             uint8_t sol[18];
             sol[0] = 0x11;
             sol[1] = 0x15;
             memcpy(&sol[2], ams.getValue(), 16);
-            advData.addData(sol, sizeof(sol));
+            scanData.addData(sol, sizeof(sol));
+            adv->setScanResponseData(scanData);
+            adv->enableScanResponse(true);
 
-            adv->setAdvertisementData(advData);
             adv->start();
-            Log::printf("[BT] Advertising as '%s' — pair from iPhone Settings > Bluetooth\n", name.c_str());
+            Log::printf("[BT] Advertising '%s' (adv=%u, scanrsp=%u bytes) — pair from iPhone Settings",
+                        name.c_str(), (unsigned)advData.getPayload().size(),
+                        (unsigned)scanData.getPayload().size());
         }
     } // anonymous namespace
 
@@ -145,9 +153,27 @@ namespace Bluetooth
         if (Connected && Client && Client->isConnected())
             AppleNotificationService::Process();
 
-        // Keep running setup (retrying missing services) until NeedSetup clears —
-        // not gated on !Connected, so ANCS/CTS still come up after AMS does.
-        if (!(NeedSetup && Client && Client->isConnected()))
+        // While no phone is connected, keep advertising so a bonded phone can
+        // reconnect — iOS typically drops the link right after the first bond and
+        // only exposes AMS/ANCS on the bonded reconnect.
+        if (!(Client && Client->isConnected()))
+        {
+            static uint32_t lastAdv = 0;
+            if (millis() - lastAdv > 3000)
+            {
+                lastAdv = millis();
+                NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+                if (adv && !adv->isAdvertising())
+                {
+                    adv->start();
+                    Log::printf("[BT] re-advertising (waiting for phone)");
+                }
+            }
+            return;
+        }
+
+        // Connected: keep retrying service bring-up until everything is up.
+        if (!NeedSetup)
             return;
 
         if (millis() - lastSetupAttempt < 800)
