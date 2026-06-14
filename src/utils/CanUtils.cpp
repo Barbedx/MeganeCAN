@@ -34,20 +34,18 @@ void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t 
 }
 void CanUtils::sendFrame(CAN_FRAME &frame)
 {
+    // Mirror every outbound display frame to serial in a compact, parseable form
+    // ("@TX <id> <bytes>") so the PC-side virtual display ("CAN emulator") can
+    // decode the AFFA3 stream and render the screen. Emitted BEFORE the live-bus
+    // gate below, so frames are captured even when bench TX is suppressed. Skip
+    // the high-rate sync chatter (0x3AF) to keep the channel readable.
     if (frame.id != 0x3AF)
     {
-        Serial.print("Sending CAN frame: ID=0x");
-        Serial.print(frame.id, HEX);
-        Serial.print(" Data: ");
-        for (int i = 0; i < frame.length; i++)
-        {
-            Serial.print(frame.data.uint8[i], HEX);
-            if (i < frame.length - 1)
-            {
-                Serial.print(" ");
-            }
-        }
-        Serial.println();
+        char buf[64];
+        int p = snprintf(buf, sizeof(buf), "@TX %03X", (unsigned)frame.id);
+        for (int i = 0; i < frame.length && p < (int)sizeof(buf) - 4; i++)
+            p += snprintf(buf + p, sizeof(buf) - p, " %02X", frame.data.uint8[i]);
+        Serial.println(buf);
     }
     // Only transmit onto a confirmed-live bus. No RX traffic (e.g. bench board
     // with no transceiver) -> drop the frame so TX never drives the controller
