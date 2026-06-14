@@ -68,23 +68,21 @@ stored=1` then `AMS started`.
 - `4293cab` Rewrote `CLAUDE.md` architecture to the validated radio/display model.
 - `538cf97` `AppConfig` — cache NVS config in RAM at boot (getters read RAM, not NVS) → stops the
   `nvs_open failed: NOT_FOUND` spam + per-request churn. (Task **A1**, done + verified.)
+- `ef95650` consolidate 5 dashboard pollers into one `/api/dashboard` (Task **A2**, done + verified).
 
 Heap after all this: ~62KB free / ~45KB largest contiguous block with BLE connected, stable under
 dashboard hammering (was wedging at ~24KB/14KB before).
 
 ## Task list — DONE vs NEXT
 **A — ideal memory architecture (agent-ranked):**
-- A1 ✅ cache NVS config in RAM (`AppConfig`).
-- A2 ⏳ **IN PROGRESS** — consolidate the 5 dashboard pollers (`/api/media`, `/api/notifs`,
-  `/api/bt`, `/api/wifi`, `/api/can/config`) into ONE `/api/dashboard`. Backend: compose existing
-  builders (`buildMediaJson()`, `buildNotifsJson()`, `Bluetooth::GetStatusJson()`, the inline wifi
-  JSON ~line 516, `CanLog::configJson()`). Frontend (inline PROGMEM JS ~line 264-326): rename
-  `refreshX`→`renderX(d)` (bodies unchanged), add one `refreshDashboard()` that fetches
-  `/api/dashboard` and dispatches; replace the 5 `setInterval`s (~line 326) with one. Verify
-  `/api/dashboard` JSON via curl.
-- A3 stream JSON instead of building `String`; A4 serve dashboard HTML from LittleFS (1MB spiffs
-  partition); A5 fixed `char[]` over `String` churn. Also: `/getlasttext`/`/getwelcometext` still
-  open the `"display"` NVS namespace (2 residual NOT_FOUND) — fold into a cache too.
+- A1 ✅ cache NVS config in RAM (`AppConfig`) — commit `538cf97`.
+- A2 ✅ consolidate the 5 dashboard pollers into ONE `/api/dashboard` (commit `ef95650`). JS now
+  splits fetch/render: `renderMedia/Notifs/Bt/Wifi/CanSeen(d)` + one `refreshDashboard()` poller.
+  `/api/dashboard` returns `{media,notifs,bt,wifi,can}` (verified well-formed). Browser-render not
+  yet eyeballed by the user — confirm the cards still populate.
+- A3 ⏳ NEXT — stream JSON instead of building `String`; A4 serve dashboard HTML from LittleFS (1MB
+  spiffs partition); A5 fixed `char[]` over `String` churn. Also: `/getlasttext`/`/getwelcometext`
+  still open the `"display"` NVS namespace (2 residual NOT_FOUND) — fold into a cache too.
 
 **B — CAN display emulator (the big goal, foundation started):**
 - B1 `WireProto.h` — one documented UART contract (user's idea): `@TX`/`@RX`/`@EV` (fw→PC),
