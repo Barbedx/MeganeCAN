@@ -53,11 +53,31 @@ namespace Bluetooth
             return true;
         }
 
+        // NimBLE reports a GAP disconnect reason as 0x200 + the HCI error code.
+        // Decode the ones we actually hit so the log reads in plain language.
+        const char *reasonText(int reason)
+        {
+            switch (reason - 0x200) // strip the BLE_HS_ERR_HCI_BASE
+            {
+                case 0x08: return "supervision timeout (out of range / RF / coexistence)";
+                case 0x13: return "remote user terminated (iPhone deliberately closed it)";
+                case 0x16: return "terminated by local host (normal post-bond drop)";
+                case 0x05: return "authentication failure (bond key mismatch)";
+                case 0x06: return "PIN/key missing (one side lost the bond!)";
+                case 0x3D: return "MIC failure (encryption key mismatch — stale bond!)";
+                case 0x22: return "LMP/LL response timeout";
+                case 0x3B: return "unacceptable connection parameters";
+                default:   return "(see HCI error code)";
+            }
+        }
+
         class ServerCallbacks : public NimBLEServerCallbacks
         {
             void onConnect(NimBLEServer *s, NimBLEConnInfo &connInfo) override
             {
-                Log::printf("[BT] Phone connected: %s\n", connInfo.getAddress().toString().c_str());
+                Log::printf("[BT] Phone connected: %s  (already encrypted=%d, bonds stored=%d)\n",
+                              connInfo.getAddress().toString().c_str(),
+                              connInfo.isEncrypted(), NimBLEDevice::getNumBonds());
                 Client     = s->getClient(connInfo); // client over the inbound connection
                 PeerAddr   = connInfo.getAddress().toString();
                 Secured    = connInfo.isEncrypted();
@@ -70,8 +90,9 @@ namespace Bluetooth
 
             void onDisconnect(NimBLEServer *s, NimBLEConnInfo &connInfo, int reason) override
             {
-                Log::printf("[BT] Phone disconnected: %s reason=%d\n",
-                              connInfo.getAddress().toString().c_str(), reason);
+                Log::printf("[BT] Phone disconnected: %s reason=%d (0x%X = %s)  bonds stored=%d\n",
+                              connInfo.getAddress().toString().c_str(), reason, reason,
+                              reasonText(reason), NimBLEDevice::getNumBonds());
                 Connected  = false;
                 NeedSetup  = false;
                 Secured    = false;
@@ -84,8 +105,9 @@ namespace Bluetooth
 
             void onAuthenticationComplete(NimBLEConnInfo &connInfo) override
             {
-                Log::printf("[BT] Auth complete: bonded=%d encrypted=%d authenticated=%d\n",
-                              connInfo.isBonded(), connInfo.isEncrypted(), connInfo.isAuthenticated());
+                Log::printf("[BT] Auth complete: bonded=%d encrypted=%d authenticated=%d  bonds stored=%d\n",
+                              connInfo.isBonded(), connInfo.isEncrypted(), connInfo.isAuthenticated(),
+                              NimBLEDevice::getNumBonds());
                 Secured = connInfo.isEncrypted();
             }
         };
@@ -96,32 +118,29 @@ namespace Bluetooth
         {
             NimBLEAdvertising *adv = Server->getAdvertising();
 
-            // The primary 31-byte packet can't hold flags(3) + name + the 128-bit
-            // AMS solicitation(18) once the name is long (e.g. "MeganeCAN" -> 32 > 31),
-            // which silently drops the solicitation and iOS never treats us as an AMS
-            // accessory. So: NAME in the primary packet (iOS Settings shows it), and
-            // the AMS *solicitation* (AD 0x15) in the SCAN RESPONSE — iOS reads
-            // solicited-service UUIDs from the combined active-scan data. addData()
-            // has no length byte, so build [0x11][0x15][16 UUID LE].
+            // Everything in the PRIMARY advertising packet — this is the proven
+            // sandbox approach ("CTRL 01"). iOS Settings only shows a peer whose name
+            // is in the primary packet, and it reads the AMS *solicitation* (AD 0x15)
+            // there too. Putting the solicitation in the scan-response instead did NOT
+            // make us visible to a fresh (un-bonded) iPhone. Budget: flags(3) + name AD
+            // + solicitation(18) <= 31, so the name MUST be short (<=8 chars). "MCD1" =>
+            // 3 + (2+4) + 18 = 27. addData() has no length byte → build [0x11][0x15][16 LE].
             NimBLEAdvertisementData advData;
-            advData.setFlags(0x06);
-            advData.setName(name);
-            adv->setAdvertisementData(advData);
+            advData.setFlags(0x06); // LE General Discoverable, BR/EDR not supported
+            advData.setName(name);  // Complete Local Name in the primary packet
 
-            NimBLEAdvertisementData scanData;
             NimBLEUUID ams(APPLE_MEDIA_SERVICE_UUID);
             uint8_t sol[18];
-            sol[0] = 0x11;
-            sol[1] = 0x15;
+            sol[0] = 0x11; // length: 1 (type) + 16 (uuid)
+            sol[1] = 0x15; // 128-bit service solicitation
             memcpy(&sol[2], ams.getValue(), 16);
-            scanData.addData(sol, sizeof(sol));
-            adv->setScanResponseData(scanData);
-            adv->enableScanResponse(true);
+            advData.addData(sol, sizeof(sol));
+
+            adv->setAdvertisementData(advData);
 
             adv->start();
-            Log::printf("[BT] Advertising '%s' (adv=%u, scanrsp=%u bytes) — pair from iPhone Settings",
-                        name.c_str(), (unsigned)advData.getPayload().size(),
-                        (unsigned)scanData.getPayload().size());
+            Log::printf("[BT] Advertising '%s' (adv=%u bytes, all in primary) — pair from iPhone Settings",
+                        name.c_str(), (unsigned)advData.getPayload().size());
         }
     } // anonymous namespace
 

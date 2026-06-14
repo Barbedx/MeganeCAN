@@ -41,6 +41,7 @@ const char *password = Soft_AP_WIFI_PASS;
 
 void gotFrame(CAN_FRAME *frame)
 {
+    CanUtils::noteRxActivity(); // confirms a live bus -> unlocks CAN TX
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
     CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
@@ -349,7 +350,7 @@ void setup()
             onDataUpdateCallback,
             AppleMediaService::NotificationLevel::All);
         xTaskCreate([](void*) {
-            Bluetooth::Begin("MeganeCAN");
+            Bluetooth::Begin("MCD1");
             Serial.println("[BT] AMS mode started");
             vTaskDelete(nullptr);
         }, "bt_begin", 16384, nullptr, 1, nullptr);

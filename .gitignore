@@ -9,3 +9,4 @@
 .gcc-flags.json
 logs
 logs/
+tools/serial.log

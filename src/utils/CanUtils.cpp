@@ -1,5 +1,20 @@
 #include "CanUtils.h"
 
+// Live-bus gate state. lastRxMs == 0 until the first frame is received; the bus
+// is considered alive while traffic was seen within BUS_ALIVE_WINDOW_MS.
+static volatile uint32_t lastRxMs = 0;
+static const uint32_t BUS_ALIVE_WINDOW_MS = 5000;
+
+void CanUtils::noteRxActivity()
+{
+    lastRxMs = millis();
+}
+
+bool CanUtils::busAlive()
+{
+    return lastRxMs != 0 && (millis() - lastRxMs) < BUS_ALIVE_WINDOW_MS;
+}
+
 void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
                        uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7)
 {
@@ -33,6 +48,20 @@ void CanUtils::sendFrame(CAN_FRAME &frame)
             }
         }
         Serial.println();
+    }
+    // Only transmit onto a confirmed-live bus. No RX traffic (e.g. bench board
+    // with no transceiver) -> drop the frame so TX never drives the controller
+    // BUS_OFF and trips the IDF auto-recovery assert (twai.c:184). On the car
+    // bus, frames arrive constantly so this is open within milliseconds.
+    if (!busAlive())
+    {
+        static uint32_t lastWarnMs = 0;
+        if (millis() - lastWarnMs > 5000)
+        {
+            lastWarnMs = millis();
+            Serial.println("[CAN] no live bus (no RX) — TX suppressed");
+        }
+        return;
     }
     CAN0.sendFrame(frame);
 }
