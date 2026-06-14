@@ -2,6 +2,7 @@
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
 #include "../bluetooth.h"
+#include "../wifi_manager.h"
 #include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
@@ -247,48 +248,67 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
   <h2>Bluetooth</h2>
     <div id="btStatus" style="font-family:monospace;background:#f4f4f4;padding:8px;margin-bottom:8px;">Loading BT status...</div>
+    <p style="font-size:13px;color:#555">To pair: on the iPhone open <b>Settings &rarr; Bluetooth</b> and tap <b>MeganeCAN</b>. It reconnects automatically after that.</p>
     <form action="/clearbonds" method="POST"
           onsubmit="return confirm('Clear BLE bonds? You will need to re-pair on the iPhone too.');">
-    <input type="submit" value="Clear BLE Bonds" />
+    <input type="submit" value="Clear BLE Bonds / Forget phone" />
     </form>
-    <form action="/forgetdevice" method="POST" style="margin-top:6px"
-          onsubmit="return confirm('Forget saved device? Clears preferred address and bonds. Next boot scans fresh.');">
-    <input type="submit" value="Forget Saved Device" />
-    </form>
+
+  <hr>
+  <h2>WiFi</h2>
+    <div id="wifiStatus" style="font-family:monospace;background:#f4f4f4;padding:8px;margin-bottom:8px;">Loading WiFi...</div>
+    <select id="ssidSel" onchange="document.getElementById('wifiSsid').value=this.value"><option value="">-- scanning --</option></select>
+    <button onclick="scanWifi()">Rescan</button><br>
+    <input id="wifiSsid" placeholder="SSID (pick above or type)" style="margin-top:4px"><br>
+    <input id="wifiPass" type="password" placeholder="Password"><br>
+    <input id="wifiIp" placeholder="Static IP (optional, blank=DHCP)"><br>
+    <button onclick="saveWifi()">Save &amp; reboot</button>
+
     <script>
-    async function tryCandidate(idx) {
-      await fetch('/bt/try?idx=' + idx, {method:'POST'});
-    }
     async function refreshBt() {
       try {
-        const r = await fetch('/api/bt');
-        const d = await r.json();
-        let html = '<b>Status:</b> ' + d.status + '<br>';
-        if (d.candidates && d.candidates.length > 0) {
-          html += '<b>Discovered Apple devices (RSSI = signal strength, higher = closer):</b>';
-          html += '<table style="border-collapse:collapse;font-size:13px;margin-top:4px">';
-          html += '<tr style="background:#ddd"><th>#</th><th>Addr</th><th>Name</th><th>RSSI</th><th>Type</th><th></th></tr>';
-          for (let i = 0; i < d.candidates.length; i++) {
-            const c = d.candidates[i];
-            const sel = c.selected;
-            html += '<tr style="' + (sel ? 'font-weight:bold;background:#fffacc' : '') + '">';
-            html += '<td style="padding:2px 6px">' + (i+1) + '</td>';
-            html += '<td style="padding:2px 6px;font-family:monospace">' + c.addr + '</td>';
-            html += '<td style="padding:2px 6px">' + (c.name || '<i>(no name)</i>') + '</td>';
-            html += '<td style="padding:2px 6px">' + c.rssi + ' dBm</td>';
-            html += '<td style="padding:2px 6px;font-family:monospace">' + (c.type || '?') + '</td>';
-            html += '<td style="padding:2px 4px"><button onclick="tryCandidate(' + i + ')">Try</button></td>';
-            html += '</tr>';
-          }
-          html += '</table>';
-        } else {
-          html += '<i>No Apple devices found yet</i>';
-        }
+        const d = await (await fetch('/api/bt')).json();
+        let html = '<b>Status:</b> ' + d.status;
+        html += '<br><b>Connected:</b> ' + (d.connected ? 'yes ' + (d.address||'') : 'no');
+        html += '<br><b>Bonded:</b> ' + (d.bonded ? 'yes' : 'no');
         document.getElementById('btStatus').innerHTML = html;
-      } catch(e) { console.error('BT status fetch failed', e); document.getElementById('btStatus').textContent = 'BT status unavailable'; }
+      } catch(e) { document.getElementById('btStatus').textContent = 'BT status unavailable'; }
     }
-    refreshBt();
-    setInterval(refreshBt, 3000);
+    async function refreshWifi() {
+      try {
+        const d = await (await fetch('/api/wifi')).json();
+        document.getElementById('wifiStatus').innerHTML =
+          '<b>Mode:</b> ' + d.mode + ' &nbsp; <b>SSID:</b> ' + d.ssid +
+          '<br><b>IP:</b> ' + d.ip + ' &nbsp; <b>http://' + d.host + '.local</b>';
+      } catch(e) { document.getElementById('wifiStatus').textContent = 'WiFi status unavailable'; }
+    }
+    async function scanWifi() {
+      const sel = document.getElementById('ssidSel');
+      sel.innerHTML = '<option value="">-- scanning --</option>';
+      await fetch('/api/wifi/scan');
+      let tries = 0, t = setInterval(async () => {
+        const d = await (await fetch('/api/wifi/networks')).json();
+        if (!d.scanning) {
+          clearInterval(t);
+          sel.innerHTML = '<option value="">-- choose --</option>';
+          d.nets.forEach(n => {
+            const o = document.createElement('option');
+            o.value = n.ssid; o.textContent = n.ssid + ' (' + n.rssi + ')' + (n.secure?' *':'');
+            sel.appendChild(o);
+          });
+        }
+        if (++tries > 10) clearInterval(t);
+      }, 1200);
+    }
+    async function saveWifi() {
+      const body = new URLSearchParams({ssid: document.getElementById('wifiSsid').value,
+        pass: document.getElementById('wifiPass').value, ip: document.getElementById('wifiIp').value});
+      const r = await fetch('/api/wifi/save', {method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+      alert(await r.text());
+    }
+    refreshBt(); refreshWifi(); scanWifi();
+    setInterval(refreshBt, 3000); setInterval(refreshWifi, 5000);
     </script>
 
   <hr>
@@ -527,8 +547,40 @@ void HttpServerManager::setupRoutes()
     });
 
     _server.on("/forgetdevice", HTTP_POST, [](PsychicRequest *request) {
-        Bluetooth::ForgetDevice();
-        return request->reply(200, "text/plain", "Saved device forgotten. Scanning fresh.");
+        Bluetooth::ClearBonds(); // peripheral model: forget = clear bonds + re-advertise
+        return request->reply(200, "text/plain", "Device forgotten. Re-pair from iOS Settings.");
+    });
+
+    // --- WiFi (home network) configuration ---
+    _server.on("/api/wifi", HTTP_GET, [](PsychicRequest *request) {
+        String j = "{";
+        j += "\"mode\":\"" + String(WiFiManager::ModeStr().c_str()) + "\",";
+        j += "\"ssid\":\"" + String(WiFiManager::SSID().c_str()) + "\",";
+        j += "\"ip\":\"" + String(WiFiManager::IP().c_str()) + "\",";
+        j += "\"host\":\"" + String(WiFiManager::Hostname().c_str()) + "\"}";
+        return request->reply(200, "application/json", j.c_str());
+    });
+
+    _server.on("/api/wifi/scan", HTTP_GET, [](PsychicRequest *request) {
+        WiFiManager::StartScan();
+        return request->reply(200, "text/plain", "ok");
+    });
+
+    _server.on("/api/wifi/networks", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", WiFiManager::ScanJson().c_str());
+    });
+
+    _server.on("/api/wifi/save", HTTP_POST, [](PsychicRequest *request) {
+        if (!request->hasParam("ssid"))
+            return request->reply(400, "text/plain", "missing ssid");
+        std::string ssid = request->getParam("ssid")->value().c_str();
+        std::string pass = request->hasParam("pass") ? std::string(request->getParam("pass")->value().c_str()) : "";
+        std::string ip   = request->hasParam("ip")   ? std::string(request->getParam("ip")->value().c_str())   : "";
+        WiFiManager::SaveCredentials(ssid, pass, ip);
+        esp_err_t e = request->reply(200, "text/plain", "Saved. Rebooting to join the network...");
+        delay(400);
+        ESP.restart();
+        return e;
     });
 
     _server.on("/api/live", HTTP_GET, [this](PsychicRequest *request) {
@@ -753,14 +805,6 @@ window.addEventListener('DOMContentLoaded', loadPlan);
 
     _server.on("/api/bt", HTTP_GET, [](PsychicRequest *request) {
         return request->reply(200, "application/json", Bluetooth::GetStatusJson().c_str());
-    });
-
-    _server.on("/bt/try", HTTP_POST, [](PsychicRequest *request) {
-        if (!request->hasParam("idx"))
-            return request->reply(400, "text/plain", "Missing idx");
-        int idx = request->getParam("idx")->value().toInt();
-        Bluetooth::SelectByIndex(idx);
-        return request->reply(200, "text/plain", "Trying device");
     });
 
     _server.on("/emulate/key", HTTP_POST, [this](PsychicRequest *request) {

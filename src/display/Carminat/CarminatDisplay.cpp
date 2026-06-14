@@ -759,6 +759,23 @@ void CarminatDisplay::tickMedia()
     return;
   }
 
+  // New ANCS notification → pop it over the media screen for a few seconds.
+  auto recents = AppleNotificationService::GetRecent(); // newest first
+  if (!recents.empty() && recents[0].uid != _lastNotifUid)
+  {
+    _lastNotifUid = recents[0].uid;
+    _notifUntilMs = now + 6000; // show for ~6s
+  }
+  if (now < _notifUntilMs && !recents.empty())
+  {
+    if (now - _lastMediaRenderMs >= 300)
+    {
+      _lastMediaRenderMs = now;
+      renderNotificationScreen(recents[0]);
+    }
+    return;
+  }
+
   // Оновлюємо дані про медіа з AMS
   AppleMediaService::MediaInformation current = AppleMediaService::GetMediaInformation();
   _mediaInfo = current;
@@ -855,6 +872,27 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
   // Serial.println(line3);       // 3-й рядок
   // Serial.println("========================");
 }
+void CarminatDisplay::renderNotificationScreen(const AppleNotificationService::NotificationInfo &n)
+{
+  if (mainMenu.isActive())
+    return;
+
+  // Header: category (e.g. "Social", "IncomingCall"), padded to 26.
+  String header = String(AppleNotificationService::CategoryName(n.categoryId));
+  if (header.length() > 26)
+    header = header.substring(0, 26);
+
+  // Line 2: title (sender / app), Line 3: message — truncated to the row width.
+  String line2 = String(n.title.c_str());
+  if (line2.length() > 20)
+    line2 = line2.substring(0, 20);
+  String line3 = String(n.message.c_str());
+  if (line3.length() > 20)
+    line3 = line3.substring(0, 20);
+
+  showMenu(header.c_str(), line2.c_str(), line3.c_str(), 0x00);
+}
+
 String CarminatDisplay::buildScrollingTitle()
 {
 
