@@ -18,6 +18,7 @@
 #include "apple_media_service.h"
 #include "wifi_manager.h"
 #include "utils/CanLog.h"
+#include "utils/AppConfig.h"
 #include "BleMediaKeyboard.h"
 
 AffaDisplayBase *display = nullptr;
@@ -238,16 +239,12 @@ void restoreDisplay(IDisplay &display, Preferences &prefs)
 
 void initDisplay()
 {
-    Serial.println("[NVS] Opening 'config' namespace...");
-    Preferences prefs; 
-    bool nvsOk = prefs.begin("config", true);
-    Serial.printf("[NVS] prefs.begin('config') returned: %s\n", nvsOk ? "OK" : "FAILED - namespace missing, all values will be defaults!");
-    String displayType = prefs.getString("display_type", "carminat");
-    btMode      = prefs.getString("bt_mode",     "ams");
-    _autoTime   = prefs.getBool("auto_time",     true);
-    _elmEnabled = prefs.getBool("elm_enabled", false);
-    bool skipFuncReg = prefs.getBool("skip_funcreg", false);
-    prefs.end();
+    AppConfig::Load(); // read NVS "config" into RAM once (also creates the namespace -> no NOT_FOUND spam)
+    String displayType = AppConfig::displayType;
+    btMode      = AppConfig::btMode;
+    _autoTime   = AppConfig::autoTime;
+    _elmEnabled = AppConfig::elmEnabled;
+    bool skipFuncReg = AppConfig::skipFuncReg;
 
     Serial.println("[Display Init] Display type: " + displayType);
     Serial.println("[Display Init] BT mode: " + btMode);

@@ -7,6 +7,7 @@
 #include "../apple_notification_service.h"
 #include "../utils/Log.h"
 #include "../utils/CanLog.h"
+#include "../utils/AppConfig.h"
 #include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
@@ -427,35 +428,19 @@ void HttpServerManager::setupRoutes()
     });
 
     _server.on("/getdisplaytype", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        String dt = prefs.getString("display_type", "carminat");
-        prefs.end();
-        return request->reply(200, "text/plain", dt.c_str());
+        return request->reply(200, "text/plain", AppConfig::displayType.c_str());
     });
 
     _server.on("/getbtmode", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        String mode = prefs.getString("bt_mode", "ams");
-        prefs.end();
-        return request->reply(200, "text/plain", mode.c_str());
+        return request->reply(200, "text/plain", AppConfig::btMode.c_str());
     });
 
     _server.on("/getautotime", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        bool at = prefs.getBool("auto_time", true);
-        prefs.end();
-        return request->reply(200, "text/plain", at ? "1" : "0");
+        return request->reply(200, "text/plain", AppConfig::autoTime ? "1" : "0");
     });
 
     _server.on("/getskipfuncreg", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        bool v = prefs.getBool("skip_funcreg", false);
-        prefs.end();
-        return request->reply(200, "text/plain", v ? "1" : "0");
+        return request->reply(200, "text/plain", AppConfig::skipFuncReg ? "1" : "0");
     });
 
     _server.on("/setskipfuncreg", HTTP_POST, [](PsychicRequest *request) {
