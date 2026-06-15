@@ -21,6 +21,10 @@
 #include "utils/AppConfig.h"
 #include "bus/HwCanBus.h"
 #include "bus/SerialMirrorTap.h"
+#include "wire/SerialWireLink.h"
+#include "wire/WsWireLink.h"
+#include "utils/WireProto.h"
+#include <string.h>
 #include "BleMediaKeyboard.h"
 
 AffaDisplayBase *display = nullptr;
@@ -36,6 +40,16 @@ BleMediaKeyboard bleKeyboard;
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
 HttpServerManager *serverManager = nullptr;
+
+// WireProto links: UART (existing serial proxy) + WebSocket (phone live view/record).
+SerialWireLink g_serialLink;
+WsWireLink     g_wsLink;
+
+// Mirror every received CAN frame to the WebSocket as @RX (rate-limited inside
+// WsWireLink). Registered as a HwCanBus RX tap so it sees the live car bus.
+struct WsRecorderTap : IBusTap {
+    void onRx(const Frame& f) override { g_wsLink.emitRxFrame(f.id, f.data, f.len); }
+};
 MyELMManager *elmManager = nullptr;
 
 // AP fallback credentials (used by WiFiManager when no home network is saved/reachable)
@@ -195,6 +209,60 @@ void cmd_emu(SerialCommands *sender)
     Serial.printf("@EMU self-ACK = %d\n", on);
 }
 
+// WireProto PC->fw command handler (delivered by a WireLink, today the WebSocket).
+// Mirrors the @INJ/@EMU serial commands and adds @KEY, giving the phone the return
+// channel the broken serial-input path never provided. Line is "@TAG <args...>".
+void wireCommand(const char *line, void * /*ctx*/)
+{
+    char buf[96];
+    strncpy(buf, line, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    char *save = nullptr;
+    char *tag = strtok_r(buf, " \t", &save);
+    if (!tag) return;
+
+    if (strcmp(tag, WireProto::TAG_INJ) == 0)
+    {
+        char *idS = strtok_r(nullptr, " \t", &save);
+        if (!idS) return;
+        CAN_FRAME f;
+        f.id = (uint32_t)strtoul(idS, nullptr, 16);
+        f.extended = false;
+        f.rtr = false;
+        f.length = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            char *b = strtok_r(nullptr, " \t", &save);
+            if (!b) break;
+            f.data.uint8[i] = (uint8_t)strtoul(b, nullptr, 16);
+            f.length++;
+        }
+        Serial.printf("@INJ(ws) <- id=%03X len=%d\n", (unsigned)f.id, f.length);
+        gotFrame(&f);
+    }
+    else if (strcmp(tag, WireProto::TAG_EV) == 0)
+    {
+        // reserved
+    }
+    else if (strcmp(tag, "@EMU") == 0)
+    {
+        char *v = strtok_r(nullptr, " \t", &save);
+        bool on = v && atoi(v) != 0;
+        if (display) display->setEmuSelfAck(on);
+        Serial.printf("@EMU(ws) self-ACK = %d\n", on);
+    }
+    else if (strcmp(tag, WireProto::TAG_KEY) == 0)
+    {
+        char *cS = strtok_r(nullptr, " \t", &save);
+        char *hS = strtok_r(nullptr, " \t", &save);
+        if (!cS) return;
+        uint16_t code = (uint16_t)atoi(cS);   // decimal, matches /emulate/key
+        bool hold = hS && atoi(hS) != 0;
+        if (display) display->ProcessKey(static_cast<AffaCommon::AffaKey>(code), hold);
+        Serial.printf("@KEY(ws) <- code=%u hold=%d\n", code, hold);
+    }
+}
+
 // Create command objects
 SerialCommand cmd_inj("@INJ", cmd_inject);
 SerialCommand cmd_emu_c("@EMU", cmd_emu);
@@ -324,6 +392,7 @@ void initDisplay()
     elmManager = new MyELMManager(*display);
     serverManager = new HttpServerManager(*display, preferences);
     serverManager->attachElm(elmManager);
+    serverManager->attachWire(&g_wsLink);   // register the /canstream WebSocket in begin()
     elmManager->loadHeaderConfig(preferences); // load per-header enable/disable from NVS
     if (display->isCarminat())
         static_cast<CarminatDisplay*>(display)->attachElm(elmManager);
@@ -418,8 +487,16 @@ void setup()
     display->begin();
 
     CanLog::begin(); // load CAN-log config (enabled + ID filter) from NVS
-    static SerialMirrorTap g_serialMirror;           // @TX mirror for the PC emulator
+
+    // WireProto fan-out: @TX/@RX to the UART (serial proxy) + the WebSocket (phone).
+    WireProto::addLink(&g_serialLink);
+    WireProto::addLink(&g_wsLink);
+    WireProto::onCommand(wireCommand, nullptr);       // @KEY/@INJ/@EMU from the phone
+
+    static SerialMirrorTap g_serialMirror;            // @TX mirror for the PC emulator
     HwCanBus::instance().addTap(&g_serialMirror);
+    static WsRecorderTap g_wsRecorder;                // @RX live car-bus capture to WS
+    HwCanBus::instance().addTap(&g_wsRecorder);
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);

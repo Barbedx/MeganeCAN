@@ -8,6 +8,7 @@
 #include "../utils/Log.h"
 #include "../utils/CanLog.h"
 #include "../utils/AppConfig.h"
+#include "../wire/WsWireLink.h"
 #include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
@@ -353,11 +354,15 @@ void HttpServerManager::begin()
     // socket to serve a new request, and a smaller socket cap bounds the RAM the
     // connections hold. Slower (some requests queue) but stable.
     _server.config.lru_purge_enable = true;
-    _server.config.max_open_sockets = 4;
+    // One extra socket for the WebSocket frame stream (/canstream) on top of the
+    // dashboard's keep-alive sockets. Watch [heap] — each socket pins ~4KB.
+    _server.config.max_open_sockets = 5;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);
     setupRoutes();
+    if (_wire)
+        _wire->attach(_server, "/canstream");   // WebSocket WireProto stream
     Serial.println("HTTP Server: routes initialized.");
 }
 
