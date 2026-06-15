@@ -3,6 +3,7 @@
 // match). Also covers the .canlog line-grammar variants.
 #include <unity.h>
 #include "record/ReplayCanBus.h"
+#include "bus/LoopbackCanBus.h"
 #include "vdisplay/CarminatVirtualDisplay.h"
 #include "test/FakeClock.h"
 
@@ -78,10 +79,61 @@ static void test_golden_nowplaying(void) {
     TEST_ASSERT_EQUAL_UINT8(0x0B, s.scroll);     // scroll DOWN
 }
 
+// --- GOLDEN: REAL hardware-captured menu, decoded + ACKed (full-emulation) ---------
+// Replays the exact 14 ISO-TP frames the bench radio emitted, through an ACTIVE
+// virtual display in ACK_PARTIAL mode (the full-emulation config), and asserts both
+// the decoded screen AND that every frame is ACKed with 30 01 00 on (id|0x400) — the
+// reply that makes the real affa3_do_send emit the whole multi-frame buffer.
+struct AckCap { Frame f[32]; int n = 0; };
+static void onAck(const Frame& f, void* ctx) {
+    AckCap* c = (AckCap*)ctx;
+    if (c->n < 32) c->f[c->n++] = f;
+}
+static AckCap g_ackcap;
+static void feedActive(const Frame& f, void* ctx);
+static CarminatVirtualDisplay* g_active = nullptr;
+
+static void test_golden_real_menu_fullemu(void) {
+    ReplayCanBus r;
+    int n = r.loadFile("test/fixtures/carminat_menu_real.canlog");
+    TEST_ASSERT_MESSAGE(n > 0, "could not read carminat_menu_real.canlog");
+
+    LoopbackCanBus ackBus;            // captures the display's ACKs back to the radio
+    g_ackcap.n = 0;
+    ackBus.onReceive(onAck, &g_ackcap);
+
+    CarminatVirtualDisplay vd;
+    vd.setAckMode(VirtualDisplayBase::ACK_PARTIAL);
+    vd.begin(ackBus, clk);
+    g_active = &vd;
+    r.onReceive(feedActive, nullptr);
+    r.poll();
+
+    const ScreenModel& s = vd.screen();
+    TEST_ASSERT_EQUAL_STRING("Main Menu", s.header);
+    TEST_ASSERT_EQUAL_STRING("Voltage: 0V", s.item0);
+    TEST_ASSERT_EQUAL_STRING("Boost: 0mbar", s.item1);
+    TEST_ASSERT_EQUAL_UINT8(0x0B, s.scroll);
+    TEST_ASSERT_EQUAL_INT(0x7F, s.sel);          // last highlight frame -> item1
+
+    // Every 0x151 frame was ACKed PARTIAL (30 01 00) on 0x551.
+    ackBus.poll();
+    TEST_ASSERT_TRUE(g_ackcap.n >= 14);
+    TEST_ASSERT_EQUAL_HEX32(0x551, g_ackcap.f[0].id);
+    TEST_ASSERT_EQUAL_HEX8(0x30, g_ackcap.f[0].data[0]);
+    TEST_ASSERT_EQUAL_HEX8(0x01, g_ackcap.f[0].data[1]);
+    TEST_ASSERT_EQUAL_HEX8(0x00, g_ackcap.f[0].data[2]);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_parse_grammar);
     RUN_TEST(test_step_and_islive);
     RUN_TEST(test_golden_nowplaying);
+    RUN_TEST(test_golden_real_menu_fullemu);
     return UNITY_END();
+}
+
+static void feedActive(const Frame& f, void*) {
+    if (g_active) g_active->onCanRx(f);
 }

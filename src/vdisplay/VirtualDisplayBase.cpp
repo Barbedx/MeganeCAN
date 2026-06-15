@@ -7,8 +7,14 @@ void VirtualDisplayBase::autoAck(uint16_t id)
     Frame ack;
     ack.id = (uint16_t)(id | _p.replyFlag);
     ack.len = 8;
-    ack.data[0] = 0x74;                              // DONE (matches recv() reply)
-    for (int i = 1; i < 8; i++) ack.data[i] = _p.filler;
+    int i = 1;
+    if (_ackMode == ACK_PARTIAL) {
+        ack.data[0] = 0x30; ack.data[1] = 0x01; ack.data[2] = 0x00;   // PARTIAL: keep sending
+        i = 3;
+    } else {
+        ack.data[0] = 0x74;                          // DONE (matches recv() reply)
+    }
+    for (; i < 8; i++) ack.data[i] = _p.filler;
     _bus->send(ack);
 }
 

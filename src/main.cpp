@@ -24,6 +24,8 @@
 #include "wire/SerialWireLink.h"
 #include "wire/WsWireLink.h"
 #include "utils/WireProto.h"
+#include "vdisplay/CarminatVirtualDisplay.h"
+#include "bus/ArduinoClock.h"
 #include <string.h>
 #include "BleMediaKeyboard.h"
 
@@ -50,6 +52,71 @@ WsWireLink     g_wsLink;
 struct WsRecorderTap : IBusTap {
     void onRx(const Frame& f) override { g_wsLink.emitRxFrame(f.id, f.data, f.len); }
 };
+
+// ---- FULL-EMULATION ---------------------------------------------------------------
+// An in-firmware virtual display driven by the radio over the bus. When on, a real
+// virtual display ACKs every outbound frame (PARTIAL), so the radio's affa3_do_send
+// emits the whole multi-frame sequence on the bench WITHOUT the self-ACK hack and
+// WITHOUT a real panel — and the ESP decodes its own screen (exposed at /api/screen).
+// The "true closed loop": radio -> (tap) -> virtual display -> (ACK) -> radio recv.
+// Default off; toggle via /api/fullemu?on=1.
+static CarminatVirtualDisplay g_vdisplay;     // Carminat is the focus protocol
+static bool g_fullEmu = false;
+
+// The virtual display's ACK/key sends are delivered straight into the radio's recv().
+struct RadioRecvBus : ICanBus {
+    bool send(const Frame& f) override {
+        if (!display) return false;
+        CAN_FRAME cf;
+        cf.id = f.id; cf.extended = f.extended; cf.rtr = false; cf.length = f.len;
+        for (int i = 0; i < f.len && i < 8; i++) cf.data.uint8[i] = f.data[i];
+        display->recv(&cf);
+        return true;
+    }
+    void onReceive(RxHandler, void*) override {}
+    bool isLive() const override { return true; }
+};
+static RadioRecvBus g_radioRecvBus;
+
+// Radio TX -> virtual display (gated by the toggle). Registered as a HwCanBus TX tap,
+// so it sees every outbound frame before the (bench-suppressed) CAN0 send.
+struct EmuFeedTap : IBusTap {
+    void onTx(const Frame& f) override { if (g_fullEmu) g_vdisplay.onCanRx(f); }
+};
+static EmuFeedTap g_emuFeedTap;
+
+void setFullEmu(bool on) {
+    if (on && !g_fullEmu) {
+        g_vdisplay.begin(g_radioRecvBus, defaultClock());
+        g_vdisplay.setAckMode(VirtualDisplayBase::ACK_PARTIAL);
+        if (display) display->setEmuSelfAck(false);   // the virtual display ACKs now
+    }
+    g_fullEmu = on;
+    Serial.printf("[fullemu] %s\n", on ? "ON — virtual display ACKs the radio" : "OFF");
+}
+
+static String jsonEscAscii(const char* s) {
+    String o;
+    for (const char* p = s; *p; ++p) {
+        if (*p == '"' || *p == '\\') o += '\\';
+        o += *p;
+    }
+    return o;
+}
+
+// JSON of the ESP's own decoded screen (only meaningful while full-emulation is on).
+String fullEmuScreenJson() {
+    const ScreenModel& s = g_vdisplay.screen();
+    String j = "{\"on\":";
+    j += g_fullEmu ? "true" : "false";
+    j += ",\"mode\":" + String((int)s.mode);
+    j += ",\"header\":\"" + jsonEscAscii(s.header) + "\"";
+    j += ",\"item0\":\"" + jsonEscAscii(s.item0) + "\"";
+    j += ",\"item1\":\"" + jsonEscAscii(s.item1) + "\"";
+    j += ",\"sel\":" + String(s.sel);
+    j += ",\"scroll\":" + String(s.scroll) + "}";
+    return j;
+}
 MyELMManager *elmManager = nullptr;
 
 // AP fallback credentials (used by WiFiManager when no home network is saved/reachable)
@@ -497,6 +564,7 @@ void setup()
     HwCanBus::instance().addTap(&g_serialMirror);
     static WsRecorderTap g_wsRecorder;                // @RX live car-bus capture to WS
     HwCanBus::instance().addTap(&g_wsRecorder);
+    HwCanBus::instance().addTap(&g_emuFeedTap);       // FULL-EMULATION feed (gated off)
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);

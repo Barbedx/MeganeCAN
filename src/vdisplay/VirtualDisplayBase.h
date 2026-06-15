@@ -30,6 +30,14 @@ public:
     void setEmulate(bool on) { _emulate = on; }
     bool emulating() const { return _emulate; }
 
+    // Per-frame ACK content. ACK_DONE (0x74) finishes a transfer; ACK_PARTIAL
+    // (30 01 00) tells the radio to keep sending. For driving the REAL radio's
+    // affa3_do_send over the bus, ACK_PARTIAL on every frame makes it emit the whole
+    // multi-frame buffer (the radio breaks only on DONE); the trailing SendFailed is
+    // ignored by showMenu callers. ACK_DONE is the default (single-frame transfers).
+    enum AckMode { ACK_DONE, ACK_PARTIAL };
+    void setAckMode(AckMode m) { _ackMode = m; }
+
     // Test/inspection hooks.
     bool synced() const { return _synced; }
 
@@ -49,4 +57,5 @@ protected:
     IsoTp::Reassembler   _asm;
     bool                 _emulate = true;
     bool                 _synced = false;
+    AckMode              _ackMode = ACK_DONE;
 };

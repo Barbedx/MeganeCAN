@@ -810,6 +810,22 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return request->reply(200, "text/plain", on ? "emu self-ack ON" : "emu self-ack OFF");
     });
 
+    // FULL-EMULATION: an in-firmware virtual display ACKs the radio so it emits the
+    // whole AFFA3 sequence with no real panel + no self-ACK, and the ESP decodes its
+    // own screen. setFullEmu/fullEmuScreenJson live in main.cpp (own the virtual disp).
+    _server.on("/api/fullemu", HTTP_GET, [](PsychicRequest *request) {
+        extern void setFullEmu(bool);
+        bool on = !request->hasParam("on") || request->getParam("on")->value() != "0";
+        setFullEmu(on);
+        return request->reply(200, "text/plain", on ? "full-emulation ON" : "full-emulation OFF");
+    });
+
+    // The ESP's own decoded screen (meaningful while full-emulation is on).
+    _server.on("/api/screen", HTTP_GET, [](PsychicRequest *request) {
+        extern String fullEmuScreenJson();
+        return request->reply(200, "application/json", fullEmuScreenJson().c_str());
+    });
+
     // Info popup — through the IDisplay abstraction only (the server knows nothing
     // about CarminatDisplay). 3 short lines; displays that don't support it no-op.
     _server.on("/api/info", HTTP_GET, [this](PsychicRequest *request) {
