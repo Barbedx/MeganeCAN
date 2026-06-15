@@ -517,6 +517,7 @@ void loop()
 {
     serialCommands.ReadSerial();
     ElegantOTA.loop();
+    g_wsLink.loop();   // flush the batched WireProto stream to WS clients (single task)
 
     if (btMode == "ams")
     {

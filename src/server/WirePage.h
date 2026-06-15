@@ -135,7 +135,7 @@ function connect(){
   ws=new WebSocket('ws://'+location.host+'/canstream');
   ws.onopen=()=>{$('dot').classList.add('on');$('stat').innerHTML='<small>connected</small>'};
   ws.onclose=()=>{$('dot').classList.remove('on');$('stat').innerHTML='<small>reconnecting…</small>';setTimeout(connect,1500)};
-  ws.onmessage=e=>handle(typeof e.data==='string'?e.data.trim():'');
+  ws.onmessage=e=>{const d=typeof e.data==='string'?e.data:'';d.split('\n').forEach(l=>{l=l.trim();if(l)handle(l)})};
 }
 connect();
 // ---- control (HTTP, proven path) ----
