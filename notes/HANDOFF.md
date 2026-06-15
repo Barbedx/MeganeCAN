@@ -15,6 +15,25 @@ Local `main` == `origin/main`; the `feature/ble-can-bench-fixes` branch is delet
 is now **just `origin` = `Barbedx/MeganeCAN`** (the old `andriipetruk-hue` fork remote was removed).
 Resume work directly on `main` (or a fresh branch off it).
 
+## ▶ IN THE CAR NEXT (2026-06-15 — live capture session)
+Heading to the car with the laptop to watch **real-time** what the firmware sends. Goal: eyeball the
+newly reimplemented **`showConfirmBoxWithOffsets`** popup on the real monochrome display, and keep
+recording AFFA3NAV frames toward turn-by-turn arrows.
+- **Just reimplemented** (commit `737c9f9`): `CarminatDisplay::showConfirmBoxWithOffsets(caption,
+  row1,row2)` — was an empty stub, the only working version had been a raw `CanUtils::sendCan` free
+  function. Now routed through `affa3_send` (busAlive gate + per-frame ACK + `@TX` mirror + self-ACK),
+  reproducing the original wire bytes exactly: first frame `10 6F | 21 05 00 00 01 49`, then 15
+  consecutive frames; caption@0x1A (max 7 chars), row1/row2@0x20 with `0x0D` separator, bounded <0x36.
+  Text is transliterated like `showMenu`. The old raw free function was removed.
+- **It is NOT wired to any route/key yet** — `DisplayCommands::setTextBig` still `throw`s
+  ([DisplayCommands.cpp:65](../src/commands/DisplayCommands.cpp)); the `_display.showConfirmBoxWithOffsets(...)`
+  call is commented out one line below. To trigger it in the car either: (a) un-stub `setTextBig` and
+  add a quick HTTP route, or (b) call it from a temporary debug hook. Decide on the bench/car.
+- **On the car** self-ACK is NOT needed (the real display ACKs); on the bench it IS (`/api/emu?on=1`)
+  or only frame 0 emits. Watch the live `@TX` stream in the proxy either way.
+- Compare the real display rendering vs. what the proxy's virtual Carminat decodes — confirm the
+  caption/rows land where expected (the offsets above are reverse-engineered, may need nudging).
+
 ## Hardware & ports (this bench)
 - **Bench board: classic ESP32 WROOM on `COM5`** (Silicon Labs CP210x, auto-reset works). Env =
   **`esp32dev`**. Flash ~91%. Public BLE MAC `f4:65:0b:58:88:d8`. **No CAN transceiver** on the bench.
