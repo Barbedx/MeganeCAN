@@ -155,7 +155,44 @@ void cmd_setTime(SerialCommands *sender)
 // void cmd_scrollmtx(SerialCommands* sender);
 // void cmd_scrollmtxl(SerialCommands* sender);
 
+// WireProto PC->fw: "@INJ <id-hex> <b0> <b1> ..." injects a CAN frame into the
+// exact same RX path as a real bus frame (gotFrame -> display->recv). The PC-side
+// emulator uses this to ACK the display handshake — reply on (sentId | 0x400) with
+// 0x74 (DONE) / 30 01 00 (PARTIAL) — so affa3_do_send doesn't abort on its 2s
+// no-display timeout and the ESP sends the full multi-frame payload. See WireProto.h.
+void cmd_inject(SerialCommands *sender)
+{
+    char *idStr = sender->Next();
+    if (!idStr) { Serial.println("@INJ: missing id"); return; }
+    CAN_FRAME f;
+    f.id = (uint32_t)strtol(idStr, nullptr, 16);
+    f.extended = false;
+    f.rtr = false;
+    f.length = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        char *b = sender->Next();
+        if (!b) break;
+        f.data.uint8[i] = (uint8_t)strtol(b, nullptr, 16);
+        f.length++;
+    }
+    Serial.printf("@INJ <- id=%03X len=%d\n", (unsigned)f.id, f.length);
+    gotFrame(&f);
+}
+
+// WireProto PC->fw: "@EMU <0|1>" toggles bench emulator self-ACK so multi-frame
+// display sends emit their full real AFFA3 sequence (@TX) without a real display.
+void cmd_emu(SerialCommands *sender)
+{
+    char *v = sender->Next();
+    bool on = v && atoi(v) != 0;
+    if (display) display->setEmuSelfAck(on);
+    Serial.printf("@EMU self-ACK = %d\n", on);
+}
+
 // Create command objects
+SerialCommand cmd_inj("@INJ", cmd_inject);
+SerialCommand cmd_emu_c("@EMU", cmd_emu);
 SerialCommand cmd_e("e", cmd_enable);
 SerialCommand cmd_d("d", cmd_disable);
 SerialCommand cmd_st("st", cmd_setTime);
@@ -183,6 +220,8 @@ void initSerial()
     Serial.println("------------------------");
     // Setup commands
     // Register commands
+    serialCommands.AddCommand(&cmd_inj);
+    serialCommands.AddCommand(&cmd_emu_c);
     serialCommands.AddCommand(&cmd_e);
     serialCommands.AddCommand(&cmd_d);
     serialCommands.AddCommand(&cmd_st);

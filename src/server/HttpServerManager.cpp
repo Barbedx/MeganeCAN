@@ -779,6 +779,15 @@ window.addEventListener('DOMContentLoaded', loadPlan);
     // + can, so the page polls a single keep-alive socket instead of 5 in parallel
     // (fewer connection buffers, less heap churn on a RAM-tight ESP32). Reuses the
     // same builders as the individual /api/* routes.
+    // Bench emulator self-ACK toggle (reliable HTTP path; the serial @EMU exists too).
+    // /api/emu?on=1 makes multi-frame display sends emit their full AFFA3 sequence
+    // without a real display, for the PC-side CAN emulator to decode.
+    _server.on("/api/emu", HTTP_GET, [this](PsychicRequest *request) {
+        bool on = !request->hasParam("on") || request->getParam("on")->value() != "0";
+        _display.setEmuSelfAck(on);
+        return request->reply(200, "text/plain", on ? "emu self-ack ON" : "emu self-ack OFF");
+    });
+
     _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {
         String j = "{\"media\":";
         j += buildMediaJson();
