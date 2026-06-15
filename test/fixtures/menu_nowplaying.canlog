@@ -1,0 +1,16 @@
+# MeganeCAN .canlog v1 - captured Carminat now-playing screen (0x151 showMenu)
+# format: <ms> @TX <id-hex> <bytes...>   (generated fixture; golden for test_replay)
+0 @TX 151 10 5A 00 00 00 00 00 00
+5 @TX 151 21 00 00 0B 4E 6F 77 20
+10 @TX 151 22 50 6C 61 79 69 6E 67
+15 @TX 151 23 20 20 20 20 20 20 20
+20 @TX 151 24 20 20 20 20 20 20 20
+25 @TX 151 25 20 00 7E 53 70 6F 74
+30 @TX 151 26 69 66 79 20 20 20 20
+35 @TX 151 27 20 20 20 20 20 20 20
+40 @TX 151 28 20 20 20 20 20 20 20
+45 @TX 151 29 00 7F 44 61 66 74 20
+50 @TX 151 2A 50 75 6E 6B 20 2D 20
+55 @TX 151 2B 41 72 6F 75 6E 64 20
+60 @TX 151 2C 20 20 20 20 20 20 20
+65 @TX 151 2D 20 20 20 20 00 00 00
