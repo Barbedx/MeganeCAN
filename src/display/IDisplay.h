@@ -28,6 +28,13 @@ public:
 
     // Bench emulator self-ACK toggle (see AffaDisplayBase). Default no-op.
     virtual void setEmuSelfAck(bool on) { (void)on; }
+
+    // Transient "info" popup of up to 3 short lines, and its dismissal. Displays
+    // that don't support a popup default to no-op, so callers (e.g. the web UI)
+    // depend only on this interface, never a concrete display.
+    virtual AffaCommon::AffaError showInfoPopup(const char *line1, const char *line2, const char *line3)
+    { (void)line1; (void)line2; (void)line3; return AffaCommon::AffaError::NoError; }
+    virtual void hideInfoPopup() {}
 protected:
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 

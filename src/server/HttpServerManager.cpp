@@ -174,6 +174,15 @@ td,th{padding:3px 6px}
   <label class="ck"><input type="checkbox" id="staticSave"> Save</label>
   <button class="wide" onclick="showStatic()">Show static text</button>
   <hr>
+  <label class="muted">Info popup &mdash; Carminat only (other displays ignore it); 3 lines, &le;8 chars</label>
+  <input id="if1" placeholder="line 1" maxlength="8">
+  <input id="if2" placeholder="line 2" maxlength="8">
+  <input id="if3" placeholder="line 3" maxlength="8">
+  <div class="row">
+    <button onclick="showInfo()">Show info popup</button>
+    <button class="sec" onclick="closeInfo()">Close</button>
+  </div>
+  <hr>
   <label class="muted">Scroll text</label>
   <input id="welcomeTextInput" placeholder="Text">
   <label class="ck"><input type="checkbox" id="scrollSave"> Save as welcome</label>
@@ -261,6 +270,8 @@ function cmd(c){fetch('/api/cmd?c='+encodeURIComponent(c));}
 function mmss(s){s=Math.max(0,Math.floor(s));return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2);}
 function showStatic(){let u='/static?text='+encodeURIComponent(g('staticTextInput').value);if(g('staticSave').checked)u+='&save=on';getq(u).then(()=>toast('Shown'));}
 function showScroll(){let u='/scroll?text='+encodeURIComponent(g('welcomeTextInput').value);if(g('scrollSave').checked)u+='&save=on';getq(u).then(()=>toast('Scrolling'));}
+function showInfo(){getq('/api/info?l1='+encodeURIComponent(g('if1').value)+'&l2='+encodeURIComponent(g('if2').value)+'&l3='+encodeURIComponent(g('if3').value)).then(()=>toast('Info popup'));}
+function closeInfo(){getq('/api/info/close').then(()=>toast('Info close'));}
 
 function renderMedia(d){try{
   if(!d.connected){g('npPlayer').textContent='Not connected';g('npTitle').textContent='-';g('npArtist').textContent='';g('npBar').value=0;g('npProg').textContent='';return;}
@@ -786,6 +797,22 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         bool on = !request->hasParam("on") || request->getParam("on")->value() != "0";
         _display.setEmuSelfAck(on);
         return request->reply(200, "text/plain", on ? "emu self-ack ON" : "emu self-ack OFF");
+    });
+
+    // Info popup — through the IDisplay abstraction only (the server knows nothing
+    // about CarminatDisplay). 3 short lines; displays that don't support it no-op.
+    _server.on("/api/info", HTTP_GET, [this](PsychicRequest *request) {
+        auto p = [&](const char *k) {
+            return request->hasParam(k) ? request->getParam(k)->value() : String("");
+        };
+        _display.showInfoPopup(p("l1").c_str(), p("l2").c_str(), p("l3").c_str());
+        return request->reply(200, "text/plain", "info popup sent");
+    });
+
+    // Best-effort close: hide the popup (back to normal screen).
+    _server.on("/api/info/close", HTTP_GET, [this](PsychicRequest *request) {
+        _display.hideInfoPopup();
+        return request->reply(200, "text/plain", "info popup close sent");
     });
 
     _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {

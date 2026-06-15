@@ -1106,7 +1106,23 @@ AffaCommon::AffaError CarminatDisplay::showConfirmBoxWithOffsets(const char *cap
 
 AffaCommon::AffaError CarminatDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
 {
-  return AffaCommon::AffaError();
+  // Wire the (previously stubbed) method to the free implementation above, which
+  // sends the 3-item info popup over 0x151 (10 0B 76 <prefix> <offset> + 8 chars).
+  ::showInfoMenu(item1, item2, item3, offset1, offset2, offset3, infoPrefix);
+  return AffaCommon::AffaError::NoError;
+}
+
+// IDisplay capability: generic 3-line info popup -> Carminat showInfoMenu defaults.
+AffaCommon::AffaError CarminatDisplay::showInfoPopup(const char *line1, const char *line2, const char *line3)
+{
+  return showInfoMenu(line1, line2, line3);
+}
+
+void CarminatDisplay::hideInfoPopup()
+{
+  // Best-effort dismiss: return to normal text. The exact popup-close command is
+  // still being confirmed on the car; refine once observed.
+  setText("RENAULT", 0);
 }
 
 // ---- Page management ----

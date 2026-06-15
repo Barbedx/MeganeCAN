@@ -64,6 +64,10 @@ public:
                                        uint8_t offset1 = 0x41, uint8_t offset2 = 0x44, uint8_t offset3 = 0x48,
                                        uint8_t infoPrefix = 0x70); // Show info menu with items and offsets
 
+    // IDisplay info-popup capability (maps to showInfoMenu with default offsets).
+    AffaCommon::AffaError showInfoPopup(const char *line1, const char *line2, const char *line3) override;
+    void hideInfoPopup() override;
+
     bool isCarminat() const override { return true; }
 
     void begin() override;
