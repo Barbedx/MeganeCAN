@@ -101,8 +101,19 @@ dashboard hammering (was wedging at ~24KB/14KB before).
   **Verified live:** header "Main Menu", items "Voltage: 0V" / "Boost: 0mbar", selection highlighted.
   To drive on the bench: open the menu with **Load-hold** (`/emulate/key key=0 hold=1`), navigate
   with RollDown (`key=321`) / RollUp (`key=257`); `skip_funcreg=TRUE` + `/api/emu?on=1` must be on.
-- B2-next: also decode the media/now-playing screen and `setText` single/short frames (currently
-  only the menu screen is decoded). Per-display: add UpdateList (0x121) decoding too.
+- B2 ✅✅ verified live for **all three screens** (commits `3ff0100`, `…`): **menu** (Main Menu /
+  Voltage / Boost + highlight), **now-playing** (Spotify: `> Spotify [hh:mm]` / artist-title /
+  `XXX___ 0:49/2:26` progress bar), **notifications** (Telegram/Gmail popup, 6s then back to media).
+  All decoded from real frames. Drive media: `/api/emu?on=1` + `/setaux` (AuxModeTracker auto-AUX in
+  the car when the radio selects AUX) + music playing + menu closed; notifications interrupt for 6s.
+- B2 ✅ **transliteration** fixed (commit … `Transliterate all text in showMenu`): Cyrillic media
+  titles / app names no longer leak UTF-8 → mojibake; showMenu is the single ASCII choke point.
+- B2-next: decode `setText` single/short frames (10 0E … format) and UpdateList (0x121); a nicer
+  progress-bar widget.
+- **CLEANUP (top): affa3 debug spam.** With media rendering every ~300ms, `affa3_do_send`'s
+  AFFA3_PRINT lines (`Sending packet #N`, `PARTIAL ack`, `affa3_do_send called`, `do_send totalLen`,
+  `skipFuncReg …`) flood serial — ~66% of the channel. Gate/remove them (they're debug). Fits the
+  "compact log" goal; not a blocker (heap healthy, 0 crashes).
 - B3 (true closed loop): PC injects `@INJ (id|0x400) 74…/30 01 00…` to ACK over serial instead of
   self-ACK — needs the proxy serial-WRITE path fixed first (and the `affa3_do_send` wait loop to
   pump serial, since it currently blocks without reading input).
