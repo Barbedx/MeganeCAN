@@ -81,14 +81,28 @@ handshake (replace-radio mode); `true` = a real radio is present and owns regist
 passive (no sync, no auto-reply). Auto-detect of the radio is impossible while passive — hence
 `display_type` is manual.
 
-### CAN bus emulator (PC-side virtual display)
+### CAN bus emulator (PC-side virtual display) — working
 
-`CanUtils::sendFrame()` mirrors every outbound frame to serial as `@TX <id> <bytes>` (before the
-live-bus gate, so frames are captured even when bench TX is suppressed). A PC tool decodes the
-AFFA3 stream and renders a virtual display; injecting `(id | 0x400)` ACKs back over serial closes
-the loop so the bench runs without the 2s no-display timeouts. Live serial is shared with the
-developer via `tools/serial_proxy.py` (SSE at `http://localhost:8080`). Goal: reverse-engineer the
-AFFA3NAV navigation screen to drive turn arrows from iPhone ANCS/Maps.
+The bench has no real display, so a **PC-side virtual Carminat** in `tools/serial_proxy.py` decodes
+the real AFFA3 frames (never the human debug prints — see Claude memory). Pieces:
+- `CanUtils::sendFrame()` mirrors every outbound frame to serial as **`@TX <id> <bytes>`** via
+  `WireProto.h` (the one UART contract: `@TX`/`@RX`/`@EV` fw→PC, `@KEY`/`@INJ` PC→fw), before the
+  live-bus gate so frames emit even when bench TX is suppressed.
+- **Self-ACK** (`AffaDisplayBase::_emuSelfAck`, toggle **`GET /api/emu?on=1`**): with no real display
+  to answer `affa3_do_send`'s per-frame ACK, the sender acks its own frames so the COMPLETE
+  multi-frame AFFA3 sequence emits. Wire bytes are identical to a real send.
+- The proxy (`http://localhost:8080`, SSE) reassembles ISO-TP (frame0 `0x10` = 8 bytes; consecutive
+  `0x2N` append bytes[1..7]) and renders the screen. **All screens are `showMenu` over `0x151`** —
+  menu, now-playing, and ANCS notification popups — so one decoder covers all (payload: scrollLock
+  [10], header[11..36], item1 marker[38]+text[39..63], item2 marker[65]+text[66..95]; highlight =
+  single `07 29 01 <rowId>`).
+- Drive the media screen on the bench: `/api/emu?on=1` + `/setaux` + music playing + menu closed
+  (Load-hold `/emulate/key key=0 hold=1` toggles the menu). `showMenu` transliterates all text to
+  ASCII so Cyrillic doesn't mojibake.
+- `@INJ <id> <bytes>` injects a CAN RX frame (a future *true* closed loop ACKs on `id|0x400`); note
+  serial INPUT from the proxy doesn't reach SerialCommands yet — use the HTTP routes.
+
+Goal: reverse-engineer the AFFA3NAV navigation screen to drive turn arrows from iPhone ANCS/Maps.
 
 ### Bench vs car (CAN safety)
 
@@ -120,6 +134,11 @@ BLE+WiFi+HTTP+AMS all live (~62KB free / ~45KB largest contiguous block). Keep i
   dashboard; gate scans on the largest *contiguous* block (`getMaxAllocHeap`).
 - Prefer fixed `char[]`/streaming over `String`/`std::string` churn in HTTP responses; the RAM ring
   log was removed (use the serial proxy). A loop heap watchdog logs `[heap] free/min/maxblk`.
+- Config is cached in RAM at boot (`utils/AppConfig`) — getters read it, not NVS (stops per-request
+  NVS churn + `nvs_open NOT_FOUND` spam); config setters `ESP.restart()` so the cache reloads.
+- The dashboard polls **one** `/api/dashboard` (media+notifs+bt+wifi+can) instead of 5 endpoints, to
+  hold fewer keep-alive sockets. Open follow-ups (see `notes/HANDOFF.md`): stream JSON, serve the
+  HTML from LittleFS, and silence the `affa3_do_send` debug spam during continuous media renders.
 
 ### ELM327 / OBD Diagnostics
 

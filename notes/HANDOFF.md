@@ -10,9 +10,10 @@ Renault dashboard display over **CAN** by emulating the head-unit radio (AFFA3 p
 session fixed the BLE pairing, killed CAN/memory crashes, made the WiFi dashboard stable, started a
 **PC-side CAN display emulator**, and validated + documented the radio/display architecture.
 
-Work is on branch **`feature/ble-can-bench-fixes`** (commits below). **Push is blocked** (403 —
-needs the `Barbedx` GitHub account; `andriipetruk-hue` can't push). Commits are local only; ff-merge
-to `main` when ready.
+**All merged to `main`** (PR #4, merge `a1f109b`, 22 commits) and pushed to `Barbedx/MeganeCAN`.
+Local `main` == `origin/main`; the `feature/ble-can-bench-fixes` branch is deleted. The git remote
+is now **just `origin` = `Barbedx/MeganeCAN`** (the old `andriipetruk-hue` fork remote was removed).
+Resume work directly on `main` (or a fresh branch off it).
 
 ## Hardware & ports (this bench)
 - **Bench board: classic ESP32 WROOM on `COM5`** (Silicon Labs CP210x, auto-reset works). Env =
@@ -135,9 +136,9 @@ per-frame ACK on `(sentID | 0x400)`: `0x74`=DONE, `30 01 00`=PARTIAL. `skip_func
 the radio (registers), true=real radio present (ESP passive).
 
 ## Git state
-- Branch `feature/ble-can-bench-fixes`. Tree clean at handoff (top commit `538cf97`).
-- **Push blocked** (403, `andriipetruk-hue` lacks access to `Barbedx/MeganeCAN`). ff-merge to local
-  `main` and push from an account with access when ready.
+- On **`main`** (top = merge `a1f109b`, PR #4). Tree clean. Local `main` == `origin/main`.
+- Single remote: **`origin` = `Barbedx/MeganeCAN`** (default branch `main`). The session's work is
+  all merged; the feature branch was deleted. New work: branch off `main`, PR back.
 - Reference sandbox (proven BLE approach) lives at `../NimBLE-AMS-CNTRL-01`.
 
 ## Gotchas / invariants (don't regress)
