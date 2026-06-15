@@ -66,6 +66,12 @@ small{color:#6c7086}
       <button onclick="getq('/setaux')">Set AUX</button>
     </div>
     <div class=row>
+      <button onclick="getq('/api/fullemu?on=1')">Full-emu ON</button>
+      <button onclick="getq('/api/fullemu?on=0')">Full-emu OFF</button>
+    </div>
+    <h3 style=margin-top:10px>ESP self-decoded screen <small>(full-emu)</small></h3>
+    <div class=scr id=espscr><div class=hdr>—</div></div>
+    <div class=row>
       <input id=raw placeholder="@INJ 3CF 61 11 / @KEY 0 1 / @EMU 1" style=flex:1>
       <button onclick=sendRaw()>WS send</button>
     </div>
@@ -143,6 +149,14 @@ async function postf(u,o){const b=new URLSearchParams(o);const r=await fetch(u,{
 async function getq(u){const r=await fetch(u);return r.text()}
 function key(code,hold){postf('/emulate/key',{key:code,hold:hold?1:0})}
 function emu(on){getq('/api/emu?on='+(on?1:0))}
+async function pollScreen(){try{
+  const s=await(await fetch('/api/screen')).json();
+  const arrow=s.scroll===11?'↓':s.scroll===7?'↑':s.scroll===12?'↕':'';
+  let h='<div class=hdr>'+esc((s.on?'':'(off) ')+arrow+' '+(s.header||'—'))+'</div>';
+  [s.item0,s.item1].forEach((t,i)=>{if(t){const sel=(s.sel===126&&i===0)||(s.sel===127&&i===1);h+='<div class="it'+(sel?' sel':'')+'">'+esc((sel?'▶ ':'  ')+t)+'</div>'}});
+  document.getElementById('espscr').innerHTML=h;
+}catch(e){}}
+setInterval(pollScreen,1500);pollScreen();
 function sendRaw(){const v=$('raw').value.trim();if(v&&ws&&ws.readyState===1){ws.send(v);$('raw').value=''}}
 $('raw').addEventListener('keydown',e=>{if(e.key==='Enter')sendRaw()});
 // ---- record ----

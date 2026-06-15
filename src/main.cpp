@@ -25,6 +25,8 @@
 #include "wire/WsWireLink.h"
 #include "utils/WireProto.h"
 #include "vdisplay/CarminatVirtualDisplay.h"
+#include "vdisplay/UpdateListSegVirtualDisplay.h"
+#include "vdisplay/UpdateListLcdVirtualDisplay.h"
 #include "bus/ArduinoClock.h"
 #include <string.h>
 #include "BleMediaKeyboard.h"
@@ -60,8 +62,21 @@ struct WsRecorderTap : IBusTap {
 // WITHOUT a real panel — and the ESP decodes its own screen (exposed at /api/screen).
 // The "true closed loop": radio -> (tap) -> virtual display -> (ACK) -> radio recv.
 // Default off; toggle via /api/fullemu?on=1.
-static CarminatVirtualDisplay g_vdisplay;     // Carminat is the focus protocol
+// One virtual display per protocol; g_vd points at the one matching display_type
+// (set in initDisplay, mirroring the radio-side `display`).
+static CarminatVirtualDisplay      g_vdCarminat;
+static UpdateListSegVirtualDisplay g_vdUlSeg;
+static UpdateListLcdVirtualDisplay g_vdUlLcd;
+static VirtualDisplayBase*         g_vd = &g_vdCarminat;
 static bool g_fullEmu = false;
+
+// Pick the virtual display that matches the emulated radio protocol.
+void selectVirtualDisplay(const String& displayType) {
+    if (displayType == "carminat")            g_vd = &g_vdCarminat;
+    else if (displayType == "updatelist")     g_vd = &g_vdUlSeg;
+    else if (displayType == "updatelist_menu") g_vd = &g_vdUlLcd;
+    else                                       g_vd = &g_vdUlLcd;
+}
 
 // The virtual display's ACK/key sends are delivered straight into the radio's recv().
 struct RadioRecvBus : ICanBus {
@@ -81,14 +96,14 @@ static RadioRecvBus g_radioRecvBus;
 // Radio TX -> virtual display (gated by the toggle). Registered as a HwCanBus TX tap,
 // so it sees every outbound frame before the (bench-suppressed) CAN0 send.
 struct EmuFeedTap : IBusTap {
-    void onTx(const Frame& f) override { if (g_fullEmu) g_vdisplay.onCanRx(f); }
+    void onTx(const Frame& f) override { if (g_fullEmu) g_vd->onCanRx(f); }
 };
 static EmuFeedTap g_emuFeedTap;
 
 void setFullEmu(bool on) {
     if (on && !g_fullEmu) {
-        g_vdisplay.begin(g_radioRecvBus, defaultClock());
-        g_vdisplay.setAckMode(VirtualDisplayBase::ACK_PARTIAL);
+        g_vd->begin(g_radioRecvBus, defaultClock());
+        g_vd->setAckMode(VirtualDisplayBase::ACK_PARTIAL);
         if (display) display->setEmuSelfAck(false);   // the virtual display ACKs now
     }
     g_fullEmu = on;
@@ -106,7 +121,7 @@ static String jsonEscAscii(const char* s) {
 
 // JSON of the ESP's own decoded screen (only meaningful while full-emulation is on).
 String fullEmuScreenJson() {
-    const ScreenModel& s = g_vdisplay.screen();
+    const ScreenModel& s = g_vd->screen();
     String j = "{\"on\":";
     j += g_fullEmu ? "true" : "false";
     j += ",\"mode\":" + String((int)s.mode);
@@ -451,6 +466,8 @@ void initDisplay()
         Serial.println("[Display Init] Instantiating UpdateListBase (fallback)");
         display = new UpdateListBase();
     }
+
+    selectVirtualDisplay(displayType);   // FULL-EMULATION twin matches the radio protocol
 
     display->setSkipFuncReg(skipFuncReg);
     Serial.println("[Display Init] Skip func-reg: " + String(skipFuncReg ? "yes" : "no"));
