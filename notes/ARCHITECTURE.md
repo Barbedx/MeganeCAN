@@ -61,13 +61,18 @@ number that matters** — it gates allocations, not total free.
   the wireless **`/wire`** page (live frames + ID filter + steering + record→.canlog +
   full-emulation toggle + ESP self-decoded screen).
 
-## Roadmap — remaining architectural debt (ranked)
+## Roadmap — architectural debt (status)
 1. **Decompose the radio-side display monolith** (`CarminatDisplay.cpp` ~1137 lines):
-   separate CAN/ISO-TP send from menu model / pages / ELM so L5 goes behind the same
-   seams and becomes host-testable. Biggest debt; highest risk (drives the real panel).
-2. **Slim `main.cpp`** further: extract the serial console (11 command handlers) into
-   `console/`. (EmuBridge already extracted.)
-3. **Split `HttpServerManager.cpp`** (~924 lines): move the inline HTML out, group
-   routes; separate presentation from transport.
-4. **Typed, versioned config** instead of scattered NVS string keys; a guided
-   first-run provisioning flow for a fleet (display_type / bt_mode / skip_funcreg).
+   🟡 *foundation laid* — `affa3_do_send` now sends through the injectable `ICanBus`
+   seam (`setBus`), so the radio can be driven on the host / a pure virtual loop.
+   *Remaining:* separate the menu model / pages / ELM from CAN transport, route the
+   remaining `CanUtils::sendCan` sync/highlight sends through `_bus`, decouple from
+   `Serial`/`Preferences` so the send path is host-testable.
+2. **Slim `main.cpp`**: ✅ serial console → `console/SerialConsole`; FULL-EMULATION →
+   `emulation/EmuBridge`. (`wireCommand` WS handler intentionally kept in main.)
+3. **Split `HttpServerManager.cpp`**: 🟡 dashboard HTML → `server/DashboardPage.h`
+   (941→685 lines). *Remaining (low risk):* JSON builders → `JsonBuilders.h`, the
+   `/diag` + `/affa3test` inline pages out, group routes into `setupXxxRoutes()`.
+4. **Typed, versioned config + fleet provisioning**: ✅ `AppConfig` schema version +
+   `provisioned` first-run flag (with legacy migration) + `DisplayKind`/`BtKind` enums;
+   `POST /api/setup` one-shot provisioning; `/api/health` reports `cfg`.
