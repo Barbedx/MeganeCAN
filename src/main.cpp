@@ -29,6 +29,7 @@
 #include "vdisplay/UpdateListLcdVirtualDisplay.h"
 #include "emulation/EmuBridge.h"
 #include "bus/ArduinoClock.h"
+#include "console/SerialConsole.h"
 #include <string.h>
 #include "BleMediaKeyboard.h"
 
@@ -135,146 +136,6 @@ void gotFrame(CAN_FRAME *frame)
     display->recv(frame);
 }
 
-void cmd_enable(SerialCommands *sender)
-{
-    Serial.println("Enabling display");
-    display->setState(true);
-}
-void cmd_disable(SerialCommands *sender) { display->setState(false); }
-void cmd_clearbonds(SerialCommands *sender)
-{
-    Serial.println("[BT] Clearing BLE bonds via serial command...");
-    if (btMode == "ams")
-        Bluetooth::ClearBonds();
-    else
-        Serial.println("[BT] ClearBonds only available in AMS mode");
-}
-void cmd_playpause(SerialCommands *sender)
-{
-    if (btMode == "ams" && Bluetooth::IsConnected())
-        AppleMediaService::Toggle();
-    else
-        Serial.println("[BT] Not connected in AMS mode");
-}
-void cmd_next(SerialCommands *sender)
-{
-    if (btMode == "ams" && Bluetooth::IsConnected())
-        AppleMediaService::NextTrack();
-    else
-        Serial.println("[BT] Not connected in AMS mode");
-}
-void cmd_prev(SerialCommands *sender)
-{
-    if (btMode == "ams" && Bluetooth::IsConnected())
-        AppleMediaService::PrevTrack();
-    else
-        Serial.println("[BT] Not connected in AMS mode");
-}
-// void cmd_enable()    { affa3_display_ctrl(0x01) displayManager.enableDisplay(); }
-
-// void cmd_messageTestold5() { displayManager.messageTest5(); }
-//  void cmd_messageTestold6() { displayManager.messageTest6(); }
-//  void cmd_messageTestold(){ displayManager.messageTest2(); }
-//   void cmd_mgwelcome(){ displayManager.messageWelcome(); }
-void cmd_scrollmtx(SerialCommands *sender)
-{
-    const char *text = sender->Next();
-    const char *delayStr = sender->Next();
-
-    if (!text)
-    {
-        // AFFA3_PRINT("Usage: ms <text> [delay_ms]\n");
-        return;
-    }
-
-    uint16_t delayMs = 300; // default delay
-    if (delayStr)
-    {
-        delayMs = atoi(delayStr);
-        if (delayMs < 20)
-            delayMs = 20; // clamp minimum
-    }
-    Serial.println("Scrolling text: ");
-    Serial.println(text);
-    ScrollEffect(display, ScrollDirection::Right, text, delayMs);
-
-    // display.scrollText(text, delayMs);
-}
-
-void cmd_scrollmtxl(SerialCommands *sender)
-{
-    const char *text = sender->Next();
-    const char *delayStr = sender->Next();
-
-    if (!text)
-    {
-        // AFFA3_PRINT("Usage: ms <text> [delay_ms]\n");
-        return;
-    }
-
-    uint16_t delayMs = 300; // default delay
-    if (delayStr)
-    {
-        delayMs = atoi(delayStr);
-        if (delayMs < 20)
-            delayMs = 20; // clamp minimum
-    }
-    ScrollEffect(display, ScrollDirection::Left, text, delayMs);
-}
-
-void cmd_setTime(SerialCommands *sender)
-{
-
-    char *timeStr = sender->Next(); // e.g., "0930"
-    if (!timeStr)
-    {
-        Serial.println("Usage: st <HHMM>");
-        return;
-    }
-    display->setTime(timeStr); // unknown protocol
-}
-
-// Declare command handlers
-// void cmd_enable(SerialCommands* sender);
-// void cmd_disable(SerialCommands* sender);
-// void cmd_setTime(SerialCommands* sender);
-// void cmd_scrollmtx(SerialCommands* sender);
-// void cmd_scrollmtxl(SerialCommands* sender);
-
-// WireProto PC->fw: "@INJ <id-hex> <b0> <b1> ..." injects a CAN frame into the
-// exact same RX path as a real bus frame (gotFrame -> display->recv). The PC-side
-// emulator uses this to ACK the display handshake — reply on (sentId | 0x400) with
-// 0x74 (DONE) / 30 01 00 (PARTIAL) — so affa3_do_send doesn't abort on its 2s
-// no-display timeout and the ESP sends the full multi-frame payload. See WireProto.h.
-void cmd_inject(SerialCommands *sender)
-{
-    char *idStr = sender->Next();
-    if (!idStr) { Serial.println("@INJ: missing id"); return; }
-    CAN_FRAME f;
-    f.id = (uint32_t)strtol(idStr, nullptr, 16);
-    f.extended = false;
-    f.rtr = false;
-    f.length = 0;
-    for (int i = 0; i < 8; i++)
-    {
-        char *b = sender->Next();
-        if (!b) break;
-        f.data.uint8[i] = (uint8_t)strtol(b, nullptr, 16);
-        f.length++;
-    }
-    Serial.printf("@INJ <- id=%03X len=%d\n", (unsigned)f.id, f.length);
-    gotFrame(&f);
-}
-
-// WireProto PC->fw: "@EMU <0|1>" toggles bench emulator self-ACK so multi-frame
-// display sends emit their full real AFFA3 sequence (@TX) without a real display.
-void cmd_emu(SerialCommands *sender)
-{
-    char *v = sender->Next();
-    bool on = v && atoi(v) != 0;
-    if (display) display->setEmuSelfAck(on);
-    Serial.printf("@EMU self-ACK = %d\n", on);
-}
 
 // WireProto PC->fw command handler (delivered by a WireLink, today the WebSocket).
 // Mirrors the @INJ/@EMU serial commands and adds @KEY, giving the phone the return
@@ -330,48 +191,6 @@ void wireCommand(const char *line, void * /*ctx*/)
     }
 }
 
-// Create command objects
-SerialCommand cmd_inj("@INJ", cmd_inject);
-SerialCommand cmd_emu_c("@EMU", cmd_emu);
-SerialCommand cmd_e("e", cmd_enable);
-SerialCommand cmd_d("d", cmd_disable);
-SerialCommand cmd_st("st", cmd_setTime);
-SerialCommand cmd_msr("msr", cmd_scrollmtx);
-SerialCommand cmd_msl("msl", cmd_scrollmtxl);
-SerialCommand cmd_cb("cb", cmd_clearbonds);
-SerialCommand cmd_pp("pp", cmd_playpause);
-SerialCommand cmd_nx("nx", cmd_next);
-SerialCommand cmd_pv("pv", cmd_prev);
-
-// Create SerialCommands manager
-char serial_command_buffer[64];
-char serial_delim[] = " \r\n";
-SerialCommands serialCommands(&Serial, serial_command_buffer, sizeof(serial_command_buffer), serial_delim);
-
-void initSerial()
-{
-
-    // Initialize random seed (run only once)
-
-    Serial.begin(115200);
-    delay(2000);
-    Serial.println("------------------------");
-    Serial.println("   MEGANE CAN BUS       ");
-    Serial.println("------------------------");
-    // Setup commands
-    // Register commands
-    serialCommands.AddCommand(&cmd_inj);
-    serialCommands.AddCommand(&cmd_emu_c);
-    serialCommands.AddCommand(&cmd_e);
-    serialCommands.AddCommand(&cmd_d);
-    serialCommands.AddCommand(&cmd_st);
-    serialCommands.AddCommand(&cmd_msr);
-    serialCommands.AddCommand(&cmd_msl);
-    serialCommands.AddCommand(&cmd_cb);
-    serialCommands.AddCommand(&cmd_pp);
-    serialCommands.AddCommand(&cmd_nx);
-    serialCommands.AddCommand(&cmd_pv);
-}
 
 void restoreDisplay(IDisplay &display, Preferences &prefs)
 {
@@ -524,7 +343,7 @@ void onDataUpdateCallback(const AppleMediaService::MediaInformation &info)
 void setup()
 {
     delay(2000);
-    initSerial();
+    SerialConsole::begin();
     initDisplay();
 
     display->setKeyHandler(HandleKey);  // always set — HandleKey is mode-aware
@@ -587,7 +406,7 @@ static uint32_t last_sync = 0;
 
 void loop()
 {
-    serialCommands.ReadSerial();
+    SerialConsole::loop();
     ElegantOTA.loop();
     g_wsLink.loop();   // flush the batched WireProto stream to WS clients (single task)
 
