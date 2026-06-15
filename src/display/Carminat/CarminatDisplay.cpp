@@ -1026,10 +1026,17 @@ AffaCommon::AffaError CarminatDisplay::highlightItem(uint8_t id)
 //  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNCarminat::ScrollLockIndicator scrollLockIndicator
 AffaCommon::AffaError CarminatDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
 {
-  // Serial.println("[showMenu] --- Building Menu ---");
-  // Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
-  // uint8_t selectionItem1 = 0x00;//unknown, to test
-  // uint8_t selectionItem2 = 0x01;//unknown, to test
+  // The Carminat charset can't render UTF-8. showMenu is the single choke point for
+  // ALL text sent to it (menu, now-playing, notifications), so transliterate here:
+  // Cyrillic/Polish -> Latin, anything else -> '?'. Idempotent on ASCII, so callers
+  // that already transliterated are unaffected; callers that didn't (e.g. the app
+  // name, media titles) no longer leak raw UTF-8 -> mojibake on the display.
+  String _h  = transliterateToAscii(String(header ? header : ""));
+  String _i1 = transliterateToAscii(String(item1 ? item1 : ""));
+  String _i2 = transliterateToAscii(String(item2 ? item2 : ""));
+  header = _h.c_str();
+  item1  = _i1.c_str();
+  item2  = _i2.c_str();
 
   uint8_t payload[96] = {0};
   int idx = 0;
