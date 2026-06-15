@@ -33,6 +33,7 @@ public:
     void emitRxFrame(uint32_t id, const uint8_t* data, uint8_t len);
 
     uint32_t dropped() const { return _dropped; }
+    int      clientCount() const { return _clients; }
 
 private:
     static constexpr int      BUF_SIZE  = 2048;   // accumulate ~40 lines between flushes

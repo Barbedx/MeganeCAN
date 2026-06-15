@@ -629,10 +629,16 @@ void loop()
     if (millis() - lastHeapLog > 10000)
     {
         lastHeapLog = millis();
+        uint32_t maxblk = ESP.getMaxAllocHeap();
         Serial.printf("[heap] free=%u min=%u maxblk=%u\n",
                       (unsigned)ESP.getFreeHeap(),
                       (unsigned)ESP.getMinFreeHeap(),
-                      (unsigned)ESP.getMaxAllocHeap());
+                      (unsigned)maxblk);
+        // Largest contiguous block is what actually gates BLE/WiFi/HTTP allocations;
+        // below this it starts to wedge. Surface it loudly so the cause is visible.
+        if (maxblk < 20000)
+            Serial.printf("[heap] LOW MEMORY: largest block %u < 20000 — risk of alloc failures\n",
+                          (unsigned)maxblk);
     }
 
     display->processEvents();

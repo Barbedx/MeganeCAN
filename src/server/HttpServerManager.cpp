@@ -826,6 +826,23 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return request->reply(200, "application/json", fullEmuScreenJson().c_str());
     });
 
+    // Memory + liveness in one place — the single endpoint to "stably understand how
+    // much it eats". free/min/maxblk are the heap; maxblk (largest contiguous block)
+    // is the number that actually gates BLE+WiFi+HTTP allocations on this device.
+    // Hand-built into a fixed buffer (no String churn). Poll it; watch maxblk trend.
+    _server.on("/api/health", HTTP_GET, [this](PsychicRequest *request) {
+        char j[320];
+        snprintf(j, sizeof(j),
+            "{\"heap\":{\"free\":%u,\"min\":%u,\"maxblk\":%u,\"total\":%u},"
+            "\"uptime_ms\":%lu,\"ws\":{\"clients\":%d,\"dropped\":%lu}}",
+            (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
+            (unsigned)ESP.getMaxAllocHeap(), (unsigned)ESP.getHeapSize(),
+            (unsigned long)millis(),
+            _wire ? _wire->clientCount() : 0,
+            (unsigned long)(_wire ? _wire->dropped() : 0));
+        return request->reply(200, "application/json", j);
+    });
+
     // Info popup — through the IDisplay abstraction only (the server knows nothing
     // about CarminatDisplay). 3 short lines; displays that don't support it no-op.
     _server.on("/api/info", HTTP_GET, [this](PsychicRequest *request) {
