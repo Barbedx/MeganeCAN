@@ -576,16 +576,43 @@ window.addEventListener('DOMContentLoaded', loadPlan);
     // is the number that actually gates BLE+WiFi+HTTP allocations on this device.
     // Hand-built into a fixed buffer (no String churn). Poll it; watch maxblk trend.
     _server.on("/api/health", HTTP_GET, [this](PsychicRequest *request) {
-        char j[320];
+        char j[360];
         snprintf(j, sizeof(j),
             "{\"heap\":{\"free\":%u,\"min\":%u,\"maxblk\":%u,\"total\":%u},"
-            "\"uptime_ms\":%lu,\"ws\":{\"clients\":%d,\"dropped\":%lu}}",
+            "\"uptime_ms\":%lu,\"ws\":{\"clients\":%d,\"dropped\":%lu},"
+            "\"cfg\":{\"provisioned\":%s,\"schema\":%lu,\"display\":\"%s\"}}",
             (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap(),
             (unsigned)ESP.getMaxAllocHeap(), (unsigned)ESP.getHeapSize(),
             (unsigned long)millis(),
             _wire ? _wire->clientCount() : 0,
-            (unsigned long)(_wire ? _wire->dropped() : 0));
+            (unsigned long)(_wire ? _wire->dropped() : 0),
+            AppConfig::provisioned ? "true" : "false",
+            (unsigned long)AppConfig::schemaVersion,
+            AppConfig::displayKindStr(AppConfig::displayKind()));
         return request->reply(200, "application/json", j);
+    });
+
+    // First-run provisioning: one atomic call sets the two settings a fleet device
+    // must pick (display protocol + BT mode), marks it provisioned, and restarts.
+    // Frontends check /api/health cfg.provisioned and show a setup step when false.
+    _server.on("/api/setup", HTTP_POST, [this](PsychicRequest *request) {
+        if (!request->hasParam("displayType") || !request->hasParam("btMode"))
+            return request->reply(400, "text/plain", "need displayType + btMode");
+        String dt = request->getParam("displayType")->value();
+        String bm = request->getParam("btMode")->value();
+        if (dt != "carminat" && dt != "updatelist" && dt != "updatelist_menu")
+            return request->reply(400, "text/plain", "bad displayType");
+        if (bm != "ams" && bm != "keyboard")
+            return request->reply(400, "text/plain", "bad btMode");
+        _prefs.begin("config", false);
+        _prefs.putString("display_type", dt);
+        _prefs.putString("bt_mode", bm);
+        _prefs.putBool("provisioned", true);
+        _prefs.end();
+        request->reply(200, "text/plain", "provisioned, restarting");
+        delay(200);
+        ESP.restart();
+        return ESP_OK;
     });
 
     // Info popup — through the IDisplay abstraction only (the server knows nothing
