@@ -61,7 +61,7 @@ AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len
       uint16_t wait_counter = 0;
       while ((funcs[idx].stat == FuncStatus::WAIT) && (--timeout > 0))
       {
-        delay(1);
+        _clock->delayMs(1);
 
         // Log every 500ms
         if (wait_counter++ % 500 == 0)

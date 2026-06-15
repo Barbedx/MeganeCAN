@@ -1,19 +1,17 @@
 #include "CanUtils.h"
-#include "WireProto.h"
+#include "../bus/HwCanBus.h"
 
-// Live-bus gate state. lastRxMs == 0 until the first frame is received; the bus
-// is considered alive while traffic was seen within BUS_ALIVE_WINDOW_MS.
-static volatile uint32_t lastRxMs = 0;
-static const uint32_t BUS_ALIVE_WINDOW_MS = 5000;
-
+// The live-bus gate and the @TX serial mirror now live in HwCanBus (the single
+// CAN_FRAME<->Frame seam). These statics stay as thin delegators so existing
+// callers (CanUtils::busAlive / noteRxActivity / sendFrame) keep working unchanged.
 void CanUtils::noteRxActivity()
 {
-    lastRxMs = millis();
+    HwCanBus::instance().noteRxActivity();
 }
 
 bool CanUtils::busAlive()
 {
-    return lastRxMs != 0 && (millis() - lastRxMs) < BUS_ALIVE_WINDOW_MS;
+    return HwCanBus::instance().isLive();
 }
 
 void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
@@ -35,28 +33,16 @@ void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t 
 }
 void CanUtils::sendFrame(CAN_FRAME &frame)
 {
-    // Mirror every outbound display frame to serial in a compact, parseable form
-    // ("@TX <id> <bytes>") so the PC-side virtual display ("CAN emulator") can
-    // decode the AFFA3 stream and render the screen. Emitted BEFORE the live-bus
-    // gate below, so frames are captured even when bench TX is suppressed. Skip
-    // the high-rate sync chatter (0x3AF) to keep the channel readable.
-    if (frame.id != 0x3AF)
-        WireProto::emitTx(frame.id, frame.data.uint8, frame.length);
-    // Only transmit onto a confirmed-live bus. No RX traffic (e.g. bench board
-    // with no transceiver) -> drop the frame so TX never drives the controller
-    // BUS_OFF and trips the IDF auto-recovery assert (twai.c:184). On the car
-    // bus, frames arrive constantly so this is open within milliseconds.
-    if (!busAlive())
-    {
-        static uint32_t lastWarnMs = 0;
-        if (millis() - lastWarnMs > 5000)
-        {
-            lastWarnMs = millis();
-            Serial.println("[CAN] no live bus (no RX) — TX suppressed");
-        }
-        return;
-    }
-    CAN0.sendFrame(frame);
+    // Delegate to the one CAN bus. HwCanBus runs the @TX serial mirror (as a tap,
+    // before the gate) and the live-bus gate, then transmits on a live bus. Behavior
+    // is identical to the old inline path; the conversion lives there now.
+    Frame f;
+    f.id = frame.id;
+    f.extended = frame.extended;
+    f.len = frame.length > 8 ? 8 : frame.length;
+    for (int i = 0; i < f.len; i++)
+        f.data[i] = frame.data.uint8[i];
+    HwCanBus::instance().send(f);
 }
 void CanUtils::sendMsgBuf(uint32_t id, const uint8_t *data, uint8_t len)
 {

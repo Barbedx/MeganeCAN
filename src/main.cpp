@@ -19,6 +19,8 @@
 #include "wifi_manager.h"
 #include "utils/CanLog.h"
 #include "utils/AppConfig.h"
+#include "bus/HwCanBus.h"
+#include "bus/SerialMirrorTap.h"
 #include "BleMediaKeyboard.h"
 
 AffaDisplayBase *display = nullptr;
@@ -42,7 +44,10 @@ const char *password = Soft_AP_WIFI_PASS;
 
 void gotFrame(CAN_FRAME *frame)
 {
-    CanUtils::noteRxActivity(); // confirms a live bus -> unlocks CAN TX
+    // Route every received frame through the bus: refreshes the live-bus gate
+    // (replaces CanUtils::noteRxActivity) and fans out to RX taps. The radio-side
+    // display still consumes CAN_FRAME directly (converted to Frame in later phases).
+    HwCanBus::instance().ingest(*frame);
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
     CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
@@ -413,6 +418,8 @@ void setup()
     display->begin();
 
     CanLog::begin(); // load CAN-log config (enabled + ID filter) from NVS
+    static SerialMirrorTap g_serialMirror;           // @TX mirror for the PC emulator
+    HwCanBus::instance().addTap(&g_serialMirror);
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);

@@ -1,8 +1,9 @@
 #pragma once
 
 #include "IDisplay.h"
-#include "AffaCommonConstants.h" 
-#include <Arduino.h>   
+#include "AffaCommonConstants.h"
+#include <Arduino.h>
+#include "../bus/ArduinoClock.h"
 
 
 // forward-declare, щоб не тягнути весь apple_media_service.h сюди
@@ -48,8 +49,14 @@ void setKeyHandler(KeyHandler handler)
     // ACK wait is skipped. Toggled over serial via "@EMU 1".
     void setEmuSelfAck(bool e) { _emuSelfAck = e; }
 
+    // Time seam. Defaults to the Arduino clock (millis/delay) so on-target behavior
+    // is unchanged; native tests inject a FakeClock to make the 2s per-frame ACK
+    // wait in affa3_do_send instant + deterministic.
+    void setClock(IClock& c) { _clock = &c; }
+
 protected:
     static constexpr int SYNC_TIMEOUT = 5;
+    IClock* _clock = &defaultClock();
     KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
     bool _skipFuncReg = false;
