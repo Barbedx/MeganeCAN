@@ -71,6 +71,8 @@ stored=1` then `AMS started`.
 - `ef95650` consolidate 5 dashboard pollers into one `/api/dashboard` (Task **A2**, done + verified).
 - `a10d54d` README: BLE peripheral + radio/display matrix + display_type values (Task **C**).
 - `ae47a80` `WireProto.h` UART contract; CanUtils emits `@TX` through it (Task **B1**, verified).
+- `e6f4b92` bench emulator self-ACK + `@INJ`/`@EMU` → emit full AFFA3 sequence (Task **B3a**).
+- `3ff0100` PC-side AFFA3 virtual Carminat screen in the proxy (Task **B2**, verified live).
 
 Heap after all this: ~62KB free / ~45KB largest contiguous block with BLE connected, stable under
 dashboard hammering (was wedging at ~24KB/14KB before).
@@ -86,20 +88,26 @@ dashboard hammering (was wedging at ~24KB/14KB before).
   spiffs partition); A5 fixed `char[]` over `String` churn. Also: `/getlasttext`/`/getwelcometext`
   still open the `"display"` NVS namespace (2 residual NOT_FOUND) — fold into a cache too.
 
-**B — CAN display emulator (the big goal, foundation built):**
-- B1 ✅ `WireProto.h` — one documented UART contract (commit `ae47a80`): `@TX`/`@RX`/`@EV` (fw→PC),
-  `@KEY`/`@INJ` (PC→fw), incl. the `@INJ` ACK recipe. `CanUtils` emits `@TX` through it (verified).
-  This header is the spec to build the PC decoder against; keep it and the proxy parser in sync.
-- B2 ⏳ NEXT (big chunk) — PC-side AFFA3 decoder + virtual display in the proxy page: parse `@TX`,
-  reassemble ISO-TP (single `[len]`, multi `0x20+N`), decode caption (offset 0x1A) + rows (`0xD`
-  separators), render the screen. To capture full menu frames on the bench you must OPEN the menu
-  first (a long-press / specific key — plain `key=321` with `menuActive=NO` just does media control)
-  AND have `skip_funcreg=TRUE` (already set) so text frames are sent.
-- B3 closed-loop ACK: PC injects `@INJ (id|0x400) 74…` (DONE) / `30 01 00…` (PARTIAL) so
-  `affa3_do_send` skips its 2s no-display timeout → bench runs full speed = real test rig. (Needs an
-  `@INJ` serial-command handler on the ESP that feeds the frame to `display->recv()`.)
+**B — CAN display emulator — WORKING (decodes real AFFA3 frames):**
+- B1 ✅ `WireProto.h` UART contract (commit `ae47a80`).
+- B3a ✅ bench emulator **self-ACK** (commit `e6f4b92`): with no real display, `affa3_do_send`
+  self-acknowledges each frame so the COMPLETE multi-frame AFFA3 sequence is emitted as `@TX`.
+  Enable: **`GET /api/emu?on=1`** (reliable). Serial `@EMU 1` / `@INJ <id> <bytes>` also exist but
+  serial INPUT from the proxy isn't reaching SerialCommands yet (see Gotchas) — use HTTP for now.
+- B2 ✅ PC-side AFFA3 decoder + **virtual Carminat screen** in the proxy page (commit `3ff0100`).
+  Decodes the real `@TX` stream: ISO-TP reassembly (frame0 0x10 = 8 bytes; consecutive 0x2N append
+  bytes[1..7]); menu payload (96B): scrollLock[10], header[11..36], item1 marker[38]+text[39..63],
+  item2 marker[65]+text[66..95]; highlight = single `07 29 01 <rowId>` frame (7E=item1, 7F=item2).
+  **Verified live:** header "Main Menu", items "Voltage: 0V" / "Boost: 0mbar", selection highlighted.
+  To drive on the bench: open the menu with **Load-hold** (`/emulate/key key=0 hold=1`), navigate
+  with RollDown (`key=321`) / RollUp (`key=257`); `skip_funcreg=TRUE` + `/api/emu?on=1` must be on.
+- B2-next: also decode the media/now-playing screen and `setText` single/short frames (currently
+  only the menu screen is decoded). Per-display: add UpdateList (0x121) decoding too.
+- B3 (true closed loop): PC injects `@INJ (id|0x400) 74…/30 01 00…` to ACK over serial instead of
+  self-ACK — needs the proxy serial-WRITE path fixed first (and the `affa3_do_send` wait loop to
+  pump serial, since it currently blocks without reading input).
 - **Goal:** reverse-engineer the **AFFA3NAV navigation screen** so iPhone ANCS/Apple-Maps drive
-  turn-by-turn arrows. User will record real CAN logs **in the car** next.
+  turn-by-turn arrows. Record real CAN logs **in the car** and decode with this emulator.
 
 **C ✅ — docs:** `README.md` Bluetooth fixed (central→peripheral), radio/display matrix added,
 `display_type` table corrected (commit `a10d54d`). Deep README rewrite of the detail sections (still
@@ -128,3 +136,8 @@ the radio (registers), true=real radio present (ESP passive).
   (TWAI assert reboot loop).
 - WiFi+BLE one radio: keep `setSleep(true)` AND the relaxed conn params, or the dashboard starves.
 - Keep memory lean: no big RAM buffers / `String` churn in HTTP; the device runs near the heap edge.
+- **Serial INPUT from the proxy doesn't reach the firmware** yet: `tools/serial_proxy.py` `/send`
+  writes to COM5 (the `>>> cmd` marker logs) but SerialCommands never reacts (even `cb`/`pp`). The
+  firmware OUTPUT is fine. Suspect pyserial write-on-Windows / DTR-RTS / flush. Blocks the serial
+  `@INJ`/`@EMU`/`@KEY` path → use the HTTP equivalents (`/api/emu`, `/emulate/key`). Fix this to
+  enable the true closed-loop emulator (B3). Also `affa3_do_send`'s 2s wait loop doesn't pump serial.
