@@ -453,6 +453,7 @@ void initDisplay()
     }
 
     selectVirtualDisplay(displayType);   // FULL-EMULATION twin matches the radio protocol
+    display->setBus(HwCanBus::instance()); // radio sends through the bus seam (behavior-neutral)
 
     display->setSkipFuncReg(skipFuncReg);
     Serial.println("[Display Init] Skip func-reg: " + String(skipFuncReg ? "yes" : "no"));

@@ -46,7 +46,17 @@ AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len
 
       funcs[idx].stat = FuncStatus::WAIT;
 
-      CanUtils::sendFrame(packet);
+      if (_bus) {
+        Frame f;
+        f.id = packet.id;
+        f.extended = packet.extended;
+        f.len = packet.length > 8 ? 8 : packet.length;
+        for (int i = 0; i < f.len; i++)
+          f.data[i] = packet.data.uint8[i];
+        _bus->send(f);
+      } else {
+        CanUtils::sendFrame(packet);   // default path (delegates to HwCanBus)
+      }
 
       // Bench emulator self-ACK: no real display answers, so acknowledge our own
       // frame here (PARTIAL while bytes remain, DONE on the last). `left` is already

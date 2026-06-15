@@ -4,6 +4,7 @@
 #include "AffaCommonConstants.h"
 #include <Arduino.h>
 #include "../bus/ArduinoClock.h"
+#include "../bus/ICanBus.h"
 
 
 // forward-declare, щоб не тягнути весь apple_media_service.h сюди
@@ -54,9 +55,16 @@ void setKeyHandler(KeyHandler handler)
     // wait in affa3_do_send instant + deterministic.
     void setClock(IClock& c) { _clock = &c; }
 
+    // CAN send seam. When set, affa3_do_send transmits through this bus instead of
+    // CanUtils (which itself delegates to HwCanBus, so binding HwCanBus here is
+    // behavior-neutral). Lets the radio drive a LoopbackCanBus on the host / a pure
+    // virtual-display loop without the real controller.
+    void setBus(ICanBus& b) { _bus = &b; }
+
 protected:
     static constexpr int SYNC_TIMEOUT = 5;
     IClock* _clock = &defaultClock();
+    ICanBus* _bus = nullptr;   // nullptr -> fall back to CanUtils::sendFrame
     KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
     bool _skipFuncReg = false;
