@@ -60,7 +60,9 @@ register it in `App` — no edits scattered through `main`.
 
 ## Roadmap to the framework (incremental, each shippable)
 1. ✅ Ports for bus/clock/transport/virtual-display; fakes; native tests.
-2. 🟡 `IDisplay::recv(Frame)` — remove the CAN_FRAME leak (this PR, step 1).
+2. ✅ `IDisplay::recv(Frame)` — CAN_FRAME leak removed from the port (step 1: signature
+   + Frame→CAN_FRAME shim in the bodies; bench-verified). *Next:* rewrite the bodies on
+   Frame + route replies through `_bus` → host-test the AFFA3 handshake.
 3. Extract media (AMS) + notifications (ANCS) behind `IMediaSource`/`INotifSource`
    ports so the screen logic stops depending on the BLE stack directly.
 4. `IConfigStore` port over NVS; the typed `Config` becomes the single source of truth.

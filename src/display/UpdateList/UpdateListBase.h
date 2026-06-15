@@ -9,7 +9,7 @@ class UpdateListBase : public AffaDisplayBase
 public:
     UpdateListBase() { initializeFuncs(); }
     void tick() override;
-    void recv(CAN_FRAME *frame) override;
+    void recv(const Frame &frame) override;
     void processEvents() override;
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;

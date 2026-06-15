@@ -317,8 +317,15 @@ struct Event
 
 std::queue<Event> eventQueue;
 
-void CarminatDisplay::recv(CAN_FRAME *packet)
+void CarminatDisplay::recv(const Frame &fr)
 {
+  // Shim the portable Frame back to a local CAN_FRAME so the (unchanged) handler body
+  // below keeps working on `packet`. The body will be rewritten to use Frame directly
+  // in a later step (which makes the AFFA3 handshake host-testable).
+  CAN_FRAME _pkt;
+  _pkt.id = fr.id; _pkt.extended = fr.extended; _pkt.rtr = false; _pkt.length = fr.len;
+  for (uint8_t k = 0; k < fr.len && k < 8; k++) _pkt.data.uint8[k] = fr.data[k];
+  CAN_FRAME *packet = &_pkt;
 
   uint8_t i;
 

@@ -47,7 +47,7 @@ public:
 
     //void setKeyHandler(KeyHandler handler) { keyHandler = handler; }
  
-    void recv(CAN_FRAME *frame) override;
+    void recv(const Frame &frame) override;
     void processEvents();
     void setMediaInfo(const AppleMediaService::MediaInformation& info) override;
     void tick() override;

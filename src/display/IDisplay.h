@@ -1,13 +1,16 @@
 #pragma once
 #include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 #include "AffaCommonConstants.h" /* Constants related to Affa3 */
+#include "../bus/Frame.h"        /* portable CAN frame — the display port speaks this, not CAN_FRAME */
 #include <utils/CanUtils.h>
 #include <Arduino.h>
 
 class IDisplay {
 public:
     virtual void tick() = 0;
-    virtual void recv(CAN_FRAME* frame) = 0;
+    // Inbound bus frame. Frame (not the vendor CAN_FRAME) so the display port stays
+    // free of the driver type — the keystone for host-testing the radio side.
+    virtual void recv(const Frame& frame) = 0;
     
     virtual void processEvents() = 0;
     virtual AffaCommon::AffaError setText(const char* text, uint8_t digit =255 /* 0-9, or anything else for none */) =0; 

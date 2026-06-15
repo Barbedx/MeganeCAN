@@ -58,8 +58,15 @@ AffaCommon::AffaError UpdateListBase::setState(bool enabled)
     return affa3_send(UpdateList::PACKET_ID_DISPLAY_CTRL, data, sizeof(data));
 }
 
-void UpdateListBase::recv(CAN_FRAME *packet)
+void UpdateListBase::recv(const Frame &fr)
 {
+    // Shim Frame -> local CAN_FRAME; the handler body below is unchanged (rewritten
+    // to use Frame directly in a later step).
+    CAN_FRAME _pkt;
+    _pkt.id = fr.id; _pkt.extended = fr.extended; _pkt.rtr = false; _pkt.length = fr.len;
+    for (uint8_t k = 0; k < fr.len && k < 8; k++) _pkt.data.uint8[k] = fr.data[k];
+    CAN_FRAME *packet = &_pkt;
+
     uint8_t i;
 
     if (packet->id == UpdateList::PACKET_ID_SYNC_REPLY)

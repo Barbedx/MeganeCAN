@@ -80,13 +80,10 @@ void selectVirtualDisplay(const String& displayType) {
     else                                       g_vd = &g_vdUlLcd;
 }
 
-// Deliver the virtual display's ACK/key frames into the radio's recv().
+// Deliver the virtual display's ACK/key frames into the radio's recv() — now a direct
+// Frame call (the display port no longer needs a CAN_FRAME round-trip).
 static void radioRecv(const Frame& f, void*) {
-    if (!display) return;
-    CAN_FRAME cf;
-    cf.id = f.id; cf.extended = f.extended; cf.rtr = false; cf.length = f.len;
-    for (int i = 0; i < f.len && i < 8; i++) cf.data.uint8[i] = f.data[i];
-    display->recv(&cf);
+    if (display) display->recv(f);
 }
 
 void setFullEmu(bool on) {
@@ -127,13 +124,19 @@ const char *password = Soft_AP_WIFI_PASS;
 void gotFrame(CAN_FRAME *frame)
 {
     // Route every received frame through the bus: refreshes the live-bus gate
-    // (replaces CanUtils::noteRxActivity) and fans out to RX taps. The radio-side
-    // display still consumes CAN_FRAME directly (converted to Frame in later phases).
+    // (replaces CanUtils::noteRxActivity) and fans out to RX taps.
     HwCanBus::instance().ingest(*frame);
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
     CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
-    display->recv(frame);
+
+    // The display port speaks Frame, not the vendor CAN_FRAME.
+    Frame fr;
+    fr.id = frame->id;
+    fr.extended = frame->extended;
+    fr.len = frame->length > 8 ? 8 : frame->length;
+    for (int i = 0; i < fr.len; i++) fr.data[i] = frame->data.uint8[i];
+    display->recv(fr);
 }
 
 
