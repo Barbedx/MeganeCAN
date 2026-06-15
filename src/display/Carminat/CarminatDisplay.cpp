@@ -551,73 +551,6 @@ AffaCommon::AffaError CarminatDisplay::setText(const char *text, uint8_t digit)
   return AffaCommon::AffaError::NoError;
 }
 
-void showConfirmBoxWithOffsets(
-    const char *caption,
-    const char *row1,
-    const char *row2)
-{
-  Serial.println("[showConfirmBoxWithOffsets] --- Sending Custom Confirm Box ---");
-
-  // ISO-TP total payload: 112 bytes (16 frames × 7 bytes)
-  uint8_t payload[112] = {0}; // Initialize all bytes to 0
-  uint8_t currentFillEnd = 0; // Tracks where the last write ended
-
-  // Insert button caption at offset 0x1A (max 7 characters)
-  for (uint8_t i = 0; i < 7 && caption[i]; i++)
-  {
-    payload[0x1A + i] = caption[i];
-  }
-
-  // Insert rows with 0x20 between them, starting at 0x20
-  uint8_t offset = 0x20;
-
-  auto insertRow = [&](const char *text)
-  {
-    while (*text && offset < 0x36)
-    {
-      payload[offset++] = *text++;
-    }
-    // Add 0x20 to separate rows (unless last one)
-    if (offset < 0x36)
-    {
-      payload[offset++] = 0xD;
-    }
-  };
-  insertRow(row1);
-  insertRow(row2);
-
-  // Now send CAN frames
-  // First frame (0x10): initialize ISO-TP with first data byte (0x6F)
-  CanUtils::sendCan(0x151, 0x10, 0x6F, 0x21, 0x05, 0x00, 0x00, 0x01, 0x49);
-
-  uint8_t payloadIndex = 0;
-
-  // Now send 15 more frames: 0x21 to 0x2F
-  for (uint8_t i = 0; i < 15; i++)
-  {
-    uint8_t pci = 0x21 + i; // Frame identifier
-    uint8_t data[8] = {0};  // Data array to store 8 bytes
-
-    data[0] = pci; // First byte is the frame identifier
-    // Fill the remaining 7 bytes with payload data, from the correct offset
-    for (uint8_t j = 0; j < 7; j++)
-    {
-
-      data[j + 1] = payload[payloadIndex++];
-    }
-
-    // Send the CAN frame with the correct data
-    CanUtils::sendCan(0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-
-    // Debugging: Print the CAN message sent
-    Serial.printf("  [CAN] %03X -> %02X %02X %02X %02X %02X %02X %02X %02X\n",
-                  0x151, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
-
-    delay(5); // Small delay between frames
-  }
-
-  Serial.println("[showConfirmBoxWithOffsets] --- Done ---");
-}
 void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
 {
   // визначаємо: новий трек чи той самий
@@ -1099,9 +1032,59 @@ void CarminatDisplay::onElmUpdate(const char* key, float value)
     }
 }
 
+// Big "confirm box" popup (caption button + two text rows) over 0x151.
+//
+// Reverse-engineered wire format (reproduced byte-for-byte from the original raw
+// implementation), but now routed through affa3_send so it respects the busAlive
+// gate, per-frame ACK, the @TX serial mirror and the bench self-ACK emulator
+// instead of blasting CanUtils::sendCan directly.
+//
+// ISO-TP layout: first frame = 0x10 <len> + a fixed 6-byte header (21 05 00 00 01
+// 49); affa3_do_send adds the 0x2N PCI for the 15 consecutive frames. The visible
+// text lives in a 105-byte content region (15 × 7) at these offsets:
+//   0x1A.. : button caption (max 7 chars)
+//   0x20.. : row1, 0x0D separator, row2, 0x0D   (bounded < 0x36)
 AffaCommon::AffaError CarminatDisplay::showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2)
 {
-  return AffaCommon::AffaError();
+  // Carminat can't render UTF-8 — transliterate, same rule as showMenu().
+  String _cap = transliterateToAscii(String(caption ? caption : ""));
+  String _r1  = transliterateToAscii(String(row1 ? row1 : ""));
+  String _r2  = transliterateToAscii(String(row2 ? row2 : ""));
+
+  uint8_t content[105] = {0};
+
+  const char *cap = _cap.c_str();
+  for (uint8_t i = 0; i < 7 && cap[i]; i++)
+    content[0x1A + i] = cap[i];
+
+  uint8_t off = 0x20;
+  auto insertRow = [&](const char *t)
+  {
+    while (*t && off < 0x36)
+      content[off++] = *t++;
+    if (off < 0x36)
+      content[off++] = 0x0D; // row separator
+  };
+  insertRow(_r1.c_str());
+  insertRow(_r2.c_str());
+
+  // Build the ISO-TP buffer: 0x10 <len> + 6-byte header + 105 content bytes.
+  // len = 6 (first-frame payload) + 105 = 111 (0x6F).
+  uint8_t buf[2 + 6 + sizeof(content)];
+  uint8_t n = 0;
+  buf[n++] = 0x10; // ISO-TP first frame
+  buf[n++] = 0x6F; // total content length = 111 bytes
+  buf[n++] = 0x21; // ---- fixed 6-byte header ----
+  buf[n++] = 0x05;
+  buf[n++] = 0x00;
+  buf[n++] = 0x00;
+  buf[n++] = 0x01;
+  buf[n++] = 0x49;
+  memcpy(buf + n, content, sizeof(content));
+  n += sizeof(content);
+
+  Serial.println("[showConfirmBoxWithOffsets] sending confirm box via affa3_send");
+  return affa3_send(0x151, buf, n);
 }
 
 AffaCommon::AffaError CarminatDisplay::showInfoMenu(const char *item1, const char *item2, const char *item3, uint8_t offset1, uint8_t offset2, uint8_t offset3, uint8_t infoPrefix)
