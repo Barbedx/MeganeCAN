@@ -170,7 +170,7 @@ function decodeMenu(p){
 function onTx(idHex,bytes){
   if(idHex!=='151') return;            // Carminat display ctrl/text
   const b0=bytes[0];
-  if(b0===0x10){ asm=bytes.slice(0); asmActive=true; decodeMenu(asm); return; }
+  if(b0===0x10){ asm=bytes.slice(0); asmActive=true; scr.sel=null; decodeMenu(asm); return; }
   if(asmActive && (b0&0xF0)===0x20){ asm=asm.concat(bytes.slice(1)); decodeMenu(asm); return; }
   if(b0===0x07 && bytes[1]===0x29 && bytes[2]===0x01){ scr.sel=bytes[3]; renderScreen(); return; }
 }
