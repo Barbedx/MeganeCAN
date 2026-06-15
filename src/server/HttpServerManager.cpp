@@ -9,6 +9,7 @@
 #include "../utils/CanLog.h"
 #include "../utils/AppConfig.h"
 #include "../wire/WsWireLink.h"
+#include "WirePage.h"
 #include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
@@ -370,6 +371,11 @@ void HttpServerManager::setupRoutes()
 {
     _server.on("/", HTTP_GET, [this](PsychicRequest *request)
                { return request->reply(200, "text/html", htmlPage); });
+
+    // Wireless CAN viewer + display steering (WebSocket /canstream client). Open
+    // http://<esp-ip>/wire from any phone/PC on the ESP's network.
+    _server.on("/wire", HTTP_GET, [this](PsychicRequest *request)
+               { return request->reply(200, "text/html", WIRE_PAGE); });
 
     _server.on("/static", HTTP_GET, [this](PsychicRequest *request) {
         if (!request->hasParam("text"))
