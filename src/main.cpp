@@ -27,6 +27,7 @@
 #include "vdisplay/CarminatVirtualDisplay.h"
 #include "vdisplay/UpdateListSegVirtualDisplay.h"
 #include "vdisplay/UpdateListLcdVirtualDisplay.h"
+#include "emulation/EmuBridge.h"
 #include "bus/ArduinoClock.h"
 #include <string.h>
 #include "BleMediaKeyboard.h"
@@ -68,7 +69,7 @@ static CarminatVirtualDisplay      g_vdCarminat;
 static UpdateListSegVirtualDisplay g_vdUlSeg;
 static UpdateListLcdVirtualDisplay g_vdUlLcd;
 static VirtualDisplayBase*         g_vd = &g_vdCarminat;
-static bool g_fullEmu = false;
+static EmuBridge                   g_emu;   // FULL-EMULATION closed loop (portable module)
 
 // Pick the virtual display that matches the emulated radio protocol.
 void selectVirtualDisplay(const String& displayType) {
@@ -78,35 +79,19 @@ void selectVirtualDisplay(const String& displayType) {
     else                                       g_vd = &g_vdUlLcd;
 }
 
-// The virtual display's ACK/key sends are delivered straight into the radio's recv().
-struct RadioRecvBus : ICanBus {
-    bool send(const Frame& f) override {
-        if (!display) return false;
-        CAN_FRAME cf;
-        cf.id = f.id; cf.extended = f.extended; cf.rtr = false; cf.length = f.len;
-        for (int i = 0; i < f.len && i < 8; i++) cf.data.uint8[i] = f.data[i];
-        display->recv(&cf);
-        return true;
-    }
-    void onReceive(RxHandler, void*) override {}
-    bool isLive() const override { return true; }
-};
-static RadioRecvBus g_radioRecvBus;
-
-// Radio TX -> virtual display (gated by the toggle). Registered as a HwCanBus TX tap,
-// so it sees every outbound frame before the (bench-suppressed) CAN0 send.
-struct EmuFeedTap : IBusTap {
-    void onTx(const Frame& f) override { if (g_fullEmu) g_vd->onCanRx(f); }
-};
-static EmuFeedTap g_emuFeedTap;
+// Deliver the virtual display's ACK/key frames into the radio's recv().
+static void radioRecv(const Frame& f, void*) {
+    if (!display) return;
+    CAN_FRAME cf;
+    cf.id = f.id; cf.extended = f.extended; cf.rtr = false; cf.length = f.len;
+    for (int i = 0; i < f.len && i < 8; i++) cf.data.uint8[i] = f.data[i];
+    display->recv(&cf);
+}
 
 void setFullEmu(bool on) {
-    if (on && !g_fullEmu) {
-        g_vd->begin(g_radioRecvBus, defaultClock());
-        g_vd->setAckMode(VirtualDisplayBase::ACK_PARTIAL);
-        if (display) display->setEmuSelfAck(false);   // the virtual display ACKs now
-    }
-    g_fullEmu = on;
+    if (on && !g_emu.enabled() && display)
+        display->setEmuSelfAck(false);   // the virtual display ACKs now
+    g_emu.enable(on);
     Serial.printf("[fullemu] %s\n", on ? "ON — virtual display ACKs the radio" : "OFF");
 }
 
@@ -121,9 +106,9 @@ static String jsonEscAscii(const char* s) {
 
 // JSON of the ESP's own decoded screen (only meaningful while full-emulation is on).
 String fullEmuScreenJson() {
-    const ScreenModel& s = g_vd->screen();
+    const ScreenModel& s = g_emu.screen();
     String j = "{\"on\":";
-    j += g_fullEmu ? "true" : "false";
+    j += g_emu.enabled() ? "true" : "false";
     j += ",\"mode\":" + String((int)s.mode);
     j += ",\"header\":\"" + jsonEscAscii(s.header) + "\"";
     j += ",\"item0\":\"" + jsonEscAscii(s.item0) + "\"";
@@ -581,7 +566,8 @@ void setup()
     HwCanBus::instance().addTap(&g_serialMirror);
     static WsRecorderTap g_wsRecorder;                // @RX live car-bus capture to WS
     HwCanBus::instance().addTap(&g_wsRecorder);
-    HwCanBus::instance().addTap(&g_emuFeedTap);       // FULL-EMULATION feed (gated off)
+    g_emu.begin(*g_vd, radioRecv, nullptr, defaultClock());  // FULL-EMULATION closed loop
+    HwCanBus::instance().addTap(&g_emu.tap());               // feed (gated off by default)
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);
