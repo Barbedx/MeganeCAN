@@ -15,8 +15,8 @@ Connects an **ESP32** to the car CAN bus and acts as a smart sidecar: renders cu
 | Category | Details |
 |---|---|
 | **CAN bus** | 500 Kbps, GPIO 3 (RX) / GPIO 4 (TX). Listens to OEM frames and replies to sync/ack. |
-| **Display** | Drives Affa2 (8-segment or full-LED) and Affa3Nav (Carminat) OEM displays via ISO-TP style CAN. |
-| **Bluetooth** | AMS mode: pairs as BLE central to iPhone, reads now-playing info, syncs clock. Keyboard mode: BLE HID peripheral. |
+| **Display** | Emulates the head-unit radio over ISO-TP-style CAN to drive the OEM display. Two radio protocols: **Carminat** (large monochrome display only) and **UpdateList** (both the monochrome `updatelist_menu` and the 8-segment `updatelist`). |
+| **Bluetooth** | AMS mode: advertises as a **BLE peripheral** — the iPhone pairs from Settings → Bluetooth, then the ESP reads now-playing (AMS), notifications (ANCS) and clock (CTS) as a GATT client over that link. Keyboard mode: BLE HID peripheral. |
 | **Web UI** | PsychicHttp async server on port 80. Configure display type, BT mode, text, time. |
 | **OTA** | ElegantOTA at `/update`. |
 | **Diagnostics** | ELM327 over WiFi STA (V-LINK adapter). Queries ECUs and exposes JSON at `/api/live`. |
@@ -154,10 +154,14 @@ Selected via NVS key `config/display_type`. Takes effect after restart.
 
 | NVS value | Class | Notes |
 |---|---|---|
-| `affa2` | `Affa2Display` | Affa2 8-segment LED — extends Affa3Display; scrolls "Artist - Title" (8-char window, 400 ms/step) via AMS |
-| `affa2menu` | `Affa2MenuDisplay` | Affa2 full-LED — extends Affa3Display; same CAN protocol, stub for future menu extension |
-| `affa3` | `Affa2Base` | Affa2 protocol base — basic text only; used as fallback for unknown display_type values |
-| `affa3nav` *(default)* | `Affa3NavDisplay` | Affa3Nav "Carminat" — full media screen + interactive menu system |
+| `carminat` *(default)* | `CarminatDisplay` | Carminat protocol → **large monochrome** display: full media screen + interactive menu + notification popups |
+| `updatelist_menu` | `UpdateListMenuDisplay` | UpdateList protocol → **monochrome LCD** (menu); extends `UpdateListDisplay` |
+| `updatelist` | `UpdateListDisplay` | UpdateList protocol → **8-segment** display; scrolls "Artist - Title" (8-char window, 400 ms/step) via AMS |
+| *(other / unset)* | `UpdateListBase` | UpdateList protocol base — fallback |
+
+> Note: older docs/sections below may still use the pre-rename class names
+> (`Affa2*`/`Affa3Nav*`) and values (`affa2`/`affa3`). The authoritative model is
+> the matrix above and `CLAUDE.md`.
 
 ---
 

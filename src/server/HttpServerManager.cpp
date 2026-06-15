@@ -2,6 +2,12 @@
 #include "effects/ScrollEffect.h"
 #include "../commands/DisplayCommands.h"
 #include "../bluetooth.h"
+#include "../wifi_manager.h"
+#include "../apple_media_service.h"
+#include "../apple_notification_service.h"
+#include "../utils/Log.h"
+#include "../utils/CanLog.h"
+#include "../utils/AppConfig.h"
 #include <ElegantOTA.h>
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
@@ -11,338 +17,332 @@ HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _s
 {
 }
 
+namespace
+{
+    std::string jsonEsc(const std::string &in)
+    {
+        std::string out;
+        for (unsigned char c : in)
+        {
+            if (c == '"' || c == '\\') { out += '\\'; out += (char)c; }
+            else if (c == '\n') out += ' ';
+            else if (c >= 0x20) out += (char)c;
+        }
+        return out;
+    }
+
+    const char *pbState(AppleMediaService::MediaInformation::PlaybackState s)
+    {
+        using St = AppleMediaService::MediaInformation::PlaybackState;
+        switch (s) { case St::Playing: return "Playing"; case St::Paused: return "Paused";
+                     case St::Rewinding: return "Rewinding"; case St::FastForwarding: return "FastForwarding";
+                     default: return "Unknown"; }
+    }
+
+    String buildMediaJson()
+    {
+        bool conn = Bluetooth::IsConnected();
+        const auto &m = AppleMediaService::GetMediaInformation();
+        float elapsed = m.mElapsedTime;
+        if (conn && m.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing && m.mLastPlaybackInfoMs)
+            elapsed += (millis() - m.mLastPlaybackInfoMs) / 1000.0f * (m.mPlaybackRate > 0 ? m.mPlaybackRate : 1.0f);
+        String j = "{\"connected\":";
+        j += conn ? "true" : "false";
+        if (conn)
+        {
+            j += ",\"player\":\"" + String(jsonEsc(m.mPlayerName).c_str()) + "\"";
+            j += ",\"title\":\""  + String(jsonEsc(m.mTitle).c_str())  + "\"";
+            j += ",\"artist\":\"" + String(jsonEsc(m.mArtist).c_str()) + "\"";
+            j += ",\"album\":\""  + String(jsonEsc(m.mAlbum).c_str())  + "\"";
+            j += ",\"state\":\""  + String(pbState(m.mPlaybackState))  + "\"";
+            j += ",\"elapsed\":"  + String(elapsed, 1);
+            j += ",\"duration\":" + String(m.mDuration, 1);
+            j += ",\"volume\":"   + String(m.mVolume, 2);
+            j += ",\"queueIndex\":" + String(m.mQueueIndex);
+            j += ",\"queueCount\":" + String(m.mQueueCount);
+            j += ",\"shuffle\":"  + String((int)m.mShuffleMode);
+            j += ",\"repeat\":"   + String((int)m.mRepeatMode);
+        }
+        j += "}";
+        return j;
+    }
+
+    String buildNotifsJson()
+    {
+        auto recents = AppleNotificationService::GetRecent();
+        String j = "[";
+        for (size_t i = 0; i < recents.size(); i++)
+        {
+            const auto &n = recents[i];
+            if (i) j += ",";
+            j += "{\"cat\":\""  + String(AppleNotificationService::CategoryName(n.categoryId)) + "\"";
+            j += ",\"app\":\""   + String(jsonEsc(n.appId).c_str())   + "\"";
+            j += ",\"title\":\"" + String(jsonEsc(n.title).c_str())   + "\"";
+            j += ",\"msg\":\""   + String(jsonEsc(n.message).c_str()) + "\"}";
+        }
+        j += "]";
+        return j;
+    }
+} // namespace
+
 const char *htmlPage = R"rawliteral(
 <!DOCTYPE html>
-<html>
-<head><title>Display Control</title>
-<script>
-async function loadConfig() {
-  try {
-    // Fetch ELM enabled
-    const elmRes = await fetch('/getelmenabled');
-    const elmEnabled = await elmRes.text();
-    document.getElementById('elmEnabledCheckbox').checked = (elmEnabled === '1');
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MeganeCAN</title>
+<style>
+:root{--bg:#0f1115;--card:#1b1e24;--mut:#8a909a;--acc:#0a84ff;--line:#2a2e36}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#e8eaed;font-family:system-ui,Segoe UI,Roboto,sans-serif;font-size:15px}
+.wrap{max-width:680px;margin:0 auto;padding:14px}
+header{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 10px}
+header h1{font-size:20px;margin:0}
+.sub{font-size:12px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+.muted{color:var(--mut);font-size:13px}
+.title{font-size:18px;font-weight:600;margin:3px 0}
+button{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer;margin:3px 2px}
+button.sec{background:#313640}
+button.wide{width:100%}
+input,select{width:100%;background:#262a31;color:#e8eaed;border:1px solid var(--line);border-radius:10px;padding:9px;margin:4px 0;font-size:14px}
+.row{display:flex;gap:6px;flex-wrap:wrap}.row>*{flex:1}
+progress{width:100%;height:8px;margin-top:8px}
+details{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:10px 0;overflow:hidden}
+details>summary{padding:13px 14px;cursor:pointer;font-weight:600;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary:before{content:'\25B8 ';color:var(--mut)}
+details[open]>summary:before{content:'\25BE '}
+details[open]>summary{border-bottom:1px solid var(--line)}
+.body{padding:14px}
+.kv{font-family:ui-monospace,monospace;font-size:13px;color:var(--mut)}
+.notif{border-bottom:1px solid var(--line);padding:7px 0}.notif:last-child{border:0}
+label.ck{display:flex;align-items:center;gap:8px;font-size:14px;margin:8px 0}label.ck input{width:auto;margin:0}
+hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+a{color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-family:ui-monospace,monospace;font-size:13px}
+td,th{padding:3px 6px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#000c;border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;transition:.3s;pointer-events:none}
+#toast.show{opacity:1}
+</style></head><body><div class="wrap">
 
-    // Fetch display type and pre-select the correct option
-    const dtRes = await fetch('/getdisplaytype');
-    const displayType = await dtRes.text();
-    const sel = document.getElementById('displayTypeSelect');
-    for (let i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === displayType) {
-        sel.selectedIndex = i;
-        break;
-      }
-    }
+<header><h1>MeganeCAN</h1><div class="sub" id="hdrStatus">...</div></header>
 
-    // Fetch BT mode
-    const btRes = await fetch('/getbtmode');
-    const btMode = await btRes.text();
-    const btSel = document.getElementById('btModeSelect');
-    for (let i = 0; i < btSel.options.length; i++) {
-      if (btSel.options[i].value === btMode) {
-        btSel.selectedIndex = i;
-        break;
-      }
-    }
-
-    // Fetch auto_time
-    const atRes = await fetch('/getautotime');
-    const autoTime = await atRes.text();
-    document.getElementById('autoTimeCheckbox').checked = (autoTime === '1');
-
-    // Fetch skip_funcreg
-    const sfrRes = await fetch('/getskipfuncreg');
-    const sfr = await sfrRes.text();
-    document.getElementById('skipFuncRegCheckbox').checked = (sfr === '1');
-
-    // Fetch autoRestore
-    const restoreRes = await fetch('/config/restore');
-    const autoRestore = await restoreRes.text();
-    document.getElementById('autoRestoreCheckbox').checked = (autoRestore === '1');
-
-    // Fetch lastText
-    const lastTextRes = await fetch('/getlasttext');
-    const lastText = await lastTextRes.text();
-    document.getElementById('staticTextInput').value = lastText;
-
-    // Fetch welcomeText
-    const welcomeTextRes = await fetch('/getwelcometext');
-    const welcomeText = await welcomeTextRes.text();
-    document.getElementById('welcomeTextInput').value = welcomeText;
-  } catch (e) {
-    console.error('Failed to load config', e);
-  }
-}
-
-window.addEventListener('DOMContentLoaded', loadConfig);
-</script>
-</head>
-<body>
-    <h1>Display Control v0.6</h1>
-
-  <h2>Display Type</h2>
-    <form action="/setDisplay" method="POST">
-    <select name="type" id="displayTypeSelect">
-        <option value="carminat">Carminat (Nav)</option>
-        <option value="updatelist">UpdateList (8-segment)</option>
-        <option value="updatelist_menu">UpdateList Menu (full-LED)</option>
-    </select>
-    <input type="submit" value="Save &amp; Restart" />
-    </form>
-    <form action="/setskipfuncreg" method="POST" style="margin-top:6px">
-    <label>
-        <input type="checkbox" id="skipFuncRegCheckbox" name="skip_funcreg" value="1" />
-        Skip function registration (connected to real radio)
-    </label>
-    <input type="hidden" name="skip_funcreg" value="0" />
-    <input type="submit" value="Save &amp; Restart" />
-    </form>
-
-  <h2>Bluetooth Mode</h2>
-    <form action="/setbtmode" method="POST">
-    <select name="mode" id="btModeSelect">
-        <option value="ams">AMS (Apple Media Service)</option>
-        <option value="keyboard">BLE Keyboard</option>
-    </select>
-    <label style="margin-left:12px">
-        <input type="checkbox" id="autoTimeCheckbox" name="auto_time" value="1" />
-        Auto-sync time from phone
-    </label>
-    <input type="hidden" name="auto_time" value="0" />
-    <input type="submit" value="Save &amp; Restart" />
-    </form>
-
-  <h2>Auto-restore text</h2>
-    <form action="/config/restore" method="GET">
-    <label>
-        <input type="checkbox" name="enable" id="autoRestoreCheckbox" value="1" />
-        Auto-Restore texts on startup
-    </label>
-    <!-- Hidden input sends 0 when checkbox is unchecked -->
-    <input type="hidden" name="enable" value="0" />
-    <input type="submit" value="Save" />
-    </form>
-
-  <h2>Display Power</h2>
-  <button onclick="fetch('/display/state',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'enable=1'})">Display ON</button>
-  <button onclick="fetch('/display/state',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'enable=0'})">Display OFF</button>
-
-  <hr>
-
-  <h2>Show Static Text</h2>
-  <form action="/static" method="GET">
-    <label>Text:</label>
-    <input type="text" name="text" id="staticTextInput" required oninput="document.getElementById('textWarn').style.display=this.value.length>8?'inline':'none'" />
-    <span id="textWarn" style="display:none;color:orange;font-size:12px"> ⚠ &gt;8 chars, may be truncated on segment displays</span>
-    <label><input type="checkbox" name="save" /> Save</label><br><br>
-    <input type="submit" value="Show Static Text" />
-  </form>
-
-  <hr>
-
-  <h2>Scroll Welcome Text</h2>
-  <form action="/scroll" method="GET">
-    <label>Text:</label>
-    <input type="text" id="welcomeTextInput" name="text" required />
-    <label><input type="checkbox" name="save" /> Save as Welcome</label><br><br>
-    <input type="submit" value="Scroll Text" />
-  </form>
-
-  <hr>
-
-    <h2>Set Time</h2>
-    <form action="/settime" method="GET">
-    <label>Time (HHMM, e.g. 0930):</label>
-    <input type="text" name="time" pattern="\d{4}" maxlength="4" required />
-    <input type="submit" value="Set Time" />
-    </form>
-
-  <hr>
-
-    <h2>Set Voltage</h2>
-    <form action="/setVoltage" method="GET">
-    <label>Voltage:</label>
-    <input type="text" name="voltage" required />
-    <input type="submit" value="Set Voltage" />
-    </form>
-
-  <hr>
-
-  <h2>ELM327 / OBD Diagnostics</h2>
-    <form action="/setelm" method="POST">
-    <label>
-        <input type="checkbox" id="elmEnabledCheckbox" name="elm_enabled" value="1" />
-        Enable ELM327 (connects to V-LINK WiFi on boot, fetches voltage &amp; sensor data)
-    </label>
-    <input type="hidden" name="elm_enabled" value="0" />
-    <input type="submit" value="Save &amp; Restart" />
-    </form>
-    <h3>Live OBD Data</h3>
-    <div style="margin-bottom:6px">
-      <button onclick="refreshLive()">Refresh</button>
-      <label style="margin-left:12px"><input type="checkbox" id="autoRefresh" checked onchange="toggleAuto(this.checked)"> Auto-refresh (2s)</label>
-    </div>
-    <table id="liveTable" style="border-collapse:collapse;font-family:monospace;font-size:13px">
-      <thead><tr style="background:#ddd">
-        <th style="padding:4px 8px;text-align:left">Description</th>
-        <th style="padding:4px 8px">Code</th>
-        <th style="padding:4px 8px">Label</th>
-        <th style="padding:4px 8px;text-align:right">Value</th>
-      </tr></thead>
-      <tbody id="liveBody"><tr><td colspan="4" style="padding:4px 8px">Loading...</td></tr></tbody>
-    </table>
-    <script>
-    let _liveTimer = null;
-    async function refreshLive() {
-      const res = await fetch('/api/live/full');
-      const tbody = document.getElementById('liveBody');
-      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 8px;color:red">ELM not connected</td></tr>'; return; }
-      const data = await res.json();
-      let html = '';
-      for (const m of data) {
-        const val = m.hasValue ? (parseFloat(m.value).toFixed(2) + (m.unit ? '\xA0' + m.unit : '')) : '\u2014';
-        const clr = m.hasValue ? '' : 'color:#aaa';
-        html += '<tr style="' + clr + '">'
-          + '<td style="padding:2px 8px">' + m.name + '</td>'
-          + '<td style="padding:2px 8px;text-align:center">' + m.shortName + '</td>'
-          + '<td style="padding:2px 8px;text-align:center">' + m.label + '</td>'
-          + '<td style="padding:2px 8px;text-align:right">' + val + '</td>'
-          + '</tr>';
-      }
-      tbody.innerHTML = html || '<tr><td colspan="4" style="padding:4px 8px">No metrics</td></tr>';
-    }
-    function toggleAuto(on) {
-      if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
-      if (on) _liveTimer = setInterval(refreshLive, 2000);
-    }
-    window.addEventListener('DOMContentLoaded', () => { refreshLive(); _liveTimer = setInterval(refreshLive, 2000); });
-    </script>
-
-  <hr>
-
-  <h2>ELM Headers</h2>
-    <div id="elmHeaders">Loading...</div>
-    <script>
-    async function loadElmHeaders() {
-      const res = await fetch('/api/elm/headers');
-      if (!res.ok) { document.getElementById('elmHeaders').textContent = 'ELM not available'; return; }
-      const data = await res.json();
-      const div = document.getElementById('elmHeaders');
-      div.innerHTML = '';
-      for (const [hdr, en] of Object.entries(data)) {
-        const id = 'hdr_' + hdr;
-        div.innerHTML += '<label><input type="checkbox" id="' + id + '" ' + (en ? 'checked' : '') +
-          ' onchange="setHeader(\'' + hdr + '\',this.checked)"> ' + hdr + '</label><br>';
-      }
-    }
-    async function setHeader(hdr, enabled) {
-      const body = new URLSearchParams({header: hdr, enabled: enabled ? '1' : '0'});
-      await fetch('/api/elm/headers', {method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});
-    }
-    window.addEventListener('DOMContentLoaded', loadElmHeaders);
-    </script>
-
-  <hr>
-
-  <h2>Bluetooth</h2>
-    <div id="btStatus" style="font-family:monospace;background:#f4f4f4;padding:8px;margin-bottom:8px;">Loading BT status...</div>
-    <form action="/clearbonds" method="POST"
-          onsubmit="return confirm('Clear BLE bonds? You will need to re-pair on the iPhone too.');">
-    <input type="submit" value="Clear BLE Bonds" />
-    </form>
-    <form action="/forgetdevice" method="POST" style="margin-top:6px"
-          onsubmit="return confirm('Forget saved device? Clears preferred address and bonds. Next boot scans fresh.');">
-    <input type="submit" value="Forget Saved Device" />
-    </form>
-    <script>
-    async function tryCandidate(idx) {
-      await fetch('/bt/try?idx=' + idx, {method:'POST'});
-    }
-    async function refreshBt() {
-      try {
-        const r = await fetch('/api/bt');
-        const d = await r.json();
-        let html = '<b>Status:</b> ' + d.status + '<br>';
-        if (d.candidates && d.candidates.length > 0) {
-          html += '<b>Discovered Apple devices (RSSI = signal strength, higher = closer):</b>';
-          html += '<table style="border-collapse:collapse;font-size:13px;margin-top:4px">';
-          html += '<tr style="background:#ddd"><th>#</th><th>Addr</th><th>Name</th><th>RSSI</th><th>Type</th><th></th></tr>';
-          for (let i = 0; i < d.candidates.length; i++) {
-            const c = d.candidates[i];
-            const sel = c.selected;
-            html += '<tr style="' + (sel ? 'font-weight:bold;background:#fffacc' : '') + '">';
-            html += '<td style="padding:2px 6px">' + (i+1) + '</td>';
-            html += '<td style="padding:2px 6px;font-family:monospace">' + c.addr + '</td>';
-            html += '<td style="padding:2px 6px">' + (c.name || '<i>(no name)</i>') + '</td>';
-            html += '<td style="padding:2px 6px">' + c.rssi + ' dBm</td>';
-            html += '<td style="padding:2px 6px;font-family:monospace">' + (c.type || '?') + '</td>';
-            html += '<td style="padding:2px 4px"><button onclick="tryCandidate(' + i + ')">Try</button></td>';
-            html += '</tr>';
-          }
-          html += '</table>';
-        } else {
-          html += '<i>No Apple devices found yet</i>';
-        }
-        document.getElementById('btStatus').innerHTML = html;
-      } catch(e) { console.error('BT status fetch failed', e); document.getElementById('btStatus').textContent = 'BT status unavailable'; }
-    }
-    refreshBt();
-    setInterval(refreshBt, 3000);
-    </script>
-
-  <hr>
-    <h2>OTA Update</h2>
-    <p>Use the <a href="/update">OTA Update</a> link to upload new firmware.</p>
-
-  <hr>
-  <h2>Button emulation</h2>
-  <div>
-    <form action="/setaux" method="POST" style="display:inline">
-      <button type="submit">Set AUX mode</button>
-    </form>
-  </div><br>
-  <div id="keyResult" style="font-family:monospace;font-size:12px;color:#555;margin-bottom:6px"></div>
-  <div>
-    <button onclick="sendKey(0x0000,0)">Load</button>
-    <button onclick="sendKey(0x0000,1)">Load (Hold)</button><br><br>
-    <button onclick="sendKey(0x0101,0)">Roll Up</button>
-    <button onclick="sendKey(0x0101,1)">Roll Up (Hold)</button>
-    <button onclick="sendKey(0x0141,0)">Roll Down</button>
-    <button onclick="sendKey(0x0141,1)">Roll Down (Hold)</button><br><br>
-    <button onclick="sendKey(0x0005,0)">Pause</button>
-    <button onclick="sendKey(0x0005,1)">Pause (Hold)</button><br><br>
-    <button onclick="sendKey(0x0001,0)">Src&gt;</button>
-    <button onclick="sendKey(0x0001,1)">Src&gt; (Hold)</button>
-    <button onclick="sendKey(0x0002,0)">Src&lt;</button>
-    <button onclick="sendKey(0x0002,1)">Src&lt; (Hold)</button><br><br>
-    <button onclick="sendKey(0x0003,0)">Vol+</button>
-    <button onclick="sendKey(0x0003,1)">Vol+ (Hold)</button>
-    <button onclick="sendKey(0x0004,0)">Vol-</button>
-    <button onclick="sendKey(0x0004,1)">Vol- (Hold)</button>
+<div class="card">
+  <div class="muted" id="npPlayer">Now Playing</div>
+  <div class="title" id="npTitle">-</div>
+  <div class="muted" id="npArtist"></div>
+  <progress id="npBar" value="0" max="100"></progress>
+  <div class="muted" id="npProg"></div>
+  <div class="row" style="margin-top:8px">
+    <button onclick="cmd('prev')">&#9198;</button>
+    <button onclick="cmd('toggle')">&#9199;</button>
+    <button onclick="cmd('next')">&#9197;</button>
+    <button class="sec" onclick="cmd('vol-')">Vol &minus;</button>
+    <button class="sec" onclick="cmd('vol+')">Vol +</button>
   </div>
-  <script>
-  async function sendKey(key, hold) {
-    const body = new URLSearchParams({key, hold: hold ? '1' : '0'});
-    const r = await fetch('/emulate/key', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
-    const txt = await r.text();
-    document.getElementById('keyResult').textContent = txt;
-    console.log(txt);
-  }
-  </script>
+</div>
 
+<div class="card" id="notifCard" style="display:none">
+  <div class="muted">Notifications</div>
+  <div id="notifs"></div>
+</div>
+
+<details><summary>Bluetooth</summary><div class="body">
+  <div class="kv" id="btStatus">...</div>
+  <p class="muted">Pair: iPhone &rarr; Settings &rarr; Bluetooth &rarr; <b>MeganeCAN</b>. Reconnects automatically after.</p>
+  <button class="sec wide" onclick="if(confirm('Clear BLE bonds? Also forget on the iPhone.'))postf('/clearbonds',{}).then(()=>toast('Bonds cleared'))">Clear bonds / forget phone</button>
+</div></details>
+
+<details><summary>WiFi</summary><div class="body">
+  <div class="kv" id="wifiStatus">...</div>
+  <select id="ssidSel" onchange="g('wifiSsid').value=this.value"><option value="">-- scanning --</option></select>
+  <button class="sec" onclick="scanWifi()">Rescan</button>
+  <input id="wifiSsid" placeholder="SSID (pick above or type)">
+  <input id="wifiPass" type="password" placeholder="Password">
+  <input id="wifiIp" placeholder="Static IP (optional, blank = DHCP)">
+  <button class="wide" onclick="saveWifi()">Save &amp; reboot</button>
+</div></details>
+
+<details><summary>Display &amp; text</summary><div class="body">
+  <div class="row">
+    <button onclick="postf('/display/state',{enable:1}).then(()=>toast('Display ON'))">Display ON</button>
+    <button class="sec" onclick="postf('/display/state',{enable:0}).then(()=>toast('Display OFF'))">Display OFF</button>
+  </div>
   <hr>
-  <h2>System</h2>
-  <form action="/restart" method="POST" onsubmit="return confirm('Restart device?');">
-    <input type="submit" value="Restart ESP32" />
+  <label class="muted">Static text</label>
+  <input id="staticTextInput" placeholder="Text">
+  <label class="ck"><input type="checkbox" id="staticSave"> Save</label>
+  <button class="wide" onclick="showStatic()">Show static text</button>
+  <hr>
+  <label class="muted">Scroll text</label>
+  <input id="welcomeTextInput" placeholder="Text">
+  <label class="ck"><input type="checkbox" id="scrollSave"> Save as welcome</label>
+  <button class="wide" onclick="showScroll()">Scroll text</button>
+  <hr>
+  <div class="row"><input id="timeInput" placeholder="Time HHMM" maxlength="4"><button onclick="getq('/settime?time='+encodeURIComponent(g('timeInput').value)).then(()=>toast('Time set'))">Set time</button></div>
+  <div class="row"><input id="voltInput" placeholder="Voltage"><button onclick="getq('/setVoltage?voltage='+encodeURIComponent(g('voltInput').value)).then(()=>toast('Voltage set'))">Set V</button></div>
+  <label class="ck"><input type="checkbox" id="autoRestoreCheckbox" onchange="getq('/config/restore?enable='+(this.checked?'1':'0')).then(()=>toast('Saved'))"> Auto-restore text on startup</label>
+</div></details>
+
+<details><summary>Device settings (restart)</summary><div class="body">
+  <form action="/setDisplay" method="POST">
+    <label class="muted">Display type</label>
+    <select name="type" id="displayTypeSelect">
+      <option value="carminat">Carminat (Nav)</option>
+      <option value="updatelist">UpdateList (8-segment)</option>
+      <option value="updatelist_menu">UpdateList Menu (full-LED)</option>
+    </select>
+    <button class="wide">Save &amp; restart</button>
   </form>
-</body>
-</html>
+  <form action="/setbtmode" method="POST">
+    <label class="muted">Bluetooth mode</label>
+    <select name="mode" id="btModeSelect">
+      <option value="ams">AMS (Apple Media Service)</option>
+      <option value="keyboard">BLE Keyboard</option>
+    </select>
+    <label class="ck"><input type="checkbox" id="autoTimeCheckbox" name="auto_time" value="1"> Auto-sync time from phone</label>
+    <input type="hidden" name="auto_time" value="0">
+    <button class="wide">Save &amp; restart</button>
+  </form>
+  <form action="/setskipfuncreg" method="POST">
+    <label class="ck"><input type="checkbox" id="skipFuncRegCheckbox" name="skip_funcreg" value="1"> Skip function registration (real radio)</label>
+    <input type="hidden" name="skip_funcreg" value="0">
+    <button class="wide sec">Save &amp; restart</button>
+  </form>
+  <form action="/setelm" method="POST">
+    <label class="ck"><input type="checkbox" id="elmEnabledCheckbox" name="elm_enabled" value="1"> Enable ELM327 / OBD (V-LINK WiFi)</label>
+    <input type="hidden" name="elm_enabled" value="0">
+    <button class="wide sec">Save &amp; restart</button>
+  </form>
+</div></details>
+
+<details><summary>OBD / ELM live</summary><div class="body">
+  <div class="row"><button class="sec" onclick="refreshLive()">Refresh</button>
+    <label class="ck"><input type="checkbox" id="autoRefresh" checked onchange="toggleAuto(this.checked)"> Auto 2s</label></div>
+  <table><thead><tr class="muted"><th align="left">Description</th><th>Code</th><th align="right">Value</th></tr></thead>
+    <tbody id="liveBody"><tr><td colspan="3" class="muted">-</td></tr></tbody></table>
+  <div id="elmHeaders" class="muted" style="margin-top:8px">...</div>
+</div></details>
+
+<details><summary>Button emulation</summary><div class="body">
+  <button class="sec wide" onclick="postf('/setaux',{}).then(()=>toast('AUX set'))">Set AUX mode</button>
+  <div id="keys" style="margin-top:8px"></div>
+  <div class="muted" id="keyResult"></div>
+</div></details>
+
+<details><summary>CAN logging</summary><div class="body">
+  <label class="ck"><input type="checkbox" id="canEn"> Enable CAN logging</label>
+  <input id="canIds" placeholder="ID filter (hex, comma-sep; blank = all) e.g. 151,3CF">
+  <div class="row"><button onclick="saveCan()">Save</button><button class="sec" onclick="loadCan();refreshCanSeen()">Refresh</button></div>
+  <div class="row">
+    <a href="/api/can/log" download="can.log" style="flex:1"><button class="sec wide">Download CAN log</button></a>
+    <button class="sec" onclick="postf('/api/can/clear',{}).then(()=>{toast('CAN cleared');refreshCanSeen();})">Clear</button>
+  </div>
+  <div class="muted" style="margin-top:8px">Seen IDs (tap to add to filter):</div>
+  <div id="canSeen"></div>
+</div></details>
+
+<details><summary>System</summary><div class="body">
+  <p><a href="/api/log" download="meganecan.log">Download log &darr;</a></p>
+  <button class="sec wide" onclick="postf('/api/log/clear',{}).then(()=>toast('Log cleared'))">Clear log</button>
+  <hr>
+  <p><a href="/update">OTA firmware update &rarr;</a></p>
+  <button class="sec wide" onclick="if(confirm('Restart device?'))postf('/restart',{})">Restart ESP32</button>
+</div></details>
+
+</div><div id="toast"></div>
+<script>
+const g=id=>document.getElementById(id);
+const esc=t=>(t||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let _tt;function toast(m){const t=g('toast');t.textContent=m;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),1800);}
+async function getq(u){try{return await(await fetch(u)).text();}catch(e){toast('error');}}
+async function postf(u,o){const body=new URLSearchParams(o);try{return await(await fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body})).text();}catch(e){toast('error');}}
+function cmd(c){fetch('/api/cmd?c='+encodeURIComponent(c));}
+function mmss(s){s=Math.max(0,Math.floor(s));return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2);}
+function showStatic(){let u='/static?text='+encodeURIComponent(g('staticTextInput').value);if(g('staticSave').checked)u+='&save=on';getq(u).then(()=>toast('Shown'));}
+function showScroll(){let u='/scroll?text='+encodeURIComponent(g('welcomeTextInput').value);if(g('scrollSave').checked)u+='&save=on';getq(u).then(()=>toast('Scrolling'));}
+
+function renderMedia(d){try{
+  if(!d.connected){g('npPlayer').textContent='Not connected';g('npTitle').textContent='-';g('npArtist').textContent='';g('npBar').value=0;g('npProg').textContent='';return;}
+  g('npPlayer').textContent=(d.player||'')+' · '+d.state+' · vol '+Math.round(d.volume*100)+'%';
+  g('npTitle').textContent=d.title||'-';
+  g('npArtist').textContent=(d.artist||'')+(d.album?' — '+d.album:'');
+  g('npBar').value=d.duration>0?100*d.elapsed/d.duration:0;
+  g('npProg').textContent=mmss(d.elapsed)+' / '+mmss(d.duration)+'  ·  '+(d.queueIndex+1)+'/'+d.queueCount;
+}catch(e){}}
+function renderNotifs(l){try{
+  g('notifCard').style.display=l.length?'block':'none';let h='';
+  l.forEach(n=>{h+='<div class="notif"><b>'+esc(n.title||'(no title)')+'</b><br><span class="muted">'+esc(n.msg||'')+'</span><br><span class="muted">'+esc(n.cat+' · '+n.app)+'</span></div>';});
+  g('notifs').innerHTML=h;}catch(e){}}
+function renderBt(d){try{
+  g('btStatus').innerHTML='Status: '+esc(d.status)+'<br>Connected: '+(d.connected?'yes '+esc(d.address||''):'no')+'<br>Bonded: '+(d.bonded?'yes':'no');
+  g('hdrStatus').textContent=(d.connected?'BT connected':'BT '+d.status);}catch(e){}}
+function renderWifi(d){try{
+  g('wifiStatus').innerHTML='Mode: '+esc(d.mode)+' · SSID: '+esc(d.ssid)+'<br>IP: '+esc(d.ip)+' · http://'+esc(d.host)+'.local';}catch(e){}}
+async function scanWifi(){const sel=g('ssidSel');sel.innerHTML='<option value="">-- scanning --</option>';await fetch('/api/wifi/scan');
+  let n=0,t=setInterval(async()=>{const d=await(await fetch('/api/wifi/networks')).json();
+    if(!d.scanning){clearInterval(t);sel.innerHTML='<option value="">-- choose --</option>';
+      d.nets.forEach(x=>{const o=document.createElement('option');o.value=x.ssid;o.textContent=x.ssid+' ('+x.rssi+')'+(x.secure?' *':'');sel.appendChild(o);});}
+    if(++n>10)clearInterval(t);},1200);}
+async function saveWifi(){toast(await postf('/api/wifi/save',{ssid:g('wifiSsid').value,pass:g('wifiPass').value,ip:g('wifiIp').value}));}
+
+let _liveTimer=null;
+async function refreshLive(){const r=await fetch('/api/live/full');const tb=g('liveBody');
+  if(!r.ok){tb.innerHTML='<tr><td colspan="3" style="color:#e55">ELM not connected</td></tr>';return;}
+  const data=await r.json();let h='';
+  for(const m of data){const v=m.hasValue?(parseFloat(m.value).toFixed(2)+(m.unit?' '+m.unit:'')):'-';
+    h+='<tr><td>'+esc(m.name)+'</td><td align="center">'+esc(m.shortName)+'</td><td align="right">'+v+'</td></tr>';}
+  tb.innerHTML=h||'<tr><td colspan="3" class="muted">No metrics</td></tr>';}
+function toggleAuto(on){if(_liveTimer){clearInterval(_liveTimer);_liveTimer=null;}if(on)_liveTimer=setInterval(refreshLive,2000);}
+async function loadElmHeaders(){const r=await fetch('/api/elm/headers');if(!r.ok){g('elmHeaders').textContent='ELM not available';return;}
+  const data=await r.json();let h='';for(const[hdr,en]of Object.entries(data)){
+    h+='<label class="ck"><input type="checkbox" '+(en?'checked':'')+' onchange="setHeader(\''+hdr+'\',this.checked)"> '+hdr+'</label>';}
+  g('elmHeaders').innerHTML=h;}
+async function setHeader(hdr,en){await postf('/api/elm/headers',{header:hdr,enabled:en?'1':'0'});}
+
+const KEYS=[['Load',0],['Roll Up',257],['Roll Down',321],['Pause',5],['Src >',1],['Src <',2],['Vol +',3],['Vol -',4]];
+function buildKeys(){let h='';KEYS.forEach(k=>{h+='<div class="row"><button onclick="sendKey('+k[1]+',0)">'+k[0]+'</button><button class="sec" onclick="sendKey('+k[1]+',1)">'+k[0]+' (hold)</button></div>';});g('keys').innerHTML=h;}
+async function sendKey(key,hold){g('keyResult').textContent=await postf('/emulate/key',{key,hold:hold?'1':'0'});}
+
+async function loadConfig(){try{
+  g('elmEnabledCheckbox').checked=(await getq('/getelmenabled'))==='1';
+  const dt=await getq('/getdisplaytype');[...g('displayTypeSelect').options].forEach((o,i)=>{if(o.value===dt)g('displayTypeSelect').selectedIndex=i;});
+  const bm=await getq('/getbtmode');[...g('btModeSelect').options].forEach((o,i)=>{if(o.value===bm)g('btModeSelect').selectedIndex=i;});
+  g('autoTimeCheckbox').checked=(await getq('/getautotime'))==='1';
+  g('skipFuncRegCheckbox').checked=(await getq('/getskipfuncreg'))==='1';
+  g('autoRestoreCheckbox').checked=(await getq('/config/restore'))==='1';
+  g('staticTextInput').value=await getq('/getlasttext');
+  g('welcomeTextInput').value=await getq('/getwelcometext');
+}catch(e){}}
+
+async function loadCan(){const d=await(await fetch('/api/can/config')).json();g('canEn').checked=d.enabled;g('canIds').value=d.filter||'';}
+function renderCanSeen(d){try{const seen=(d.seen||[]).sort((a,b)=>b.n-a.n);
+  let h='';seen.forEach(s=>{h+='<button class="sec" style="margin:2px;padding:5px 8px" onclick="addId(\''+s.id+'\')">'+s.id+' ('+s.n+')</button>';});
+  g('canSeen').innerHTML=h||'<span class="muted">none yet</span>';}catch(e){}}
+async function refreshCanSeen(){try{const d=await(await fetch('/api/can/config')).json();renderCanSeen(d);}catch(e){}}
+async function refreshDashboard(){try{const d=await(await fetch('/api/dashboard')).json();
+  renderMedia(d.media);renderNotifs(d.notifs);renderBt(d.bt);renderWifi(d.wifi);renderCanSeen(d.can);}catch(e){}}
+function addId(id){const f=g('canIds');const cur=f.value.split(/[,\s]+/).filter(Boolean);if(!cur.includes(id))cur.push(id);f.value=cur.join(',');}
+async function saveCan(){await postf('/api/can/config',{enabled:g('canEn').checked?'1':'0',ids:g('canIds').value});toast('CAN config saved');}
+
+buildKeys();loadConfig();loadElmHeaders();loadCan();
+refreshDashboard();
+setInterval(refreshDashboard,2500);
+</script></body></html>
 )rawliteral";
 
 void HttpServerManager::begin()
 {
-    _server.config.max_uri_handlers = 48;
+    // 46 app routes + ElegantOTA's handlers exceed 48 -> the tail routes failed
+    // to register (ESP_ERR_HTTPD_HANDLERS_FULL). Bump the cap so every route fits.
+    _server.config.max_uri_handlers = 64;
+    // The dashboard opens several parallel keep-alive sockets; on a memory-tight
+    // ESP32 they pin ~4KB each and the server eventually can't accept new ones
+    // (dashboard wedges, heap stuck). LRU purge lets it drop the oldest idle
+    // socket to serve a new request, and a smaller socket cap bounds the RAM the
+    // connections hold. Slower (some requests queue) but stable.
+    _server.config.lru_purge_enable = true;
+    _server.config.max_open_sockets = 4;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);
@@ -431,35 +431,19 @@ void HttpServerManager::setupRoutes()
     });
 
     _server.on("/getdisplaytype", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        String dt = prefs.getString("display_type", "carminat");
-        prefs.end();
-        return request->reply(200, "text/plain", dt.c_str());
+        return request->reply(200, "text/plain", AppConfig::displayType.c_str());
     });
 
     _server.on("/getbtmode", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        String mode = prefs.getString("bt_mode", "ams");
-        prefs.end();
-        return request->reply(200, "text/plain", mode.c_str());
+        return request->reply(200, "text/plain", AppConfig::btMode.c_str());
     });
 
     _server.on("/getautotime", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        bool at = prefs.getBool("auto_time", true);
-        prefs.end();
-        return request->reply(200, "text/plain", at ? "1" : "0");
+        return request->reply(200, "text/plain", AppConfig::autoTime ? "1" : "0");
     });
 
     _server.on("/getskipfuncreg", HTTP_GET, [](PsychicRequest *request) {
-        Preferences prefs;
-        prefs.begin("config", true);
-        bool v = prefs.getBool("skip_funcreg", false);
-        prefs.end();
-        return request->reply(200, "text/plain", v ? "1" : "0");
+        return request->reply(200, "text/plain", AppConfig::skipFuncReg ? "1" : "0");
     });
 
     _server.on("/setskipfuncreg", HTTP_POST, [](PsychicRequest *request) {
@@ -527,8 +511,40 @@ void HttpServerManager::setupRoutes()
     });
 
     _server.on("/forgetdevice", HTTP_POST, [](PsychicRequest *request) {
-        Bluetooth::ForgetDevice();
-        return request->reply(200, "text/plain", "Saved device forgotten. Scanning fresh.");
+        Bluetooth::ClearBonds(); // peripheral model: forget = clear bonds + re-advertise
+        return request->reply(200, "text/plain", "Device forgotten. Re-pair from iOS Settings.");
+    });
+
+    // --- WiFi (home network) configuration ---
+    _server.on("/api/wifi", HTTP_GET, [](PsychicRequest *request) {
+        String j = "{";
+        j += "\"mode\":\"" + String(WiFiManager::ModeStr().c_str()) + "\",";
+        j += "\"ssid\":\"" + String(WiFiManager::SSID().c_str()) + "\",";
+        j += "\"ip\":\"" + String(WiFiManager::IP().c_str()) + "\",";
+        j += "\"host\":\"" + String(WiFiManager::Hostname().c_str()) + "\"}";
+        return request->reply(200, "application/json", j.c_str());
+    });
+
+    _server.on("/api/wifi/scan", HTTP_GET, [](PsychicRequest *request) {
+        WiFiManager::StartScan();
+        return request->reply(200, "text/plain", "ok");
+    });
+
+    _server.on("/api/wifi/networks", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", WiFiManager::ScanJson().c_str());
+    });
+
+    _server.on("/api/wifi/save", HTTP_POST, [](PsychicRequest *request) {
+        if (!request->hasParam("ssid"))
+            return request->reply(400, "text/plain", "missing ssid");
+        std::string ssid = request->getParam("ssid")->value().c_str();
+        std::string pass = request->hasParam("pass") ? std::string(request->getParam("pass")->value().c_str()) : "";
+        std::string ip   = request->hasParam("ip")   ? std::string(request->getParam("ip")->value().c_str())   : "";
+        WiFiManager::SaveCredentials(ssid, pass, ip);
+        esp_err_t e = request->reply(200, "text/plain", "Saved. Rebooting to join the network...");
+        delay(400);
+        ESP.restart();
+        return e;
     });
 
     _server.on("/api/live", HTTP_GET, [this](PsychicRequest *request) {
@@ -755,12 +771,88 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return request->reply(200, "application/json", Bluetooth::GetStatusJson().c_str());
     });
 
-    _server.on("/bt/try", HTTP_POST, [](PsychicRequest *request) {
-        if (!request->hasParam("idx"))
-            return request->reply(400, "text/plain", "Missing idx");
-        int idx = request->getParam("idx")->value().toInt();
-        Bluetooth::SelectByIndex(idx);
-        return request->reply(200, "text/plain", "Trying device");
+    _server.on("/api/media", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", buildMediaJson().c_str());
+    });
+
+    // Consolidated dashboard poll: one request returns media + notifs + bt + wifi
+    // + can, so the page polls a single keep-alive socket instead of 5 in parallel
+    // (fewer connection buffers, less heap churn on a RAM-tight ESP32). Reuses the
+    // same builders as the individual /api/* routes.
+    // Bench emulator self-ACK toggle (reliable HTTP path; the serial @EMU exists too).
+    // /api/emu?on=1 makes multi-frame display sends emit their full AFFA3 sequence
+    // without a real display, for the PC-side CAN emulator to decode.
+    _server.on("/api/emu", HTTP_GET, [this](PsychicRequest *request) {
+        bool on = !request->hasParam("on") || request->getParam("on")->value() != "0";
+        _display.setEmuSelfAck(on);
+        return request->reply(200, "text/plain", on ? "emu self-ack ON" : "emu self-ack OFF");
+    });
+
+    _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {
+        String j = "{\"media\":";
+        j += buildMediaJson();
+        j += ",\"notifs\":";
+        j += buildNotifsJson();
+        j += ",\"bt\":";
+        j += Bluetooth::GetStatusJson();
+        j += ",\"wifi\":{\"mode\":\"" + String(WiFiManager::ModeStr().c_str()) +
+             "\",\"ssid\":\"" + String(WiFiManager::SSID().c_str()) +
+             "\",\"ip\":\"" + String(WiFiManager::IP().c_str()) +
+             "\",\"host\":\"" + String(WiFiManager::Hostname().c_str()) + "\"}";
+        j += ",\"can\":";
+        j += CanLog::configJson().c_str();
+        j += "}";
+        return request->reply(200, "application/json", j.c_str());
+    });
+
+    _server.on("/api/notifs", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", buildNotifsJson().c_str());
+    });
+
+    _server.on("/api/cmd", HTTP_GET, [](PsychicRequest *request) {
+        using ID = AppleMediaService::RemoteCommandID;
+        if (!request->hasParam("c"))
+            return request->reply(400, "text/plain", "missing c");
+        if (!Bluetooth::IsConnected())
+            return request->reply(409, "text/plain", "not connected");
+        String c = request->getParam("c")->value();
+        bool ok = true;
+        if (c == "play")        AppleMediaService::Play();
+        else if (c == "pause")  AppleMediaService::Pause();
+        else if (c == "toggle") AppleMediaService::Toggle();
+        else if (c == "next")   AppleMediaService::NextTrack();
+        else if (c == "prev")   AppleMediaService::PrevTrack();
+        else if (c == "vol+")   AppleMediaService::VolumeUp();
+        else if (c == "vol-")   AppleMediaService::VolumeDown();
+        else ok = false;
+        return request->reply(ok ? 200 : 400, "text/plain", ok ? "ok" : "unknown cmd");
+    });
+
+    _server.on("/api/log", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "text/plain", Log::dump().c_str());
+    });
+
+    // --- CAN logging (configurable ID filter) ---
+    _server.on("/api/can/config", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", CanLog::configJson().c_str());
+    });
+    _server.on("/api/can/config", HTTP_POST, [](PsychicRequest *request) {
+        bool en = request->hasParam("enabled") && request->getParam("enabled")->value() == "1";
+        String ids = request->hasParam("ids") ? request->getParam("ids")->value() : String("");
+        CanLog::setConfig(en, ids);
+        return request->reply(200, "text/plain", "ok");
+    });
+    _server.on("/api/can/log", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "text/plain", CanLog::dump().c_str());
+    });
+    _server.on("/api/can/clear", HTTP_POST, [](PsychicRequest *request) {
+        CanLog::clear();
+        return request->reply(200, "text/plain", "cleared");
+    });
+
+    _server.on("/api/log/clear", HTTP_POST, [](PsychicRequest *request) {
+        Log::clear();
+        return request->reply(200, "text/plain", "cleared");
     });
 
     _server.on("/emulate/key", HTTP_POST, [this](PsychicRequest *request) {

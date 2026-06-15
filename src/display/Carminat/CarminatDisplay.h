@@ -3,6 +3,7 @@
 #include <map>
 #include <Arduino.h>
 #include "apple_media_service.h"
+#include "apple_notification_service.h"
 #include "CarminatConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
@@ -108,5 +109,10 @@ private:
     void renderMediaScreen(bool forceRedraw = false);
     String buildProgressLine() const;
     String buildScrollingTitle();
+
+    // ANCS notification popup (shown briefly over the media screen on arrival)
+    uint32_t _lastNotifUid = 0;
+    uint32_t _notifUntilMs = 0;
+    void renderNotificationScreen(const AppleNotificationService::NotificationInfo &n);
 
 };

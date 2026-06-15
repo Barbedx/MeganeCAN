@@ -220,7 +220,14 @@ void CarminatDisplay::tick()
   if (hasFlag(_sync_status, SyncStatus::FAILED) || hasFlag(_sync_status, SyncStatus::START))
   { /* Błąd synchronizacji */
     /* Wysyłamy pakiet z żądaniem synchronizacji */
-    AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
+    // Throttle this log: with no display answering (bench) it would spam the
+    // serial channel every tick. The sync packet below is still sent each time.
+    static uint32_t _lastSyncLog = 0;
+    if (millis() - _lastSyncLog > 10000)
+    {
+      _lastSyncLog = millis();
+      AFFA3_PRINT("[tick] Sync failed or requested, sending sync request\n");
+    }
     CanUtils::sendCan(Carminat::PACKET_ID_SYNC, 0xBA, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER, Carminat::PACKET_FILLER);
     _sync_status &= ~SyncStatus::START;
     delay(100);
@@ -759,6 +766,23 @@ void CarminatDisplay::tickMedia()
     return;
   }
 
+  // New ANCS notification → pop it over the media screen for a few seconds.
+  auto recents = AppleNotificationService::GetRecent(); // newest first
+  if (!recents.empty() && recents[0].uid != _lastNotifUid)
+  {
+    _lastNotifUid = recents[0].uid;
+    _notifUntilMs = now + 6000; // show for ~6s
+  }
+  if (now < _notifUntilMs && !recents.empty())
+  {
+    if (now - _lastMediaRenderMs >= 300)
+    {
+      _lastMediaRenderMs = now;
+      renderNotificationScreen(recents[0]);
+    }
+    return;
+  }
+
   // Оновлюємо дані про медіа з AMS
   AppleMediaService::MediaInformation current = AppleMediaService::GetMediaInformation();
   _mediaInfo = current;
@@ -855,6 +879,27 @@ void CarminatDisplay::renderMediaScreen(bool forceRedraw)
   // Serial.println(line3);       // 3-й рядок
   // Serial.println("========================");
 }
+void CarminatDisplay::renderNotificationScreen(const AppleNotificationService::NotificationInfo &n)
+{
+  if (mainMenu.isActive())
+    return;
+
+  // Line 1: source app (e.g. "Telegram") + sender — answers "звідки + від кого".
+  // The Carminat charset can't render UTF-8, so transliterate Cyrillic -> Latin.
+  String app    = String(AppleNotificationService::AppName(n.appId).c_str());
+  String sender = transliterateToAscii(String(n.title.c_str()));
+  String header = app;
+  if (sender.length()) header += ": " + sender;
+  if (header.length() > 26) header = header.substring(0, 26);
+
+  // Lines 2-3: the message body across both 20-char rows (more of it visible).
+  String msg = transliterateToAscii(String(n.message.c_str()));
+  String line2 = msg.substring(0, 20);
+  String line3 = (msg.length() > 20) ? msg.substring(20, 40) : String("");
+
+  showMenu(header.c_str(), line2.c_str(), line3.c_str(), 0x00);
+}
+
 String CarminatDisplay::buildScrollingTitle()
 {
 
@@ -981,10 +1026,17 @@ AffaCommon::AffaError CarminatDisplay::highlightItem(uint8_t id)
 //  0x00 - no scroll lock, 0x07 - scroll UP -0x0B - scroll DOWN, 0x0C - scroll UP and DOWNCarminat::ScrollLockIndicator scrollLockIndicator
 AffaCommon::AffaError CarminatDisplay::showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator)
 {
-  // Serial.println("[showMenu] --- Building Menu ---");
-  // Serial.printf("[Header] %s\n[Item1] %s\n[Item2] %s\n", header, item1, item2);
-  // uint8_t selectionItem1 = 0x00;//unknown, to test
-  // uint8_t selectionItem2 = 0x01;//unknown, to test
+  // The Carminat charset can't render UTF-8. showMenu is the single choke point for
+  // ALL text sent to it (menu, now-playing, notifications), so transliterate here:
+  // Cyrillic/Polish -> Latin, anything else -> '?'. Idempotent on ASCII, so callers
+  // that already transliterated are unaffected; callers that didn't (e.g. the app
+  // name, media titles) no longer leak raw UTF-8 -> mojibake on the display.
+  String _h  = transliterateToAscii(String(header ? header : ""));
+  String _i1 = transliterateToAscii(String(item1 ? item1 : ""));
+  String _i2 = transliterateToAscii(String(item2 ? item2 : ""));
+  header = _h.c_str();
+  item1  = _i1.c_str();
+  item2  = _i2.c_str();
 
   uint8_t payload[96] = {0};
   int idx = 0;

@@ -48,6 +48,14 @@ AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len
 
       CanUtils::sendFrame(packet);
 
+      // Bench emulator self-ACK: no real display answers, so acknowledge our own
+      // frame here (PARTIAL while bytes remain, DONE on the last). `left` is already
+      // this frame's remainder. The wait loop below then exits immediately and the
+      // normal PARTIAL/DONE handling sends the next frame / finishes — so the whole
+      // real AFFA3 sequence is emitted for the PC emulator instead of just frame 0.
+      if (_emuSelfAck)
+        funcs[idx].stat = (left > 0) ? FuncStatus::PARTIAL : FuncStatus::DONE;
+
       /* Czkekamy na odpowiedź */
       timeout = 2000; /* 2sek */
       uint16_t wait_counter = 0;

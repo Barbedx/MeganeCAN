@@ -39,11 +39,21 @@ void setKeyHandler(KeyHandler handler)
     // Set this when connected to a real radio — the radio handles auth itself.
     void setSkipFuncReg(bool skip) { _skipFuncReg = skip; }
 
+    // Emulator self-ACK: with no real display on the bus (bench), the per-frame
+    // ACK that affa3_do_send waits for never arrives, so only the first frame of
+    // a multi-frame message goes out. When this is on, the sender acknowledges its
+    // own frames (PARTIAL while bytes remain, DONE on the last) so the COMPLETE,
+    // real AFFA3 frame sequence is emitted (@TX) for the PC-side display emulator
+    // to decode. The wire frames are identical to a real send; only the external
+    // ACK wait is skipped. Toggled over serial via "@EMU 1".
+    void setEmuSelfAck(bool e) { _emuSelfAck = e; }
+
 protected:
     static constexpr int SYNC_TIMEOUT = 5;
     KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
     bool _skipFuncReg = false;
+    bool _emuSelfAck = false;
     struct Affa3Func {
         uint16_t id;
         FuncStatus stat;

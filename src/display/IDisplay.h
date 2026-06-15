@@ -25,6 +25,9 @@ public:
 
     // Called when BT disconnects so the display can freeze its content.
     virtual void onBtDisconnected() {}
+
+    // Bench emulator self-ACK toggle (see AffaDisplayBase). Default no-op.
+    virtual void setEmuSelfAck(bool on) { (void)on; }
 protected:
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 

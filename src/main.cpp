@@ -16,6 +16,9 @@
 #include "display/Carminat/CarminatDisplay.h"
 #include "bluetooth.h"
 #include "apple_media_service.h"
+#include "wifi_manager.h"
+#include "utils/CanLog.h"
+#include "utils/AppConfig.h"
 #include "BleMediaKeyboard.h"
 
 AffaDisplayBase *display = nullptr;
@@ -28,25 +31,21 @@ bool _timeSyncDone = false; // reset each time BT disconnects
 bool _elmEnabled = false; // ELM327 enabled (read from NVS, configurable via Web UI)
 
 BleMediaKeyboard bleKeyboard;
-// ---- Static IP for V-LINK (STA) ----
-IPAddress ELM_STA_IP(192, 168, 0, 151); // choose a free IP (NOT 0.150)
-IPAddress ELM_GATEWAY(192, 168, 0, 10); // from your info
-IPAddress ELM_SUBNET(255, 255, 255, 0); // likely /24
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
 HttpServerManager *serverManager = nullptr;
 MyELMManager *elmManager = nullptr;
 
-// Enter your WIFI credentials in secret.h
+// AP fallback credentials (used by WiFiManager when no home network is saved/reachable)
 const char *ssid = Soft_AP_WIFI_SSID;
 const char *password = Soft_AP_WIFI_PASS;
 
-const char *ELM_SSID = "V-LINK";
-
 void gotFrame(CAN_FRAME *frame)
 {
+    CanUtils::noteRxActivity(); // confirms a live bus -> unlocks CAN TX
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
+    CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
     display->recv(frame);
 }
 
@@ -156,7 +155,44 @@ void cmd_setTime(SerialCommands *sender)
 // void cmd_scrollmtx(SerialCommands* sender);
 // void cmd_scrollmtxl(SerialCommands* sender);
 
+// WireProto PC->fw: "@INJ <id-hex> <b0> <b1> ..." injects a CAN frame into the
+// exact same RX path as a real bus frame (gotFrame -> display->recv). The PC-side
+// emulator uses this to ACK the display handshake — reply on (sentId | 0x400) with
+// 0x74 (DONE) / 30 01 00 (PARTIAL) — so affa3_do_send doesn't abort on its 2s
+// no-display timeout and the ESP sends the full multi-frame payload. See WireProto.h.
+void cmd_inject(SerialCommands *sender)
+{
+    char *idStr = sender->Next();
+    if (!idStr) { Serial.println("@INJ: missing id"); return; }
+    CAN_FRAME f;
+    f.id = (uint32_t)strtol(idStr, nullptr, 16);
+    f.extended = false;
+    f.rtr = false;
+    f.length = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        char *b = sender->Next();
+        if (!b) break;
+        f.data.uint8[i] = (uint8_t)strtol(b, nullptr, 16);
+        f.length++;
+    }
+    Serial.printf("@INJ <- id=%03X len=%d\n", (unsigned)f.id, f.length);
+    gotFrame(&f);
+}
+
+// WireProto PC->fw: "@EMU <0|1>" toggles bench emulator self-ACK so multi-frame
+// display sends emit their full real AFFA3 sequence (@TX) without a real display.
+void cmd_emu(SerialCommands *sender)
+{
+    char *v = sender->Next();
+    bool on = v && atoi(v) != 0;
+    if (display) display->setEmuSelfAck(on);
+    Serial.printf("@EMU self-ACK = %d\n", on);
+}
+
 // Create command objects
+SerialCommand cmd_inj("@INJ", cmd_inject);
+SerialCommand cmd_emu_c("@EMU", cmd_emu);
 SerialCommand cmd_e("e", cmd_enable);
 SerialCommand cmd_d("d", cmd_disable);
 SerialCommand cmd_st("st", cmd_setTime);
@@ -184,6 +220,8 @@ void initSerial()
     Serial.println("------------------------");
     // Setup commands
     // Register commands
+    serialCommands.AddCommand(&cmd_inj);
+    serialCommands.AddCommand(&cmd_emu_c);
     serialCommands.AddCommand(&cmd_e);
     serialCommands.AddCommand(&cmd_d);
     serialCommands.AddCommand(&cmd_st);
@@ -240,16 +278,12 @@ void restoreDisplay(IDisplay &display, Preferences &prefs)
 
 void initDisplay()
 {
-    Serial.println("[NVS] Opening 'config' namespace...");
-    Preferences prefs; 
-    bool nvsOk = prefs.begin("config", true);
-    Serial.printf("[NVS] prefs.begin('config') returned: %s\n", nvsOk ? "OK" : "FAILED - namespace missing, all values will be defaults!");
-    String displayType = prefs.getString("display_type", "carminat");
-    btMode      = prefs.getString("bt_mode",     "ams");
-    _autoTime   = prefs.getBool("auto_time",     true);
-    _elmEnabled = prefs.getBool("elm_enabled", false);
-    bool skipFuncReg = prefs.getBool("skip_funcreg", false);
-    prefs.end();
+    AppConfig::Load(); // read NVS "config" into RAM once (also creates the namespace -> no NOT_FOUND spam)
+    String displayType = AppConfig::displayType;
+    btMode      = AppConfig::btMode;
+    _autoTime   = AppConfig::autoTime;
+    _elmEnabled = AppConfig::elmEnabled;
+    bool skipFuncReg = AppConfig::skipFuncReg;
 
     Serial.println("[Display Init] Display type: " + displayType);
     Serial.println("[Display Init] BT mode: " + btMode);
@@ -290,44 +324,14 @@ void initDisplay()
         static_cast<CarminatDisplay*>(display)->attachElm(elmManager);
     Serial.println("[Display Init] HttpServerManager initialized");
 }
-static bool wifiBeginIssued = false;
-
-static uint32_t lastWiFiAttemptMs = 0;
-static const uint32_t WIFI_RETRY_MS = 5000; // retry every 5s if not connected
-
-// One-time connect helper — keeps AP alive (WIFI_AP_STA)
-void connectToElm()
-{
-    Serial.println("Configuring ELM STA...");
-
-    // Keep mode as AP_STA so the web UI stays reachable even while connecting to V-LINK
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.persistent(false);
-    WiFi.setAutoReconnect(true);
-    WiFi.setSleep(true); // required when both WiFi and BT are active
-
-    WiFi.config(ELM_STA_IP, ELM_GATEWAY, ELM_SUBNET); // static IP for V-LINK
-    Serial.println("Connecting to ELM WiFi (STA, static IP)...");
-    WiFi.begin("V-LINK"); // open network (no password)
-
-    wifiBeginIssued = true;
-    lastWiFiAttemptMs = millis();
-}
-
 bool HandleKey(AffaCommon::AffaKey key, bool isHold)
 {
     if (btMode == "ams")
     {
         if (!Bluetooth::IsConnected())
         {
-            // Use steering wheel keys to cycle through discovered AMS devices
-            switch (key)
-            {
-            case AffaCommon::AffaKey::RollUp:   Bluetooth::SelectNext(); break;
-            case AffaCommon::AffaKey::RollDown:  Bluetooth::SelectPrev(); break;
-            case AffaCommon::AffaKey::Pause:     Bluetooth::ConnectSelected(); break;
-            default: break;
-            }
+            // Peripheral model: nothing to steer while disconnected — the phone
+            // pairs/reconnects from iOS Settings, no candidate cycling here.
             return true;
         }
 
@@ -362,7 +366,14 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold)
 static AppleMediaService::MediaInformation g_mediaInfo;
 void onDataUpdateCallback(const AppleMediaService::MediaInformation &info)
 {
-    info.dump();
+    // info.dump() is 8 serial lines; AMS fires often during playback, so throttle
+    // the log to keep the serial channel readable. Display update runs every time.
+    static uint32_t _lastDump = 0;
+    if (millis() - _lastDump > 5000)
+    {
+        _lastDump = millis();
+        info.dump();
+    }
     display->setMediaInfo(info);
     g_mediaInfo = info;
 }
@@ -374,20 +385,15 @@ void setup()
 
     display->setKeyHandler(HandleKey);  // always set — HandleKey is mode-aware
 
-    // Set WiFi mode + sleep first — required before any radio use (BLE or AP).
-    // On ESP32-C3 (single radio), BLE must start before softAP to avoid the AP
-    // beacon traffic blocking NimBLE init. (BT branch confirmed: BLE before AP.)
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.setSleep(true); // required when BT and WiFi coexist on same radio
-
+    // On ESP32-C3 (single radio), bring BLE up before WiFi so the radio is free
+    // during NimBLE startup.
     if (btMode == "ams")
     {
         AppleMediaService::RegisterForNotifications(
             onDataUpdateCallback,
             AppleMediaService::NotificationLevel::All);
-        // Launch BLE init BEFORE softAP so the radio is free during NimBLE startup.
         xTaskCreate([](void*) {
-            Bluetooth::Begin("MeganeCAN");
+            Bluetooth::Begin("MCD1");
             Serial.println("[BT] AMS mode started");
             vTaskDelete(nullptr);
         }, "bt_begin", 16384, nullptr, 1, nullptr);
@@ -399,17 +405,14 @@ void setup()
         Serial.println("[BT] Keyboard mode started");
     }
 
-    // Start AP after BLE task is queued — coexistence is established by the time
-    // the AP begins beaconing.
-    WiFi.softAP(ssid, password);
-    Serial.print("[WiFi] AP started: ");
-    Serial.print(ssid);
-    Serial.print(" @ ");
-    Serial.println(WiFi.softAPIP());
+    // Networking: join the saved home WiFi (STA + mDNS "meganecan.local" + optional
+    // static IP) or fall back to the AP (secrets.h SSID) for config. Owns WiFi mode.
+    WiFiManager::Begin(ssid, password, "meganecan");
     serverManager->begin();
 
     display->begin();
 
+    CanLog::begin(); // load CAN-log config (enabled + ID filter) from NVS
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);
@@ -426,29 +429,6 @@ void setup()
 #define SYNC_INTERVAL_MS 1000
 static uint32_t last_sync = 0;
 
-// Helper to print human-readable WiFi status
-const char *wlStr(wl_status_t s)
-{
-    switch (s)
-    {
-    case WL_IDLE_STATUS:
-        return "IDLE";
-    case WL_NO_SSID_AVAIL:
-        return "NO_SSID";
-    case WL_SCAN_COMPLETED:
-        return "SCAN_DONE";
-    case WL_CONNECTED:
-        return "CONNECTED";
-    case WL_CONNECT_FAILED:
-        return "FAILED";
-    case WL_CONNECTION_LOST:
-        return "LOST";
-    case WL_DISCONNECTED:
-        return "DISCONNECTED";
-    default:
-        return "UNKNOWN";
-    }
-}
 void loop()
 {
     serialCommands.ReadSerial();
@@ -484,6 +464,21 @@ void loop()
             _timeSyncDone = false;  // reset so we sync again on next connect
     }
 
+    WiFiManager::Handle(); // pump captive DNS while in AP fallback mode
+
+    // Heap watchdog — BLE+WiFi+HTTP+AMS are tight on a classic ESP32. Log free,
+    // all-time-min, and largest contiguous block (fragmentation) every 10s so we
+    // can see headroom and cut load if it runs low.
+    static uint32_t lastHeapLog = 0;
+    if (millis() - lastHeapLog > 10000)
+    {
+        lastHeapLog = millis();
+        Serial.printf("[heap] free=%u min=%u maxblk=%u\n",
+                      (unsigned)ESP.getFreeHeap(),
+                      (unsigned)ESP.getMinFreeHeap(),
+                      (unsigned)ESP.getMaxAllocHeap());
+    }
+
     display->processEvents();
     uint32_t now = millis();
     if (now - last_sync > SYNC_INTERVAL_MS)
@@ -491,39 +486,15 @@ void loop()
         last_sync = now;
         display->tick();
     }
-    // 1) Start connecting ONCE (only when ELM is enabled via Web UI)
-    if (!wifiBeginIssued)
-    {
-        if (_elmEnabled)
-            connectToElm();
-    }
-    else if (WiFi.status() != WL_CONNECTED)
-    {
-        // Not connected yet — nothing to do, just wait.
-        static bool _elmWifiLostLogged = false;
-        if (!_elmWifiLostLogged) {
-            Serial.println("[ELM] Waiting for WiFi...");
-            _elmWifiLostLogged = true;
-        }
-    }
-    else
-    {
-        static bool _elmWifiConnLogged = false;
-        if (!_elmWifiConnLogged) {
-            Serial.println("[ELM] Connected to ELM WiFi");
-            _elmWifiConnLogged = true;
-        }
-    }
 
-    // 2) When Wi-Fi is up, let the ELM manager build/maintain TCP+session
-    if (WiFi.status() == WL_CONNECTED && elmManager)
+    // ELM327 (OBD) — currently disabled by default (elm_enabled=false) as the
+    // V-LINK adapter is unreliable. When enabled it expects its own WiFi network;
+    // reconciling that with home-WiFi STA is a separate task.
+    if (_elmEnabled && WiFi.status() == WL_CONNECTED && elmManager)
     {
         elmManager->tick();
-
-        // Push ELM values to display (updates menu fields in-place)
         float v;
-        if (elmManager->getCached("PR071",    v)) display->onElmUpdate("PR071",    v);
-        if (elmManager->getCached("DRV_BOOST", v)) display->onElmUpdate("DRV_BOOST", v);
+        if (elmManager->getCached("PR071",     v)) display->onElmUpdate("PR071",     v);
+        if (elmManager->getCached("DRV_BOOST",  v)) display->onElmUpdate("DRV_BOOST",  v);
     }
-
 }

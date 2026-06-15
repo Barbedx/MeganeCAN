@@ -1,4 +1,20 @@
 #include "CanUtils.h"
+#include "WireProto.h"
+
+// Live-bus gate state. lastRxMs == 0 until the first frame is received; the bus
+// is considered alive while traffic was seen within BUS_ALIVE_WINDOW_MS.
+static volatile uint32_t lastRxMs = 0;
+static const uint32_t BUS_ALIVE_WINDOW_MS = 5000;
+
+void CanUtils::noteRxActivity()
+{
+    lastRxMs = millis();
+}
+
+bool CanUtils::busAlive()
+{
+    return lastRxMs != 0 && (millis() - lastRxMs) < BUS_ALIVE_WINDOW_MS;
+}
 
 void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3,
                        uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7)
@@ -19,20 +35,26 @@ void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t 
 }
 void CanUtils::sendFrame(CAN_FRAME &frame)
 {
+    // Mirror every outbound display frame to serial in a compact, parseable form
+    // ("@TX <id> <bytes>") so the PC-side virtual display ("CAN emulator") can
+    // decode the AFFA3 stream and render the screen. Emitted BEFORE the live-bus
+    // gate below, so frames are captured even when bench TX is suppressed. Skip
+    // the high-rate sync chatter (0x3AF) to keep the channel readable.
     if (frame.id != 0x3AF)
+        WireProto::emitTx(frame.id, frame.data.uint8, frame.length);
+    // Only transmit onto a confirmed-live bus. No RX traffic (e.g. bench board
+    // with no transceiver) -> drop the frame so TX never drives the controller
+    // BUS_OFF and trips the IDF auto-recovery assert (twai.c:184). On the car
+    // bus, frames arrive constantly so this is open within milliseconds.
+    if (!busAlive())
     {
-        Serial.print("Sending CAN frame: ID=0x");
-        Serial.print(frame.id, HEX);
-        Serial.print(" Data: ");
-        for (int i = 0; i < frame.length; i++)
+        static uint32_t lastWarnMs = 0;
+        if (millis() - lastWarnMs > 5000)
         {
-            Serial.print(frame.data.uint8[i], HEX);
-            if (i < frame.length - 1)
-            {
-                Serial.print(" ");
-            }
+            lastWarnMs = millis();
+            Serial.println("[CAN] no live bus (no RX) — TX suppressed");
         }
-        Serial.println();
+        return;
     }
     CAN0.sendFrame(frame);
 }

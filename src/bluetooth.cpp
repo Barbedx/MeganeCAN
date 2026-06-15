@@ -1,315 +1,279 @@
-#include <Arduino.h>
 #include "bluetooth.h"
+#include "utils/Log.h"
+
+#include <Arduino.h>
 #include <NimBLEDevice.h>
 
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
 
 #include "apple_media_service.h"
+#include "apple_notification_service.h"
 #include "current_time_service.h"
 
-#define APPLE_MUSIC_SERVICE_UUID "89D3502B-0F36-433A-8EF4-C502AD55F8DC"
-
-#define ANCS_SERVICE_UUID "7905F431-B5CE-4E99-A40F-4B1E122D00D0"
+// Apple Media Service (hosted by the iPhone; we are its client).
+#define APPLE_MEDIA_SERVICE_UUID "89D3502B-0F36-433A-8EF4-C502AD55F8DC"
 
 namespace Bluetooth
 {
     namespace
     {
-        // --- State ---
-        bool Ended     = true;
-        bool Connected = false;
+        NimBLEServer *Server = nullptr;
+        NimBLEClient *Client = nullptr; // GATT client bound to the phone-initiated connection
 
-        BLEClient  *Client     = nullptr;
-        BLEAddress  TargetAddr;
-        bool        TargetFound = false;
-
+        volatile bool Connected = false; // AMS is up
+        volatile bool NeedSetup = false; // phone connected, services not all started yet
+        volatile bool Secured   = false; // link encrypted/bonded
         RTC_DATA_ATTR bool TimeSet = false;
 
-        // --- Scan callback: look for Apple device advertising Spotify UUID ---
-        class AmsScanCallbacks : public NimBLEScanCallbacks
+        // Each Apple service is brought up independently and retried until it
+        // appears (iOS exposes AMS/ANCS/CTS with slightly different timing).
+        bool AmsUp = false, AncsUp = false, CtsUp = false;
+        uint32_t ConnectMs = 0;                 // when the phone connected
+        const uint32_t SETUP_DEADLINE_MS = 20000; // stop retrying missing services after this
+
+        std::string PeerAddr;
+        const char *StatusText = "Pair from iPhone";
+        uint32_t    lastSetupAttempt = 0;
+
+        bool startCTS(NimBLEClient *c)
         {
-        public:
-            void onDiscovered(const NimBLEAdvertisedDevice *dev) override {}
-
-            void onResult(const NimBLEAdvertisedDevice *dev) override
-            {
-                if (TargetFound) return;
-                if (!dev->isConnectable()) return;
-
-                const std::string &mfg = dev->getManufacturerData();
-                if (mfg.size() < 2) return;
-
-                // Apple devices only (company ID 0x004C)
-                uint16_t company = (uint8_t)mfg[0] | ((uint8_t)mfg[1] << 8);
-                if (company != 0x004C) return;
-
-                // Must be advertising Spotify UUID — guarantees it's the user's phone
-                // with Spotify open (not a neighbour's device)
-                static const NimBLEUUID kSpotifyUUID("3e1d50cd-7e3e-427d-8e1c-b78aa87fe624");
-                if (!dev->haveServiceUUID() || !dev->isAdvertisingService(kSpotifyUUID))
-                    return;
-
-                Serial.printf("[BT] Spotify UUID found on %s — connecting\n",
-                              dev->getAddress().toString().c_str());
-
-                TargetAddr  = dev->getAddress();
-                TargetFound = true;
-                NimBLEDevice::getScan()->stop();
-            }
-
-            void onScanEnd(const NimBLEScanResults &results, int reason) override
-            {
-                Serial.printf("[BT] Scan ended, %d devices seen, reason=%d\n",
-                              results.getCount(), reason);
-            }
-        };
-
-        bool ConnectToAms()
-        {
-            if (!TargetFound)
-            {
-                Serial.println("[BT] ConnectToAms: no target yet");
+            CurrentTimeService::CurrentTime ct;
+            if (!CurrentTimeService::StartTimeService(c, &ct))
                 return false;
-            }
-
-            if (Client)
+            if (ct.mYear >= 2020 && ct.mYear <= 2100)
             {
-                NimBLEDevice::deleteClient(Client);
-                Client = nullptr;
+                timeval tv;
+                tv.tv_sec  = ct.ToTimeT();
+                tv.tv_usec = static_cast<long>(ct.mSecondsFraction * 1000000.0f);
+                if (settimeofday(&tv, nullptr) == 0)
+                    TimeSet = true;
             }
-
-            Serial.printf("[BT] Connecting to %s\n", TargetAddr.toString().c_str());
-
-            Client = NimBLEDevice::createClient();
-            if (!Client)
-            {
-                Serial.println("[BT] Failed to create client");
-                return false;
-            }
-
-            if (!Client->connect(TargetAddr))
-            {
-                Serial.println("[BT] connect() failed — restarting scan");
-                NimBLEDevice::deleteClient(Client);
-                Client      = nullptr;
-                Connected   = false;
-                TargetFound = false;
-                NimBLEScan *s = NimBLEDevice::getScan();
-                if (s) s->start(0, false, false);
-                return false;
-            }
-
-            Serial.println("[BT] Connected, securing...");
-
-            if (!Client->secureConnection())
-            {
-                Serial.println("[BT] secureConnection() failed — restarting scan");
-                Client->disconnect();
-                NimBLEDevice::deleteClient(Client);
-                Client      = nullptr;
-                Connected   = false;
-                TargetFound = false;
-                NimBLEScan *s = NimBLEDevice::getScan();
-                if (s) s->start(0, false, false);
-                return false;
-            }
-
-            if (!AppleMediaService::StartMediaService(Client))
-            {
-                Serial.println("[BT] StartMediaService failed — restarting scan");
-                Client->disconnect();
-                NimBLEDevice::deleteClient(Client);
-                Client      = nullptr;
-                Connected   = false;
-                TargetFound = false;
-                NimBLEScan *s = NimBLEDevice::getScan();
-                if (s) s->start(0, false, false);
-                return false;
-            }
-
-            Serial.println("[BT] AMS started");
-
-            CurrentTimeService::CurrentTime time;
-            if (!CurrentTimeService::StartTimeService(Client, &time))
-            {
-                Serial.println("[BT] StartTimeService failed");
-            }
-            else
-            {
-                time_t unix = time.ToTimeT();
-                if (time.mYear >= 2020 && time.mYear <= 2100)
-                {
-                    timeval new_time;
-                    new_time.tv_sec  = unix;
-                    new_time.tv_usec = (long)(time.mSecondsFraction * 1000000.0f);
-                    if (settimeofday(&new_time, nullptr) == 0)
-                        TimeSet = true;
-                    time.Dump();
-                }
-                else
-                {
-                    Serial.printf("[BT] CTS invalid year=%u — ignoring\n", time.mYear);
-                }
-            }
-
-            Connected = true;
-            Serial.println("[BT] ConnectToAms: success");
             return true;
         }
 
+        // NimBLE reports a GAP disconnect reason as 0x200 + the HCI error code.
+        // Decode the ones we actually hit so the log reads in plain language.
+        const char *reasonText(int reason)
+        {
+            switch (reason - 0x200) // strip the BLE_HS_ERR_HCI_BASE
+            {
+                case 0x08: return "supervision timeout (out of range / RF / coexistence)";
+                case 0x13: return "remote user terminated (iPhone deliberately closed it)";
+                case 0x16: return "terminated by local host (normal post-bond drop)";
+                case 0x05: return "authentication failure (bond key mismatch)";
+                case 0x06: return "PIN/key missing (one side lost the bond!)";
+                case 0x3D: return "MIC failure (encryption key mismatch — stale bond!)";
+                case 0x22: return "LMP/LL response timeout";
+                case 0x3B: return "unacceptable connection parameters";
+                default:   return "(see HCI error code)";
+            }
+        }
+
+        class ServerCallbacks : public NimBLEServerCallbacks
+        {
+            void onConnect(NimBLEServer *s, NimBLEConnInfo &connInfo) override
+            {
+                Log::printf("[BT] Phone connected: %s  (already encrypted=%d, bonds stored=%d)\n",
+                              connInfo.getAddress().toString().c_str(),
+                              connInfo.isEncrypted(), NimBLEDevice::getNumBonds());
+                Client     = s->getClient(connInfo); // client over the inbound connection
+                PeerAddr   = connInfo.getAddress().toString();
+                Secured    = connInfo.isEncrypted();
+                NeedSetup  = true;
+                Connected  = false;
+                AmsUp = AncsUp = CtsUp = false;
+                ConnectMs  = millis();
+                StatusText = "Connecting...";
+
+                // WiFi and BLE share one radio on the ESP32. By default iOS holds
+                // a short connection interval (~15-30ms) and BLE monopolises the
+                // radio, starving the WiFi STA (dashboard becomes unreachable).
+                // Ask the phone for a relaxed link: 30-50ms interval + slave
+                // latency 4 (skip idle events) + 4s supervision timeout. This
+                // frees airtime for WiFi without dropping BLE, and stays within
+                // Apple's BLE connection-parameter rules so iOS accepts it.
+                // Units: interval = 1.25ms, timeout = 10ms.
+                s->updateConnParams(connInfo.getConnHandle(), 24, 40, 4, 400);
+            }
+
+            void onDisconnect(NimBLEServer *s, NimBLEConnInfo &connInfo, int reason) override
+            {
+                Log::printf("[BT] Phone disconnected: %s reason=%d (0x%X = %s)  bonds stored=%d\n",
+                              connInfo.getAddress().toString().c_str(), reason, reason,
+                              reasonText(reason), NimBLEDevice::getNumBonds());
+                Connected  = false;
+                NeedSetup  = false;
+                Secured    = false;
+                AmsUp = AncsUp = CtsUp = false;
+                Client     = nullptr;
+                PeerAddr.clear();
+                StatusText = HasBond() ? "Waiting for phone" : "Pair from iPhone";
+                // advertiseOnDisconnect(true) restarts advertising automatically.
+            }
+
+            void onAuthenticationComplete(NimBLEConnInfo &connInfo) override
+            {
+                Log::printf("[BT] Auth complete: bonded=%d encrypted=%d authenticated=%d  bonds stored=%d\n",
+                              connInfo.isBonded(), connInfo.isEncrypted(), connInfo.isAuthenticated(),
+                              NimBLEDevice::getNumBonds());
+                Secured = connInfo.isEncrypted();
+            }
+        };
+
+        ServerCallbacks serverCb;
+
+        void startAdvertising(const std::string &name)
+        {
+            NimBLEAdvertising *adv = Server->getAdvertising();
+
+            // Everything in the PRIMARY advertising packet — this is the proven
+            // sandbox approach ("CTRL 01"). iOS Settings only shows a peer whose name
+            // is in the primary packet, and it reads the AMS *solicitation* (AD 0x15)
+            // there too. Putting the solicitation in the scan-response instead did NOT
+            // make us visible to a fresh (un-bonded) iPhone. Budget: flags(3) + name AD
+            // + solicitation(18) <= 31, so the name MUST be short (<=8 chars). "MCD1" =>
+            // 3 + (2+4) + 18 = 27. addData() has no length byte → build [0x11][0x15][16 LE].
+            NimBLEAdvertisementData advData;
+            advData.setFlags(0x06); // LE General Discoverable, BR/EDR not supported
+            advData.setName(name);  // Complete Local Name in the primary packet
+
+            NimBLEUUID ams(APPLE_MEDIA_SERVICE_UUID);
+            uint8_t sol[18];
+            sol[0] = 0x11; // length: 1 (type) + 16 (uuid)
+            sol[1] = 0x15; // 128-bit service solicitation
+            memcpy(&sol[2], ams.getValue(), 16);
+            advData.addData(sol, sizeof(sol));
+
+            adv->setAdvertisementData(advData);
+
+            adv->start();
+            Log::printf("[BT] Advertising '%s' (adv=%u bytes, all in primary) — pair from iPhone Settings",
+                        name.c_str(), (unsigned)advData.getPayload().size());
+        }
     } // anonymous namespace
-
-    // ------------------------------------------------------------------
-    // Public API
-    // ------------------------------------------------------------------
-
-    void ClearBonds()
-    {
-        Serial.println("[BT] Clearing all BLE bonds...");
-        NimBLEDevice::deleteAllBonds();
-
-        if (Client)
-        {
-            if (Client->isConnected()) Client->disconnect();
-            NimBLEDevice::deleteClient(Client);
-            Client = nullptr;
-        }
-
-        Connected   = false;
-        TargetFound = false;
-        TimeSet     = false;
-
-        NimBLEScan *scan = NimBLEDevice::getScan();
-        if (scan)
-        {
-            Serial.println("[BT] Restarting scan after clearbonds...");
-            scan->start(0, false, false);
-        }
-        Serial.println("[BT] Bonds cleared. On iPhone: Settings → Bluetooth → Forget MeganeCAN, then open Spotify.");
-    }
 
     void Begin(const std::string &device_name)
     {
-        Serial.println("[BT] Begin()");
+        Log::printf("[BT] Begin() AMS/ANCS peripheral");
         esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
-        Ended       = false;
-        Connected   = false;
-        TimeSet     = false;
-        TargetFound = false;
-
         NimBLEDevice::init(device_name);
+        NimBLEDevice::setMTU(247); // larger ATT MTU so ANCS message bodies fit
 
-        // bonding=false: Just Works pairing each time (no stored IRK / resolving list).
-        // This avoids BLE_HS_EPREEMPTED (err=13) which is triggered by the privacy
-        // layer rebuilding the HCI resolving list when bonding=true.
-        NimBLEDevice::setSecurityAuth(/*bonding=*/false, /*mitm=*/false, /*sc=*/true);
+        // Bonding ON, no MITM, LE Secure Connections -> iOS "Just Works" pairing,
+        // keys persisted in NVS so reconnection is silent.
+        NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
         NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
 
-        NimBLEScan *scan = NimBLEDevice::getScan();
-        static AmsScanCallbacks cb;
-        scan->setScanCallbacks(&cb);
-        scan->setActiveScan(true);
-        scan->setInterval(45);
-        scan->setWindow(30);
-        scan->setDuplicateFilter(false);
-        scan->setFilterPolicy(BLE_HCI_SCAN_FILT_NO_WL);
-        scan->start(0, false, false);
+        Server = NimBLEDevice::createServer();
+        Server->setCallbacks(&serverCb);
+        Server->advertiseOnDisconnect(true);
+        startAdvertising(device_name);
 
-        Serial.println("[BT] Begin finished — open Spotify on your phone to connect");
-    }
-
-    void End()
-    {
-        Serial.println("[BT] End()");
-        Ended       = true;
-        Connected   = false;
-        TargetFound = false;
-
-        NimBLEScan *scan = NimBLEDevice::getScan();
-        if (scan) scan->stop();
-
-        if (Client)
-        {
-            Client->disconnect();
-            NimBLEDevice::deleteClient(Client);
-            Client = nullptr;
-        }
-
-        NimBLEDevice::deinit(true);
+        StatusText = HasBond() ? "Waiting for phone" : "Pair from iPhone";
+        Log::printf("[BT] Begin finished (bonds stored: %d)\n", NimBLEDevice::getNumBonds());
     }
 
     void Service()
     {
-        if (Ended) return;
+        // Drive deferred ANCS Control Point writes from this (loop) task.
+        if (Connected && Client && Client->isConnected())
+            AppleNotificationService::Process();
 
-        // Client dropped → clean up and rescan
-        if (Client && !Client->isConnected())
+        // While no phone is connected, keep advertising so a bonded phone can
+        // reconnect — iOS typically drops the link right after the first bond and
+        // only exposes AMS/ANCS on the bonded reconnect.
+        if (!(Client && Client->isConnected()))
         {
-            Serial.println("[BT] Client disconnected, restarting scan");
-            NimBLEDevice::deleteClient(Client);
-            Client      = nullptr;
-            Connected   = false;
-            TimeSet     = false;
-            TargetFound = false;
-
-            NimBLEScan *scan = NimBLEDevice::getScan();
-            if (scan && !scan->isScanning())
-                scan->start(0, false, false);
+            static uint32_t lastAdv = 0;
+            if (millis() - lastAdv > 3000)
+            {
+                lastAdv = millis();
+                NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+                if (adv && !adv->isAdvertising())
+                {
+                    adv->start();
+                    Log::printf("[BT] re-advertising (waiting for phone)");
+                }
+            }
+            return;
         }
 
-        // Target found → connect
-        if ((!Client || !Client->isConnected()) && TargetFound)
+        // Connected: keep retrying service bring-up until everything is up.
+        if (!NeedSetup)
+            return;
+
+        if (millis() - lastSetupAttempt < 800)
+            return;
+        lastSetupAttempt = millis();
+
+        // Secure first, then discover (order matters — NimBLE issue #1033).
+        if (!Secured)
         {
-            Serial.println("[BT] Target found, connecting...");
-            ConnectToAms();
+            Log::printf("[BT] Securing link — accept the pairing prompt on your iPhone...");
+            if (!Client->secureConnection())
+            {
+                Log::printf("[BT] Pairing not complete yet, will retry");
+                return;
+            }
+            Secured = true;
         }
+
+        // Bring up each service independently and keep retrying the missing ones
+        // (iOS exposes AMS/ANCS/CTS with slightly different timing).
+        if (!AmsUp && AppleMediaService::StartMediaService(Client))
+        {
+            AmsUp = true;
+            Connected = true;
+            StatusText = "Connected";
+            Log::printf("[BT] AMS started");
+        }
+        if (AmsUp && !AncsUp && AppleNotificationService::StartNotificationService(Client))
+        {
+            AncsUp = true;
+            Log::printf("[BT] ANCS started");
+        }
+        if (AmsUp && !CtsUp && startCTS(Client))
+        {
+            CtsUp = true;
+            Log::printf("[BT] CTS started");
+        }
+
+        // Done once everything is up, or give up on stragglers after the deadline.
+        if ((AmsUp && AncsUp && CtsUp) || (millis() - ConnectMs > SETUP_DEADLINE_MS))
+            NeedSetup = false;
     }
 
-    bool  IsConnected() { return Connected && Client && Client->isConnected(); }
+    bool IsConnected() { return Connected && Client && Client->isConnected(); }
     bool IsTimeSet()   { return TimeSet; }
+    bool HasBond()     { return NimBLEDevice::getNumBonds() > 0; }
 
-    // --- Web UI stubs (no candidate list in this simple mode) ---
-
-    const char *GetStatusText()
+    void ClearBonds()
     {
-        if (Connected && Client && Client->isConnected()) return "Connected";
-        if (TargetFound) return "Connecting...";
-        return "Scanning (open Spotify)";
-    }
-
-    void SelectNext()     {}
-    void SelectPrev()     {}
-    void ConnectSelected(){}
-    void SelectByIndex(int) {}
-
-    void ForgetDevice()
-    {
+        Log::printf("[BT] Clearing all bonds...");
         NimBLEDevice::deleteAllBonds();
-        if (Client)
-        {
-            if (Client->isConnected()) Client->disconnect();
-            NimBLEDevice::deleteClient(Client);
-            Client = nullptr;
-        }
-        Connected   = false;
-        TargetFound = false;
-        TimeSet     = false;
-        NimBLEScan *scan = NimBLEDevice::getScan();
-        if (scan && !scan->isScanning()) scan->start(0, false, false);
-        Serial.println("[BT] ForgetDevice done — open Spotify to reconnect");
+        if (Client && Client->isConnected())
+            Client->disconnect();
+        Connected  = false;
+        NeedSetup  = false;
+        Secured    = false;
+        StatusText = "Pair from iPhone";
+        Log::printf("[BT] Bonds cleared. Also 'Forget this device' on the iPhone, then re-pair.");
     }
+
+    const char *GetStatusText() { return StatusText; }
 
     String GetStatusJson()
     {
-        bool conn = IsConnected();
-        String json = "{";
-        json += "\"connected\":" + String(conn ? "true" : "false") + ",";
-        json += "\"status\":\"" + String(GetStatusText()) + "\",";
-        json += "\"candidates\":[]";
-        json += "}";
-        return json;
+        String j = "{";
+        j += "\"connected\":";  j += (IsConnected() ? "true" : "false");
+        j += ",\"status\":\"";  j += StatusText; j += "\"";
+        j += ",\"bonded\":";    j += (HasBond() ? "true" : "false");
+        j += ",\"address\":\""; j += (IsConnected() ? PeerAddr.c_str() : ""); j += "\"";
+        j += "}";
+        return j;
     }
 
 } // namespace Bluetooth
