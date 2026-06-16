@@ -7,13 +7,17 @@
 #include "CarminatConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
+#include "../IPanel.h"          /* rendering port the collaborators draw through */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
 
 class IPage;
 class DiagPage;
 class MyELMManager;
 
-class CarminatDisplay : public AffaDisplayBase
+// Also implements IPanel: showMenu/setText share IDisplay's signatures (one override
+// satisfies both bases), and highlightItem already returns AffaError. This is the
+// seam the Phase-G collaborators render through.
+class CarminatDisplay : public AffaDisplayBase, public IPanel
 {
 public:
     CarminatDisplay()
@@ -58,7 +62,7 @@ public:
     // Carminat::ScrollLockIndicator::SCROLL_BOTH
     AffaCommon::AffaError showMenu(const char *header, const char *item1, const char *item2, uint8_t scrollLockIndicator = 0x0B) override;
 
-    AffaCommon::AffaError highlightItem(uint8_t id);
+    AffaCommon::AffaError highlightItem(uint8_t id) override;   // IPanel
     AffaCommon::AffaError showConfirmBoxWithOffsets(const char *caption, const char *row1, const char *row2); // Show confirm box with offsets
     AffaCommon::AffaError showInfoMenu(const char *item1, const char *item2, const char *item3,
                                        uint8_t offset1 = 0x41, uint8_t offset2 = 0x44, uint8_t offset3 = 0x48,
