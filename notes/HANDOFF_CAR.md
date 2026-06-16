@@ -38,13 +38,26 @@ AP **SSID `ESP32_MeganeCan_AP` / pass `Megane2004`** → phone joins → open
 - Serial proxy (`tools/serial_proxy.py COM5/COMx 115200 8080`, `http://127.0.0.1:8080`)
   = raw serial log only now (no decoder). Holds the COM port exclusively.
 
-## The skip_funcreg fork (decides which test you can do)
-- **CAPTURE the OEM truth** → keep `skip_funcreg = TRUE` (passive): ESP only listens;
-  every bus frame (incl. the radio's 0x151 info/confirm) is mirrored as `@RX` →
-  `/wire` Record → `.canlog`. The real radio must actually produce the screen.
-- **DRIVE the panel with OUR frames** → set `skip_funcreg = FALSE` (ESP becomes the
-  radio, runs registration) via `POST /setskipfuncreg` (value `false`) → it restarts.
-  In passive mode the OEM radio owns the panel and ignores our frames.
+## How it actually works in the car — "overwrite" mode (skip_funcreg = TRUE) ✅
+The REAL radio registers + keeps the panel alive. The ESP does NOT register
+(`skip_funcreg=TRUE`) but STILL transmits its own content: it reads the radio's 0x151
+frames passively (`@RX`, never blocks/intercepts them — no 0x74 reply, see recv() L409)
+to know what's shown, then sends its OWN `showMenu`/info/confirm on 0x151 right after,
+so the panel renders what WE want (overwrite). **The real DISPLAY ACKs our frames on
+0x551, and recv() processes that ACK regardless of skip_funcreg (L366) — so
+`affa3_do_send` completes normally.** No self-ACK / twin needed (those are bench-only,
+when there is no real panel). Verified in code: `affa3_do_send` L18 sends when
+`skip_funcreg=TRUE`; recv() ACK branch has no skip guard.
+
+So both jobs happen in the SAME passive mode — you do NOT flip skip_funcreg:
+- **CAPTURE the OEM truth**: skip_funcreg=TRUE, do NOT trigger any of our screens
+  (menu closed, AUX off → ESP is silent on TX), let the radio show info/confirm →
+  `/wire` Record → `.canlog`. (In passive, `tick()` sends no sync either.)
+- **OVERWRITE / verify OUR frames**: skip_funcreg=TRUE, fire `/api/info` /
+  `/api/confirm` / `/affa3/setMenu` → panel renders them + ACKs us. Route `both`.
+
+`skip_funcreg = FALSE` is ONLY for "no real radio present, the ESP must BE the radio"
+(it runs registration itself). NOT the normal car setup — do not flip it for testing.
 
 ## Transport routes (one knob — `/api/route?mode=…`, see notes/TRANSPORT.md)
 - `both` (default): real panel drives + ACKs, twin mirrors passively. **Car default.**
@@ -59,8 +72,8 @@ AP **SSID `ESP32_MeganeCan_AP` / pass `Megane2004`** → phone joins → open
    - `showConfirmBoxWithOffsets` — `CarminatDisplay.cpp` ~L762 (ISO-TP `10 6F` + fixed
      6-byte header `21 05 00 00 01 49` + 105-byte content; caption@0x1A, rows@0x20).
 3. Fix the builder bytes to match the capture (PROTOCOL-ADJACENT — see guardrails).
-4. (skip_funcreg=FALSE) fire `/api/info` + `/api/confirm` from `/preview`, confirm the
-   panel renders identically.
+4. (skip_funcreg STAYS TRUE) fire `/api/info` + `/api/confirm` from `/preview`; the real
+   panel renders our frames + ACKs them on 0x551 → confirm it looks identical.
 5. THEN teach the ONE decoder to read them so `/api/screen` + `/preview` + `/wire`
    mirror it: extend `src/affa/ScreenDecode.{h,cpp}` (add an info/confirm path) +
    `ScreenModel` (it already has `info[3][9]`/`infoCount`; confirm needs fields) +
