@@ -9,6 +9,8 @@
 #include "../AffaDisplayBase.h" /* Base class for Affa displays */
 #include "../IPanel.h"          /* rendering port the collaborators draw through */
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
+#include "AuxModeTracker.h"     // AUX-mode state (member; read by recv + NowPlaying)
+#include "CarminatNowPlaying.h" // media + notification collaborator
 
 class IPage;
 class DiagPage;
@@ -37,7 +39,8 @@ public:
                   this->setText("RENAULT", 0); // set defdault  text on close"));
               }
 
-          )
+          ),
+          _nowPlaying(*this, _aux, mainMenu)   // panel = *this (IPanel); aux + menu seams
     {
 
         initializeFuncs();
@@ -104,23 +107,8 @@ private:
     MyELMManager*                _elm         = nullptr;
     std::map<String, DiagPage*>  _diagPages;
 
-    AppleMediaService::MediaInformation _mediaInfo;
-    String _mediaLine2Full;      // повний "Artist - Title"
-    String _mediaPlayerName ;      
-    uint32_t _lastMediaRenderMs = 0;
-    uint32_t _lastScrollStepMs = 0;
-    uint16_t _scrollPos = 0;
-
-    static constexpr uint16_t MEDIA_SCROLL_INTERVAL_MS = 400; // швидкість скролу
-    static constexpr uint8_t MEDIA_VISIBLE_CHARS = 18;        // видима довжина 2-го рядка (підженеш по факту)
-
-    void renderMediaScreen(bool forceRedraw = false);
-    String buildProgressLine() const;
-    String buildScrollingTitle();
-
-    // ANCS notification popup (shown briefly over the media screen on arrival)
-    uint32_t _lastNotifUid = 0;
-    uint32_t _notifUntilMs = 0;
-    void renderNotificationScreen(const AppleNotificationService::NotificationInfo &n);
-
+    // Declared after mainMenu (above) so the init list _nowPlaying(*this,_aux,mainMenu)
+    // sees both fully constructed (member init follows declaration order).
+    AuxModeTracker     _aux;         // AUX-mode tracker (was a file-scope global)
+    CarminatNowPlaying _nowPlaying;  // media + ANCS-notification screen collaborator
 };
