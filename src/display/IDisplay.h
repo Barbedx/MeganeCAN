@@ -22,6 +22,9 @@ public:
     // Called when CAN detects AUX source (or from web UI for testing).
     // Enables AMS media screen. Default no-op for display types without AUX tracking.
     virtual void setAuxMode(bool on) { (void)on; }
+
+    // Called when BT disconnects so the display can freeze its content.
+    virtual void onBtDisconnected() {}
 protected:
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 

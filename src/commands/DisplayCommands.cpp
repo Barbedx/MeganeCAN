@@ -68,10 +68,12 @@ namespace DisplayCommands
 
     void Manager::OnKeyPressed(AffaCommon::AffaKey key, bool isHold)
     {
+        Serial.printf("[DisplayCommands::OnKeyPressed] key=0x%04X isHold=%d\n",
+                      static_cast<uint16_t>(key), isHold);
         _display.ProcessKey(key, isHold);
+        Serial.println("[DisplayCommands::OnKeyPressed] ProcessKey done, calling processEvents");
         _display.processEvents();
-        // Forward the key press to the display
-        // Example: _display.onKeyPressed(key, isHold);
+        Serial.println("[DisplayCommands::OnKeyPressed] processEvents done");
     }
 
 }

@@ -22,9 +22,14 @@ public:
         return AffaCommon::AffaError::NoError;
     }
 
-    void ProcessKey(AffaCommon::AffaKey key, bool isHold) override {
-        if (keyHandler) keyHandler(key, isHold);
-    }
+    void ProcessKey(AffaCommon::AffaKey key, bool isHold) override;
+
+protected:
+    // Called when the radio sends text on 0x121 — isAux=true when "AUX" detected.
+    // Override in subclasses to react (e.g. re-assert track title).
+    virtual void onRadioText(bool isAux) { (void)isAux; }
+
+    bool _amsKeysEnabled = true;
 
 private:
     struct KeyEvent { AffaCommon::AffaKey key; bool isHold; };

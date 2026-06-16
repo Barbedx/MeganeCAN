@@ -78,7 +78,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 </script>
 </head>
 <body>
-    <h1>Display Control v0.4</h1>
+    <h1>Display Control v0.6</h1>
 
   <h2>Display Type</h2>
     <form action="/setDisplay" method="POST">
@@ -123,10 +123,17 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="submit" value="Save" />
     </form>
 
+  <h2>Display Power</h2>
+  <button onclick="fetch('/display/state',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'enable=1'})">Display ON</button>
+  <button onclick="fetch('/display/state',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'enable=0'})">Display OFF</button>
+
+  <hr>
+
   <h2>Show Static Text</h2>
   <form action="/static" method="GET">
-    <label>Text (max 8 chars):</label>
-    <input type="text" name="text" maxlength="8" id="staticTextInput" required />
+    <label>Text:</label>
+    <input type="text" name="text" id="staticTextInput" required oninput="document.getElementById('textWarn').style.display=this.value.length>8?'inline':'none'" />
+    <span id="textWarn" style="display:none;color:orange;font-size:12px"> ⚠ &gt;8 chars, may be truncated on segment displays</span>
     <label><input type="checkbox" name="save" /> Save</label><br><br>
     <input type="submit" value="Show Static Text" />
   </form>
@@ -170,7 +177,46 @@ window.addEventListener('DOMContentLoaded', loadConfig);
     <input type="hidden" name="elm_enabled" value="0" />
     <input type="submit" value="Save &amp; Restart" />
     </form>
-    <p>Live data: <a href="/api/live">/api/live</a> (JSON, only when ELM connected)</p>
+    <h3>Live OBD Data</h3>
+    <div style="margin-bottom:6px">
+      <button onclick="refreshLive()">Refresh</button>
+      <label style="margin-left:12px"><input type="checkbox" id="autoRefresh" checked onchange="toggleAuto(this.checked)"> Auto-refresh (2s)</label>
+    </div>
+    <table id="liveTable" style="border-collapse:collapse;font-family:monospace;font-size:13px">
+      <thead><tr style="background:#ddd">
+        <th style="padding:4px 8px;text-align:left">Description</th>
+        <th style="padding:4px 8px">Code</th>
+        <th style="padding:4px 8px">Label</th>
+        <th style="padding:4px 8px;text-align:right">Value</th>
+      </tr></thead>
+      <tbody id="liveBody"><tr><td colspan="4" style="padding:4px 8px">Loading...</td></tr></tbody>
+    </table>
+    <script>
+    let _liveTimer = null;
+    async function refreshLive() {
+      const res = await fetch('/api/live/full');
+      const tbody = document.getElementById('liveBody');
+      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="4" style="padding:4px 8px;color:red">ELM not connected</td></tr>'; return; }
+      const data = await res.json();
+      let html = '';
+      for (const m of data) {
+        const val = m.hasValue ? (parseFloat(m.value).toFixed(2) + (m.unit ? '\xA0' + m.unit : '')) : '\u2014';
+        const clr = m.hasValue ? '' : 'color:#aaa';
+        html += '<tr style="' + clr + '">'
+          + '<td style="padding:2px 8px">' + m.name + '</td>'
+          + '<td style="padding:2px 8px;text-align:center">' + m.shortName + '</td>'
+          + '<td style="padding:2px 8px;text-align:center">' + m.label + '</td>'
+          + '<td style="padding:2px 8px;text-align:right">' + val + '</td>'
+          + '</tr>';
+      }
+      tbody.innerHTML = html || '<tr><td colspan="4" style="padding:4px 8px">No metrics</td></tr>';
+    }
+    function toggleAuto(on) {
+      if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+      if (on) _liveTimer = setInterval(refreshLive, 2000);
+    }
+    window.addEventListener('DOMContentLoaded', () => { refreshLive(); _liveTimer = setInterval(refreshLive, 2000); });
+    </script>
 
   <hr>
 
@@ -256,22 +302,32 @@ window.addEventListener('DOMContentLoaded', loadConfig);
       <button type="submit">Set AUX mode</button>
     </form>
   </div><br>
+  <div id="keyResult" style="font-family:monospace;font-size:12px;color:#555;margin-bottom:6px"></div>
   <div>
     <button onclick="sendKey(0x0000,0)">Load</button>
     <button onclick="sendKey(0x0000,1)">Load (Hold)</button><br><br>
     <button onclick="sendKey(0x0101,0)">Roll Up</button>
-    <button onclick="sendKey(0x0141,0)">Roll Down</button><br><br>
+    <button onclick="sendKey(0x0101,1)">Roll Up (Hold)</button>
+    <button onclick="sendKey(0x0141,0)">Roll Down</button>
+    <button onclick="sendKey(0x0141,1)">Roll Down (Hold)</button><br><br>
     <button onclick="sendKey(0x0005,0)">Pause</button>
+    <button onclick="sendKey(0x0005,1)">Pause (Hold)</button><br><br>
     <button onclick="sendKey(0x0001,0)">Src&gt;</button>
-    <button onclick="sendKey(0x0002,0)">Src&lt;</button><br><br>
+    <button onclick="sendKey(0x0001,1)">Src&gt; (Hold)</button>
+    <button onclick="sendKey(0x0002,0)">Src&lt;</button>
+    <button onclick="sendKey(0x0002,1)">Src&lt; (Hold)</button><br><br>
     <button onclick="sendKey(0x0003,0)">Vol+</button>
+    <button onclick="sendKey(0x0003,1)">Vol+ (Hold)</button>
     <button onclick="sendKey(0x0004,0)">Vol-</button>
+    <button onclick="sendKey(0x0004,1)">Vol- (Hold)</button>
   </div>
   <script>
   async function sendKey(key, hold) {
     const body = new URLSearchParams({key, hold: hold ? '1' : '0'});
     const r = await fetch('/emulate/key', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
-    console.log(await r.text());
+    const txt = await r.text();
+    document.getElementById('keyResult').textContent = txt;
+    console.log(txt);
   }
   </script>
 
@@ -286,7 +342,7 @@ window.addEventListener('DOMContentLoaded', loadConfig);
 
 void HttpServerManager::begin()
 {
-    _server.config.max_uri_handlers = 32;
+    _server.config.max_uri_handlers = 48;
     _server.listen(80);
 
     ElegantOTA.begin(&_server);
@@ -480,6 +536,11 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "application/json", elm->snapshotJson().c_str());
     });
 
+    _server.on("/api/live/full", HTTP_GET, [this](PsychicRequest *request) {
+        if (!elm) return request->reply(503, "application/json", "[]");
+        return request->reply(200, "application/json", elm->fullSnapshotJson().c_str());
+    });
+
     _server.on("/api/elm/headers", HTTP_GET, [this](PsychicRequest *request) {
         if (!elm) return request->reply(503, "application/json", "{}");
         return request->reply(200, "application/json", elm->headersJson().c_str());
@@ -669,51 +730,18 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         return request->reply(200, "text/html", page);
     });
 
-    _server.on("/emulate", HTTP_GET, [](PsychicRequest *request) {
-        const char *page = R"rawliteral(
-        <!DOCTYPE html>
-        <html><head><title>Affa3 Display Button Test</title></head><body>
-        <h2>Emulate Buttons</h2>
-        <form onsubmit="return false">
-        <button onclick="sendKey(0x0000, 0)">Load</button>
-        <button onclick="sendKey(0x0000, 1)">Load (Hold)</button><br>
-        <button onclick="sendKey(0x0001, 0)">SrcRight</button>
-        <button onclick="sendKey(0x0001, 1)">SrcRight (Hold)</button><br>
-        <button onclick="sendKey(0x0002, 0)">SrcLeft</button>
-        <button onclick="sendKey(0x0002, 1)">SrcLeft (Hold)</button><br>
-        <button onclick="sendKey(0x0003, 0)">Vol+</button>
-        <button onclick="sendKey(0x0003, 1)">Vol+ (Hold)</button><br>
-        <button onclick="sendKey(0x0004, 0)">Vol-</button>
-        <button onclick="sendKey(0x0004, 1)">Vol- (Hold)</button><br>
-        <button onclick="sendKey(0x0005, 0)">Pause</button>
-        <button onclick="sendKey(0x0005, 1)">Pause (Hold)</button><br>
-        <button onclick="sendKey(0x0101, 0)">RollUp</button>
-        <button onclick="sendKey(0x0101, 1)">RollUp (Hold)</button><br>
-        <button onclick="sendKey(0x0141, 0)">RollDown</button>
-        <button onclick="sendKey(0x0141, 1)">RollDown (Hold)</button><br>
-        </form>
-        <script>
-        async function sendKey(key, hold) {
-            const formData = new URLSearchParams();
-            formData.append("key", key);
-            formData.append("hold", hold ? "1" : "0");
-            const res = await fetch("/emulate/key", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: formData
-            });
-            const txt = await res.text();
-            console.log("Response:", txt);
-        }
-        </script>
-        </body></html>
-        )rawliteral";
-        return request->reply(200, "text/html", page);
-    });
 
     _server.on("/setaux", HTTP_POST, [this](PsychicRequest *request) {
         _display.setAuxMode(true);
         return request->reply(200, "text/plain", "AUX mode activated");
+    });
+
+    _server.on("/display/state", HTTP_POST, [this](PsychicRequest *request) {
+        bool enable = request->hasParam("enable") &&
+                      request->getParam("enable")->value() == "1";
+        Serial.printf("[HTTP /display/state] enable=%d\n", enable);
+        _display.setState(enable);
+        return request->reply(200, "text/plain", enable ? "Display ON" : "Display OFF");
     });
 
     _server.on("/restart", HTTP_POST, [](PsychicRequest *request) {
@@ -741,8 +769,10 @@ window.addEventListener('DOMContentLoaded', loadPlan);
         uint16_t keyCode = request->getParam("key")->value().toInt();
         bool isHold = request->getParam("hold")->value() == "1";
         AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(keyCode);
+        Serial.printf("[HTTP /emulate/key] keyCode=0x%04X isHold=%d -> calling OnKeyPressed\n", keyCode, isHold);
         _commands.OnKeyPressed(key, isHold);
         String msg = String("Emulated key 0x") + String(keyCode, HEX) + (isHold ? " (Hold)" : " (Press)");
+        Serial.printf("[HTTP /emulate/key] done, reply: %s\n", msg.c_str());
         return request->reply(200, "text/plain", msg.c_str());
     });
 }

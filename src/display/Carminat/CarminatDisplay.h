@@ -72,7 +72,6 @@ public:
     void attachElm(MyELMManager* m);
     void pushPage(IPage* p);
     void popPage();
-
 protected:
     Menu mainMenu;
     void onKeyPressed(AffaCommon::AffaKey key, bool isHold) override;
