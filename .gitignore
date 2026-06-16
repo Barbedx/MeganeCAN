@@ -10,3 +10,5 @@
 logs
 logs/
 tools/serial.log
+__pycache__/
+*.pyc
