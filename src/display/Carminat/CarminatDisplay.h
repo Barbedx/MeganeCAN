@@ -83,6 +83,9 @@ public:
     // "Please insert navigation CD" capture. Up to 3 centred-ish lines, \r-separated.
     AffaCommon::AffaError showFullscreenText(const char *line1, const char *line2, const char *line3) override;
     void hideFullscreenText() override;
+    // Transient popup overlay (e.g. "VOL 28") — mode 0x74 setText-family frame.
+    AffaCommon::AffaError showPopupText(const char *text) override;
+    void hidePopup() override;
     // IDisplay confirm-box capability -> the existing showConfirmBoxWithOffsets builder.
     AffaCommon::AffaError showConfirmBox(const char *caption, const char *row1, const char *row2) override
     { return showConfirmBoxWithOffsets(caption, row1, row2); }

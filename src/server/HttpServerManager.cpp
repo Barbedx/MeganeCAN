@@ -555,6 +555,32 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", "confirm box sent");
     });
 
+    // Fullscreen big text, no buttons (the OEM "Please insert navigation CD" screen,
+    // mode 0x05). Up to 3 lines. /api/fulltext/close dismisses it.
+    _server.on("/api/fulltext", HTTP_GET, [this](PsychicRequest *request) {
+        auto p = [&](const char *k) {
+            return request->hasParam(k) ? request->getParam(k)->value() : String("");
+        };
+        _display.showFullscreenText(p("l1").c_str(), p("l2").c_str(), p("l3").c_str());
+        return request->reply(200, "text/plain", "fullscreen text sent");
+    });
+    _server.on("/api/fulltext/close", HTTP_GET, [this](PsychicRequest *request) {
+        _display.hideFullscreenText();
+        return request->reply(200, "text/plain", "fullscreen text closed");
+    });
+
+    // Transient popup overlay (the small box over the main screen, e.g. "VOL 28").
+    // /api/popup/close dismisses it (the panel also auto-reverts on its own).
+    _server.on("/api/popup", HTTP_GET, [this](PsychicRequest *request) {
+        String t = request->hasParam("text") ? request->getParam("text")->value() : String("");
+        _display.showPopupText(t.c_str());
+        return request->reply(200, "text/plain", "popup sent");
+    });
+    _server.on("/api/popup/close", HTTP_GET, [this](PsychicRequest *request) {
+        _display.hidePopup();
+        return request->reply(200, "text/plain", "popup closed");
+    });
+
     // Runtime log verbosity: /api/loglevel?n=0..4 (E/W/I/D/T). No n => just report.
     // The only working knob for log level (serial INPUT is dead on the C3 USB-CDC).
     _server.on("/api/loglevel", HTTP_GET, [](PsychicRequest *request) {

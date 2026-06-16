@@ -54,6 +54,16 @@ public:
     { (void)line1; (void)line2; (void)line3; return AffaCommon::AffaError::NoError; }
     // Dismiss the fullscreen text (back to the normal screen).
     virtual void hideFullscreenText() {}
+
+    // Transient popup overlay — the small box the OEM pops OVER the current screen
+    // (e.g. "VOL 28" on a volume change), leaving the main screen partly visible. Same
+    // setText wire family as radio text but mode 0x74 (full-window overlay); captured
+    // from the real radio as `0x151 10 0E 74 09 55 FF 60 01 <8 text bytes>`. The panel
+    // shows it briefly and auto-reverts. Optional; default no-op.
+    virtual AffaCommon::AffaError showPopupText(const char *text)
+    { (void)text; return AffaCommon::AffaError::NoError; }
+    // Dismiss the popup / full-window overlay (single frame 02 54 03 on 0x151).
+    virtual void hidePopup() {}
 protected:
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 

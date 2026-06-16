@@ -64,6 +64,22 @@ static const char PREVIEW_PAGE[] = R"HTML(<!doctype html><html><head><meta chars
 </div>
 
 <div class=card>
+ <h3>Fullscreen text (no buttons)</h3>
+ <small>big centred message, e.g. the NAV "Please insert / navigation CD" screen.</small><br>
+ <input id=ft1 placeholder="line 1" value="Please insert">
+ <input id=ft2 placeholder="line 2" value="navigation CD">
+ <input id=ft3 placeholder="line 3">
+ <div><button class=go onclick=showFull()>Show text</button><button onclick=getq('/api/fulltext/close')>Close</button></div>
+</div>
+
+<div class=card>
+ <h3>Popup overlay (auto-hides)</h3>
+ <small>small box over the main screen, like the radio's "VOL 28" on volume change.</small><br>
+ <input id=pop placeholder="text (8 chars)" maxlength=8 value="VOL 28">
+ <div><button class=go onclick=showPopup()>Show popup</button><button onclick=getq('/api/popup/close')>Close</button></div>
+</div>
+
+<div class=card>
  <h3>Display power</h3>
  <small>OFF = panel shows its own clock + outside temp (built-in sensor).</small><br>
  <button onclick=state(1)>Display ON</button>
@@ -95,6 +111,8 @@ route('both'); // car-safe default: real panel is driven AND the twin decodes fo
 function showMenu(){getq('/affa3/setMenu?caption='+enc($('h').value)+'&name1='+enc($('a').value)+'&name2='+enc($('b').value)+'&scrollLock='+$('sl').value)}
 function showInfo(){getq('/api/info?l1='+enc($('i1').value)+'&l2='+enc($('i2').value)+'&l3='+enc($('i3').value))}
 function showConfirm(){getq('/api/confirm?caption='+enc($('cc').value)+'&row1='+enc($('c1').value)+'&row2='+enc($('c2').value))}
+function showFull(){getq('/api/fulltext?l1='+enc($('ft1').value)+'&l2='+enc($('ft2').value)+'&l3='+enc($('ft3').value))}
+function showPopup(){getq('/api/popup?text='+enc($('pop').value))}
 function state(on){post('/display/state?enable='+on)}
 async function poll(){
  try{

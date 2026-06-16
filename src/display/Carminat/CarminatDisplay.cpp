@@ -861,6 +861,39 @@ void CarminatDisplay::hideFullscreenText()
   CanUtils::sendCan(0x151, 0x02, 0x54, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00);
 }
 
+// Transient popup overlay (the small box the radio pops over the current screen, e.g.
+// "VOL 28" on volume change). Reproduced byte-for-byte from the OEM capture:
+//   0x151  10 0E 74 09 55 FF 60 01  <8 text bytes>
+// i.e. the setText wire family with mode 0x74 (full-window overlay; 0x77 is the windowed
+// radio text). ISO-TP length 0x0E = 14 content bytes = 6-byte header + 8 text bytes. The
+// panel shows it briefly over the main screen and auto-reverts (or hidePopup() closes it).
+AffaCommon::AffaError CarminatDisplay::showPopupText(const char *text)
+{
+  String _t = transliterateToAscii(String(text ? text : "")); // Carminat can't render UTF-8
+  uint8_t data[2 + 6 + 8];
+  uint8_t n = 0;
+  data[n++] = 0x10;   // ISO-TP first frame
+  data[n++] = 0x0E;   // 14 content bytes follow (6 header + 8 text)
+  data[n++] = 0x74;   // mode: full-window popup overlay (vs 0x77 windowed radio text)
+  data[n++] = 0x09;   // rds/icon field (as captured)
+  data[n++] = 0x55;   // fixed
+  data[n++] = 0xFF;   // source icon: none
+  data[n++] = 0x60;   // text format: plain ASCII (0x31 = radio-style digits)
+  data[n++] = 0x01;   // control byte
+  char padded[9] = {0};
+  strncpy(padded, _t.c_str(), 8);          // 8 visible cells, space-padded
+  for (uint8_t i = 0; i < 8; i++)
+    data[n++] = padded[i] ? padded[i] : ' ';
+  LOGD("POPUP", "showPopupText '%s'", _t.c_str());
+  return affa3_send(0x151, data, n);
+}
+
+void CarminatDisplay::hidePopup()
+{
+  // Same close as the full window: single frame 02 54 03 on 0x151.
+  CanUtils::sendCan(0x151, 0x02, 0x54, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00);
+}
+
 // ---- Page management ----
 
 void CarminatDisplay::attachElm(MyELMManager* m)
