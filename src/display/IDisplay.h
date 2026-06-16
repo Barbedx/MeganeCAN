@@ -38,6 +38,12 @@ public:
     virtual AffaCommon::AffaError showInfoPopup(const char *line1, const char *line2, const char *line3)
     { (void)line1; (void)line2; (void)line3; return AffaCommon::AffaError::NoError; }
     virtual void hideInfoPopup() {}
+
+    // Big "confirm box" popup (button caption + two text rows). Like showInfoPopup,
+    // optional — displays that don't support it no-op, so callers depend only on this
+    // interface. CarminatDisplay maps it to showConfirmBoxWithOffsets.
+    virtual AffaCommon::AffaError showConfirmBox(const char *caption, const char *row1, const char *row2)
+    { (void)caption; (void)row1; (void)row2; return AffaCommon::AffaError::NoError; }
 protected:
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 

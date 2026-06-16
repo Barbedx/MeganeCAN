@@ -545,6 +545,16 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", "info popup close sent");
     });
 
+    // Confirm-box popup (caption button + two rows) — through IDisplay; no-op on
+    // displays that don't support it. For verifying showConfirmBox on the real panel.
+    _server.on("/api/confirm", HTTP_GET, [this](PsychicRequest *request) {
+        auto p = [&](const char *k) {
+            return request->hasParam(k) ? request->getParam(k)->value() : String("");
+        };
+        _display.showConfirmBox(p("caption").c_str(), p("row1").c_str(), p("row2").c_str());
+        return request->reply(200, "text/plain", "confirm box sent");
+    });
+
     _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {
         String j = "{\"media\":";
         j += buildMediaJson();

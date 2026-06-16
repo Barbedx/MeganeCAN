@@ -78,6 +78,9 @@ public:
     // IDisplay info-popup capability (maps to showInfoMenu with default offsets).
     AffaCommon::AffaError showInfoPopup(const char *line1, const char *line2, const char *line3) override;
     void hideInfoPopup() override;
+    // IDisplay confirm-box capability -> the existing showConfirmBoxWithOffsets builder.
+    AffaCommon::AffaError showConfirmBox(const char *caption, const char *row1, const char *row2) override
+    { return showConfirmBoxWithOffsets(caption, row1, row2); }
 
     bool isCarminat() const override { return true; }
 

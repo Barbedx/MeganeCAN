@@ -1,58 +1,94 @@
 #pragma once
 
-// Dead-simple end-user display preview. Open http://meganecan.local/preview on a
-// phone, type text, see exactly what the panel would show — no PC tools, no serial.
+// End-user / car-test display console. Open http://meganecan.local/preview (home WiFi)
+// or http://192.168.4.1/preview (car AP), fire any screen the Carminat can show, and
+// watch it on the real panel. The decoded box mirrors /api/screen (the ONE firmware
+// decoder) for the screens it understands today (menu + highlight); info-popup and
+// confirm-box are verified by looking at the REAL panel (decoder support is a TODO).
 //
-// Flow (all on the ESP, the ONE decoder): your text -> /affa3/setMenu (the real
-// showMenu encoder) -> frames -> the twin's ScreenDecode -> /api/screen -> rendered
-// below. So it is the real firmware path, not a re-implementation.
-//
-// On load it switches the transport to VIRTUAL_ONLY so the twin ACKs and the screen
-// renders with no real panel attached (a desk ESP). "Restore CAN" returns to BOTH
-// for use in the car.
+// On load it sets route=virtual so a desk ESP (no panel) still renders the menu box;
+// in the car press "Restore CAN" (route=both) so the real panel drives + ACKs.
 static const char PREVIEW_PAGE[] = R"HTML(<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MeganeCAN — Display preview</title>
+<title>MeganeCAN — Display console</title>
 <style>
- body{margin:0;background:#0b0e14;color:#cdd6f4;font:15px/1.5 system-ui,sans-serif;padding:16px;max-width:560px;margin:auto}
- h2{margin:.2em 0}
- .scr{background:#0a1f14;border:2px solid #1f6b3a;border-radius:10px;padding:14px;margin:12px 0;
-      font:16px/1.6 Consolas,monospace;color:#7fffb0;min-height:84px}
+ body{margin:0;background:#0b0e14;color:#cdd6f4;font:15px/1.5 system-ui,sans-serif;padding:14px;max-width:600px;margin:auto}
+ h2{margin:.2em 0}h3{margin:.6em 0 .2em;color:#aef;font-size:14px}
+ .card{background:#11151f;border:1px solid #222a3a;border-radius:10px;padding:12px;margin:10px 0}
+ .scr{background:#0a1f14;border:2px solid #1f6b3a;border-radius:10px;padding:14px;
+      font:16px/1.6 Consolas,monospace;color:#7fffb0;min-height:80px}
  .scr .hdr{color:#aef;font-weight:bold;border-bottom:1px solid #1f6b3a;padding-bottom:6px;margin-bottom:8px}
  .scr .it{padding:3px 6px;border-radius:5px;white-space:pre}
  .scr .it.sel{background:#1f6b3a;color:#eafff2}
- input{width:100%;box-sizing:border-box;background:#11151f;color:#cdd6f4;border:1px solid #2a3450;
-       border-radius:8px;padding:10px;margin:4px 0;font:15px Consolas,monospace}
- button{background:#2a3450;color:#cdd6f4;border:0;border-radius:8px;padding:11px 16px;margin:4px 4px 4px 0;
-        font-size:15px;cursor:pointer}
+ input,select{box-sizing:border-box;background:#0b0e14;color:#cdd6f4;border:1px solid #2a3450;
+       border-radius:8px;padding:9px;margin:3px 0;font:14px Consolas,monospace}
+ input{width:100%}
+ button{background:#2a3450;color:#cdd6f4;border:0;border-radius:8px;padding:10px 14px;margin:4px 4px 0 0;
+        font-size:14px;cursor:pointer}
  button.go{background:#1f6b3a;color:#eafff2}
  small{color:#7a88a8}
 </style></head><body>
-<h2>Display preview</h2>
+<h2>Display console</h2>
 <small id=mode>switching to preview mode…</small>
-<div class=scr id=screen><div class=hdr>— display —</div><div class=it>loading…</div></div>
-<input id=h placeholder="Header (top line)" maxlength=26 value="MeganeCAN">
-<input id=a placeholder="Row 1" maxlength=25 value="Hello">
-<input id=b placeholder="Row 2" maxlength=30 value="from your ESP">
-<div>
- <button class=go onclick=show()>Show on display</button>
- <button onclick=restore()>Restore CAN (car)</button>
+<div class="scr" id=screen><div class=hdr>— display —</div><div class=it>loading…</div></div>
+<small>↑ decoded by the ESP (menu + highlight). Info/confirm: watch the <b>real panel</b>.</small>
+
+<div class=card>
+ <h3>Menu screen</h3>
+ <input id=h placeholder="Header" maxlength=26 value="MeganeCAN">
+ <input id=a placeholder="Row 1" maxlength=25 value="Hello">
+ <input id=b placeholder="Row 2" maxlength=30 value="from your ESP">
+ <select id=sl>
+  <option value="00">no arrows</option>
+  <option value="0B" selected>↓ down</option>
+  <option value="07">↑ up</option>
+  <option value="0C">↕ both</option>
+ </select>
+ <div><button class=go onclick=showMenu()>Show menu</button></div>
 </div>
-<p><small>Type and press <b>Show</b>. The screen above is decoded by the ESP itself —
-exactly what a real Carminat panel would render.</small></p>
+
+<div class=card>
+ <h3>Info popup (3 × 8 chars)</h3>
+ <input id=i1 placeholder="slot 1" maxlength=8 value="AUX">
+ <input id=i2 placeholder="slot 2" maxlength=8 value="AUTO">
+ <input id=i3 placeholder="slot 3" maxlength=8 value="SPEED 0">
+ <div><button class=go onclick=showInfo()>Show info</button><button onclick=getq('/api/info/close')>Close</button></div>
+</div>
+
+<div class=card>
+ <h3>Confirm box</h3>
+ <input id=cc placeholder="Caption (button)" maxlength=7 value="OK">
+ <input id=c1 placeholder="Row 1" maxlength=20 value="Are you sure?">
+ <input id=c2 placeholder="Row 2" maxlength=20 value="Press to confirm">
+ <div><button class=go onclick=showConfirm()>Show confirm</button></div>
+</div>
+
+<div class=card>
+ <h3>Display power</h3>
+ <small>OFF = panel shows its own clock + outside temp (built-in sensor).</small><br>
+ <button onclick=state(1)>Display ON</button>
+ <button onclick=state(0)>Display OFF</button>
+</div>
+
+<div class=card>
+ <h3>Transport</h3>
+ <button onclick=route('virtual')>virtual (desk)</button>
+ <button onclick=route('both')>both (car)</button>
+ <button onclick=route('can')>can only</button>
+</div>
+
 <script>
 const $=s=>document.getElementById(s);
 const esc=s=>(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const enc=encodeURIComponent;
 async function getq(u){try{return await(await fetch(u)).text()}catch(e){return''}}
-// Preview = no real panel: route VIRTUAL so the twin ACKs and the screen decodes.
-getq('/api/route?mode=virtual').then(()=>{$('mode').textContent='preview mode (virtual — twin renders, CAN off)'});
-function show(){
- const u='/affa3/setMenu?caption='+encodeURIComponent($('h').value)
-        +'&name1='+encodeURIComponent($('a').value)
-        +'&name2='+encodeURIComponent($('b').value);
- getq(u);
-}
-function restore(){getq('/api/route?mode=both').then(()=>{$('mode').textContent='CAN mode (real panel drives; preview mirrors)'})}
+async function post(u){try{return await(await fetch(u,{method:'POST'})).text()}catch(e){return''}}
+function route(m){getq('/api/route?mode='+m).then(()=>{$('mode').textContent='route='+m})}
+route('virtual'); // preview default: twin renders without a real panel
+function showMenu(){getq('/affa3/setMenu?caption='+enc($('h').value)+'&name1='+enc($('a').value)+'&name2='+enc($('b').value)+'&scrollLock='+$('sl').value)}
+function showInfo(){getq('/api/info?l1='+enc($('i1').value)+'&l2='+enc($('i2').value)+'&l3='+enc($('i3').value))}
+function showConfirm(){getq('/api/confirm?caption='+enc($('cc').value)+'&row1='+enc($('c1').value)+'&row2='+enc($('c2').value))}
+function state(on){post('/display/state?enable='+on)}
 async function poll(){
  try{
   const s=await(await fetch('/api/screen')).json();
