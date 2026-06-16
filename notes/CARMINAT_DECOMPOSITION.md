@@ -44,3 +44,38 @@ and a future Android-radio / different panel just provides another `ICarminatPan
 Each step is a behavior-preserving move (cut methods+state into the collaborator;
 CarminatDisplay delegates), `build` + `pio test -e native` green, then verify on the
 real display: menu renders + navigates, now-playing scrolls, notification pops over.
+
+## Coupling map (what makes this verify-on-panel, not solo)
+Three pieces of state are **file-scope globals** in `CarminatDisplay.cpp`, shared across
+the concerns — this is why the split must be stepped + verified on the real panel:
+- `AuxModeTracker tracker` (line ~35): written by `recv` (`tracker.onCanMessage` — the
+  radio tells us AUX is selected) and `setAuxMode`; read by `tickMedia`/`renderMediaScreen`
+  (`isInAuxMode`). → **NowPlaying needs `isInAuxMode()`** (pass `AuxModeTracker&`).
+- `std::queue<Event> eventQueue` + `struct Event` (lines ~308/320): `ProcessKey` and
+  `setMediaInfo` push; `processEvents` drains → routes `KeyPress`→`ProcessKey`,
+  `MediaInfoUpdate`→ render. → the **event loop stays in the coordinator**; NowPlaying
+  exposes `setMediaInfo(info)` (state only) and the coordinator keeps the queue push.
+- `mainMenu.isActive()` guards every media draw (don't paint over an open menu). →
+  **NowPlaying takes `Menu&`** (reads `isActive()`), no ownership.
+
+So `NowPlaying(IDisplay& panel, AuxModeTracker& aux, Menu& menu)` — panel for `showMenu`,
+aux for `isInAuxMode`, menu for the active-guard; holds `_mediaInfo`,`_mediaLine2Full`,
+`_mediaPlayerName`,`_scrollPos`,`_lastMediaRenderMs`,`_lastScrollStepMs`,`_lastNotifUid`,
+`_notifUntilMs`. No `std::function` (function pointers / refs only).
+
+## Exact step plan (do WITH the panel, verify each)
+1. **NowPlaying**: new `CarminatNowPlaying.{h,cpp}`; move `setMediaInfo`(state part),
+   `tickMedia`→`tick`, `renderMediaScreen`, `buildProgressLine`, `buildScrollingTitle`,
+   `renderNotificationScreen` + the media/notif members. `CarminatDisplay` keeps a
+   `_nowPlaying` member (init in `begin()` with `*this, tracker, mainMenu`), delegates
+   `setMediaInfo`/`tickMedia`; keeps `setAuxMode`(tracker) + the `eventQueue` push.
+   **Verify on panel:** play music over AUX → now-playing title scrolls, progress bar
+   advances; send a notification → 6 s popup then back to media.
+2. **MenuController**: move `initializeMenu`, `ProcessKey`, `onKeyPressed`, `processEvents`,
+   `_currentPage`, `pushPage`/`popPage`, `eventQueue`. **Verify:** open menu (Load-hold),
+   navigate (encoder), edit Brightness/Time, enter a DIAG page.
+3. **DiagController**: move `_elm`, `onElmUpdate`, `attachElm`, `_diagPages`. ELM is off by
+   default → low risk; verify menu DIAG entries still push pages.
+
+The panel driver (showMenu/showInfoMenu/showConfirmBox/highlightItem/setText/setState/
+setTime) + sync (tick/recv) **stay** in CarminatDisplay — that *is* the Carminat panel.
