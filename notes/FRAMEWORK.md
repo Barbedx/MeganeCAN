@@ -73,6 +73,32 @@ register it in `App` — no edits scattered through `main`.
 6. Small static `EventBus` for cross-feature signals (BT state, AUX, screen-changed).
 7. Then: rewrite display `recv()` on `Frame` → host-test the AFFA3 handshake end-to-end.
 
-Sources: hexagonal/ports-&-adapters (Cockburn; Wikipedia), C++ HAL via abstract
-interfaces (Beningo, embeddedrelated.com; mbedded.ninja), ESP-IDF component model
-(Espressif), event-driven embedded trade-offs (embeddedrt.com).
+## Research-backed refinements (deep-research, cited)
+A multi-source review (ESP-IDF + Zephyr docs, a peer-reviewed DI paper, ETL) confirmed
+this design and sharpened five points:
+1. **Ports = a layered HAL.** ESP-IDF's LL→HAL→Driver one-directional stack and Zephyr's
+   per-driver *struct of function pointers* are the canonical embedded ports&adapters.
+   Our `ICanBus`/`IClock`/`WireLink` are exactly this. Refinement: split **immutable
+   config (const, lives in flash)** from **per-instance runtime data (RAM)** in adapters.
+2. **DI = static composition, no container.** Compile-time DI frameworks (boost-ext.di)
+   add real binary cost (+1.4–3.2 KB on Cortex-M4); hand-wired static composition +
+   function pointers (what we do) is the cheapest and is preferred for MCUs.
+3. **Composition root = declarative registration + deterministic init order.** ESP-IDF
+   `ESP_SYSTEM_INIT_FN` priorities / Zephyr `PRE_KERNEL_1/2`,`POST_KERNEL` levels are the
+   model for `App`/`IModule`. Caveat (Zephyr maintainers): **static priority schemes are
+   fragile** under customization — keep ordering explicit and few-leveled, not sprawling.
+4. **Event bus = typed, statically-sized observer, never heap.** ETL `etl::observer` /
+   jl_signal bound subscriber counts at compile time. Our `EventBus` must be fixed-size
+   static (no `std::function`, no heap). Budget hard: classic ESP32 static DRAM ≈160 KB,
+   BT alone ≈64 KB — every subscriber slot is counted.
+5. **Fleet config = schema + per-device values.** ESP-IDF `mass_mfg` (schema CSV + per-
+   device CSV → per-device NVS images) is the factory pattern; our typed `Config` +
+   `provisioned` flag + `/api/setup` is the runtime half. Host TDD with test doubles
+   (Grenning) is the established way to test this hardware-coupled code off-target — which
+   is what our fakes (`FakeClock`/`LoopbackCanBus`) + `pio test -e native` already do.
+
+Sources: ESP-IDF hardware-abstraction / startup / memory-types guides (Espressif);
+Zephyr driver model + devicetree API (zephyrproject.org); compile-time DI cost & static
+injection (SBLP 2025, sol.sbc.org.br); ETL observer (etlcpp.com); release/version &
+provisioning (interrupt.memfault.com). Earlier: hexagonal (Cockburn/Wikipedia), C++ HAL
+abstract interfaces (Beningo; mbedded.ninja).
