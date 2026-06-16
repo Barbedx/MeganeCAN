@@ -152,7 +152,9 @@ function emu(on){getq('/api/emu?on='+(on?1:0))}
 async function pollScreen(){try{
   const s=await(await fetch('/api/screen')).json();
   const arrow=s.scroll===11?'↓':s.scroll===7?'↑':s.scroll===12?'↕':'';
-  let h='<div class=hdr>'+esc((s.on?'':'(off) ')+arrow+' '+(s.header||'—'))+'</div>';
+  // screen is always-live: flag staleness by age, not by the ACK-emulation flag
+  const stale=(s.screenAge_ms<0)||(s.screenAge_ms>5000);
+  let h='<div class=hdr>'+esc((stale?'(stale) ':'')+arrow+' '+(s.header||'—'))+'</div>';
   [s.item0,s.item1].forEach((t,i)=>{if(t){const sel=(s.sel===126&&i===0)||(s.sel===127&&i===1);h+='<div class="it'+(sel?' sel':'')+'">'+esc((sel?'▶ ':'  ')+t)+'</div>'}});
   document.getElementById('espscr').innerHTML=h;
 }catch(e){}}

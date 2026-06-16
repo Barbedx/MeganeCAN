@@ -41,6 +41,11 @@ public:
     // Test/inspection hooks.
     bool synced() const { return _synced; }
 
+    // Clock timestamp (ms) of the last screen decode, 0 if none yet. Lets callers
+    // show how fresh the decoded ScreenModel is — the screen decodes whenever the
+    // radio emits frames, independent of whether ACK-emulation is enabled.
+    uint32_t lastDecodeMs() const { return _lastDecodeMs; }
+
 protected:
     // Decode a control/text frame for this protocol into _screen. Called for every
     // frame on ctrlId/textId. Implementations use _asm (ISO-TP) + ScreenDecode.
@@ -58,4 +63,5 @@ protected:
     bool                 _emulate = true;
     bool                 _synced = false;
     AckMode              _ackMode = ACK_DONE;
+    uint32_t             _lastDecodeMs = 0;
 };

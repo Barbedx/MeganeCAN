@@ -42,7 +42,8 @@ static void test_bridge_closed_loop(void) {
     EmuBridge br;
     br.begin(vd, capRecv, &g_cap, clk);
 
-    // Disabled: tap feeds nothing.
+    // Disabled (passive): the tap still feeds the twin (always-live decode), but the
+    // twin emits no ACK back — recvFn sees nothing.
     br.tap().onTx(Frame{0x151, 8, {0x10,0x5A,0,0,0,0,0,0}, false});
     TEST_ASSERT_EQUAL_INT(0, g_cap.n);
     TEST_ASSERT_FALSE(br.enabled());
@@ -70,8 +71,39 @@ static void test_bridge_closed_loop(void) {
     TEST_ASSERT_EQUAL_HEX8(0x00, g_cap.f[0].data[2]);
 }
 
+// Phase B: the screen is always-live. While the bridge is DISABLED, feeding the
+// radio's frames still decodes the screen (read-only) and stamps lastDecodeMs, but
+// the twin never ACKs back — passive observation, exactly like a real panel running
+// in parallel. Enabling later begins ACKing without re-feeding.
+static void test_always_live_decode(void) {
+    CarminatVirtualDisplay vd;
+    EmuBridge br;
+    br.begin(vd, capRecv, &g_cap, clk);
+
+    TEST_ASSERT_FALSE(br.enabled());
+    TEST_ASSERT_EQUAL_UINT32(0, br.lastDecodeMs());
+
+    clk.advance(1000);
+    for (auto& row : REAL) {
+        Frame f; f.id = 0x151; f.len = 8;
+        for (int i = 0; i < 8; i++) f.data[i] = row[i];
+        br.tap().onTx(f);
+    }
+
+    // Decoded while passive...
+    const ScreenModel& s = br.screen();
+    TEST_ASSERT_EQUAL_STRING("Main Menu", s.header);
+    TEST_ASSERT_EQUAL_STRING("Voltage: 0V", s.item0);
+    TEST_ASSERT_EQUAL_INT(0x7F, s.sel);
+    TEST_ASSERT_EQUAL_UINT32(1000, br.lastDecodeMs());
+
+    // ...but emitted no ACK (no recvFn traffic) because emulation is off.
+    TEST_ASSERT_EQUAL_INT(0, g_cap.n);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_bridge_closed_loop);
+    RUN_TEST(test_always_live_decode);
     return UNITY_END();
 }

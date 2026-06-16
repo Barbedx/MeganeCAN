@@ -104,11 +104,18 @@ static String jsonEscAscii(const char* s) {
     return o;
 }
 
-// JSON of the ESP's own decoded screen (only meaningful while full-emulation is on).
+// JSON of the ESP's own decoded screen. The twin decodes the radio's frames
+// always-live, so this reflects the current screen whenever frames flow (a real
+// radio, or self-ACK/full-emu on the bench). "on" = ACK-emulation active; the
+// screen itself is independent of it. "screenAge_ms" = ms since last decode
+// (-1 = never decoded) so the web client can flag a stale screen.
 String fullEmuScreenJson() {
     const ScreenModel& s = g_emu.screen();
+    uint32_t lastMs = g_emu.lastDecodeMs();
+    long ageMs = (lastMs == 0) ? -1 : (long)(millis() - lastMs);
     String j = "{\"on\":";
     j += g_emu.enabled() ? "true" : "false";
+    j += ",\"screenAge_ms\":" + String(ageMs);
     j += ",\"mode\":" + String((int)s.mode);
     j += ",\"header\":\"" + jsonEscAscii(s.header) + "\"";
     j += ",\"item0\":\"" + jsonEscAscii(s.item0) + "\"";

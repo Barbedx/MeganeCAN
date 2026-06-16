@@ -33,6 +33,7 @@ void VirtualDisplayBase::onCanRx(const Frame& f)
     // Text / control frames: decode the screen, then auto-ACK like a real panel.
     if (f.id == _p.ctrlId || f.id == _p.textId) {
         decode(f);
+        if (_clock) _lastDecodeMs = _clock->millis();
         autoAck(f.id);
         return;
     }

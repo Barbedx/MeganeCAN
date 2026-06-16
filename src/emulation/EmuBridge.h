@@ -25,6 +25,11 @@ public:
     IBusTap& tap() { return _tap; }       // register on the radio's bus (HwCanBus)
     const ScreenModel& screen() const { return _vd->screen(); }
 
+    // Clock ms of the last decode (0 = none). The twin decodes the radio's frames
+    // continuously (always-live), so the screen reflects the panel whether or not
+    // ACK-emulation is enabled; callers compute staleness from this.
+    uint32_t lastDecodeMs() const { return _vd ? _vd->lastDecodeMs() : 0; }
+
 private:
     // The twin's outbound frames (ACKs/keys) -> the radio's recv().
     struct BackBus : ICanBus {
@@ -36,11 +41,14 @@ private:
         void onReceive(RxHandler, void*) override {}
         bool isLive() const override { return true; }
     };
-    // Every radio TX frame -> the twin (only while enabled).
+    // Every radio TX frame -> the twin, always. Decode is read-only state; the
+    // ACK/sync reply is gated independently by the twin's _emulate flag (set by
+    // enable()), so feeding unconditionally keeps the decoded screen always live
+    // without making the twin answer the radio while passive.
     struct FeedTap : IBusTap {
         EmuBridge* owner = nullptr;
         void onTx(const Frame& f) override {
-            if (owner && owner->_on && owner->_vd) owner->_vd->onCanRx(f);
+            if (owner && owner->_vd) owner->_vd->onCanRx(f);
         }
     };
 
