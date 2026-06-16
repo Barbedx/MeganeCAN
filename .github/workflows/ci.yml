@@ -1,0 +1,54 @@
+name: CI
+
+# Native unit tests (fast, no hardware) + both firmware target builds, on every push
+# and PR. Mirrors scripts/ci.{sh,ps1}. The native env needs a host g++ (ubuntu has it);
+# PlatformIO downloads the espressif32 platform + libs for the firmware builds.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  native-tests:
+    name: native unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ hashFiles('platformio.ini') }}
+      - run: pip install -U platformio
+      - name: pio test -e native
+        run: pio test -e native
+
+  firmware-build:
+    name: build ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [esp32dev, esp32dev-mini]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ matrix.env }}-${{ hashFiles('platformio.ini') }}
+      - run: pip install -U platformio
+      # secrets.h is intentionally untracked; provide a stub so the build links in CI.
+      - name: stub secrets.h
+        run: |
+          if [ ! -f src/secrets.h ]; then
+            printf '#pragma once\n#define Soft_AP_WIFI_SSID "MeganeCAN-CI"\n#define Soft_AP_WIFI_PASS "ci-build-only"\n' > src/secrets.h
+          fi
+      - name: pio run -e ${{ matrix.env }}
+        run: pio run -e ${{ matrix.env }}
