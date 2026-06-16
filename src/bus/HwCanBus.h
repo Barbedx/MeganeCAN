@@ -2,6 +2,7 @@
 #include <can_common.h>
 #include <esp32_can.h>
 #include "ICanBus.h"
+#include "ITxGate.h"
 #include "BusTap.h"
 
 // The hardware CAN bus. This is the ONE place that converts between the driver's
@@ -12,7 +13,7 @@
 //   * the TX/RX tap fan-out (e.g. the @TX serial mirror).
 // A singleton because there is exactly one controller (CAN0) and the legacy
 // CanUtils statics delegate here.
-class HwCanBus : public ICanBus {
+class HwCanBus : public ICanBus, public ITxGate {
 public:
     static HwCanBus& instance();
 
@@ -28,6 +29,13 @@ public:
     void addTap(IBusTap* t);
     void noteRxActivity();   // refresh the live gate (legacy CanUtils delegation)
 
+    // Explicit CAN-transmit enable (default true). DisplayTransport drops this in
+    // VIRTUAL_ONLY so frames go to the twin only and never touch the real bus, even on
+    // a live bus. Orthogonal to the busAlive gate; TX taps (@TX mirror, twin feed) and
+    // RX are unaffected, so observation + the virtual display keep working.
+    void setTxEnabled(bool on) override { _txEnabled = on; }
+    bool txEnabled() const { return _txEnabled; }
+
     static constexpr int MAX_TAPS = 4;
 
 private:
@@ -36,6 +44,7 @@ private:
     void*     _rxCtx = nullptr;
     IBusTap*  _taps[MAX_TAPS] = {};
     int       _tapCount = 0;
+    bool      _txEnabled = true;
     volatile uint32_t _lastRxMs = 0;
     static constexpr uint32_t BUS_ALIVE_WINDOW_MS = 5000;
 };

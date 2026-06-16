@@ -466,7 +466,16 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", on ? "full-emulation ON" : "full-emulation OFF");
     });
 
-    // The ESP's own decoded screen (meaningful while full-emulation is on).
+    // The one display-routing knob: /api/route?mode=can|virtual|both. Subsumes the old
+    // self-ACK / full-emu flags. (/api/emu + /api/fullemu above remain as compat aliases.)
+    _server.on("/api/route", HTTP_GET, [](PsychicRequest *request) {
+        extern const char* setDisplayRoute(const String&);
+        String mode = request->hasParam("mode") ? request->getParam("mode")->value() : String("");
+        const char* applied = setDisplayRoute(mode);
+        return request->reply(200, "text/plain", (String("route=") + applied).c_str());
+    });
+
+    // The ESP's own decoded screen (always-live in CAN_AND_VIRTUAL / VIRTUAL routes).
     _server.on("/api/screen", HTTP_GET, [](PsychicRequest *request) {
         extern String fullEmuScreenJson();
         return request->reply(200, "application/json", fullEmuScreenJson().c_str());

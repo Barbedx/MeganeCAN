@@ -19,8 +19,14 @@ public:
     // recvFn: delivers a frame into the radio's recv() path.
     void begin(VirtualDisplayBase& vd, RecvFn recvFn, void* ctx, IClock& clk);
 
-    void enable(bool on);                 // on: bind the twin (PARTIAL ACK) + start feeding
+    void enable(bool on);                 // on: twin ACKs/syncs the radio (ACTIVE); off: passive
     bool enabled() const { return _on; }
+
+    // Whether radio TX frames are fed to the twin at all. Default true (always-live
+    // decode, Phase B). DisplayTransport drops it in CAN_ONLY so the twin idles when
+    // no virtual view is wanted. Independent of enable() (feed = observe; enable = ACK).
+    void setFeed(bool on) { _feed = on; }
+    bool feeding() const { return _feed; }
 
     IBusTap& tap() { return _tap; }       // register on the radio's bus (HwCanBus)
     const ScreenModel& screen() const { return _vd->screen(); }
@@ -48,7 +54,7 @@ private:
     struct FeedTap : IBusTap {
         EmuBridge* owner = nullptr;
         void onTx(const Frame& f) override {
-            if (owner && owner->_vd) owner->_vd->onCanRx(f);
+            if (owner && owner->_feed && owner->_vd) owner->_vd->onCanRx(f);
         }
     };
 
@@ -58,5 +64,6 @@ private:
     IClock* _clk = nullptr;
     BackBus _back;
     FeedTap _tap;
-    bool    _on = false;
+    bool    _on = false;     // ACTIVE: twin ACKs the radio
+    bool    _feed = true;    // feed radio TX -> twin (always-live decode by default)
 };

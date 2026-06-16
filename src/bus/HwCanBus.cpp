@@ -25,10 +25,16 @@ bool HwCanBus::isLive() const
 
 bool HwCanBus::send(const Frame& f)
 {
-    // TX taps (e.g. the @TX serial mirror) run BEFORE the live-bus gate, so the
-    // PC-side virtual display captures the frame even when bench TX is suppressed.
+    // TX taps (the @TX serial mirror, the virtual-display feed) run BEFORE any gate,
+    // so observation + the virtual display capture the frame even when the real CAN
+    // transmit is suppressed (bench with no transceiver, or the VIRTUAL_ONLY route).
     for (int i = 0; i < _tapCount; i++)
         _taps[i]->onTx(f);
+
+    // Route gate: VIRTUAL_ONLY drops the real CAN transmit (the frame already reached
+    // the twin via the tap above). Distinct from the busAlive gate below.
+    if (!_txEnabled)
+        return false;
 
     // Only transmit onto a confirmed-live bus. No RX traffic (e.g. the bench board
     // with no transceiver) -> drop the frame so TX never drives the controller

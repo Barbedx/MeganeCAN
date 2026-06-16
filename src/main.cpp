@@ -29,6 +29,7 @@
 #include "vdisplay/UpdateListSegVirtualDisplay.h"
 #include "vdisplay/UpdateListLcdVirtualDisplay.h"
 #include "emulation/EmuBridge.h"
+#include "emulation/DisplayTransport.h"
 #include "bus/ArduinoClock.h"
 #include "console/SerialConsole.h"
 #include "console/WireConsole.h"
@@ -73,6 +74,8 @@ static UpdateListSegVirtualDisplay g_vdUlSeg;
 static UpdateListLcdVirtualDisplay g_vdUlLcd;
 static VirtualDisplayBase*         g_vd = &g_vdCarminat;
 static EmuBridge                   g_emu;   // FULL-EMULATION closed loop (portable module)
+// The one display-routing knob (CAN / virtual / both). Owns where frames go + who ACKs.
+static DisplayTransport            g_transport(HwCanBus::instance(), g_emu);
 
 // Pick the virtual display that matches the emulated radio protocol.
 void selectVirtualDisplay(const String& displayType) {
@@ -88,11 +91,24 @@ static void radioRecv(const Frame& f, void*) {
     if (display) display->recv(f);
 }
 
+// Compat shim for /api/fullemu + the /wire buttons: full-emu ON == route VIRTUAL_ONLY
+// (twin ACKs, no CAN); OFF == CAN_AND_VIRTUAL (real panel ACKs, twin mirrors it).
 void setFullEmu(bool on) {
-    if (on && !g_emu.enabled() && display)
-        display->setEmuSelfAck(false);   // the virtual display ACKs now
-    g_emu.enable(on);
-    Serial.printf("[fullemu] %s\n", on ? "ON — virtual display ACKs the radio" : "OFF");
+    g_transport.setRoute(on ? DisplayTransport::VIRTUAL_ONLY
+                            : DisplayTransport::CAN_AND_VIRTUAL);
+    Serial.printf("[route] %s (via fullemu=%d)\n",
+                  DisplayTransport::name(g_transport.route()), on);
+}
+
+// /api/route?mode=can|virtual|both — the one display-routing knob. Returns the name.
+const char* setDisplayRoute(const String& mode) {
+    DisplayTransport::Route r = g_transport.route();
+    if      (mode == "can")     r = DisplayTransport::CAN_ONLY;
+    else if (mode == "virtual") r = DisplayTransport::VIRTUAL_ONLY;
+    else if (mode == "both")    r = DisplayTransport::CAN_AND_VIRTUAL;
+    g_transport.setRoute(r);
+    Serial.printf("[route] %s\n", DisplayTransport::name(r));
+    return DisplayTransport::name(r);
 }
 
 static String jsonEscAscii(const char* s) {
@@ -115,6 +131,7 @@ String fullEmuScreenJson() {
     long ageMs = (lastMs == 0) ? -1 : (long)(millis() - lastMs);
     String j = "{\"on\":";
     j += g_emu.enabled() ? "true" : "false";
+    j += ",\"route\":\"" + String(DisplayTransport::name(g_transport.route())) + "\"";
     j += ",\"screenAge_ms\":" + String(ageMs);
     j += ",\"mode\":" + String((int)s.mode);
     j += ",\"header\":\"" + jsonEscAscii(s.header) + "\"";
@@ -346,8 +363,12 @@ void setup()
     HwCanBus::instance().addTap(&g_serialMirror);
     static WsRecorderTap g_wsRecorder;                // @RX live car-bus capture to WS
     HwCanBus::instance().addTap(&g_wsRecorder);
-    g_emu.begin(*g_vd, radioRecv, nullptr, defaultClock());  // FULL-EMULATION closed loop
-    HwCanBus::instance().addTap(&g_emu.tap());               // feed (gated off by default)
+    g_emu.begin(*g_vd, radioRecv, nullptr, defaultClock());  // bind the virtual-display twin
+    HwCanBus::instance().addTap(&g_emu.tap());               // radio TX -> twin (the VirtualSink)
+    // Default route: real panel drives + ACKs, twin mirrors it passively (always-live
+    // decode). On the bench (no live bus) CAN TX is gated off anyway; flip to "virtual"
+    // (/api/route?mode=virtual) so the twin ACKs and full sequences emit.
+    g_transport.setRoute(DisplayTransport::CAN_AND_VIRTUAL);
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);
