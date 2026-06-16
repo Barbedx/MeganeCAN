@@ -37,8 +37,11 @@ public:
 
 private:
     static constexpr int      BUF_SIZE  = 2048;   // accumulate ~40 lines between flushes
-    static constexpr int      FLUSH_HI  = 1400;   // flush early once this full
-    static constexpr uint32_t FLUSH_MS  = 40;     // ~25 Hz cadence
+    static constexpr int      FLUSH_HI  = 1400;   // flush early once this full (bursts stay lossless)
+    static constexpr uint32_t FLUSH_MS  = 100;    // ~10 Hz idle cadence: fewer WS sends ->
+                                                  // less heap alloc churn -> less fragmentation
+                                                  // while a client is open (FLUSH_HI still
+                                                  // flushes promptly under load).
 
     void append(const char* s, int n);
 

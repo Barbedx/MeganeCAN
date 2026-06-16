@@ -5,8 +5,19 @@
 
 void WsWireLink::attach(PsychicHttpServer& server, const char* path)
 {
-    _ws.onOpen([this](PsychicWebSocketClient* c) { (void)c; _clients++; });
-    _ws.onClose([this](PsychicWebSocketClient* c) { (void)c; if (_clients > 0) _clients--; });
+    // Log heap on connect/disconnect: a /wire WS client is the single biggest heap
+    // consumer (per-socket buffers + send churn), so make its cost visible every
+    // time — turns "why is memory low?" into a one-line answer, no guessing.
+    _ws.onOpen([this](PsychicWebSocketClient* c) {
+        (void)c; _clients++;
+        Serial.printf("[ws] client connected (%d) free=%u maxblk=%u\n",
+                      _clients, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+    });
+    _ws.onClose([this](PsychicWebSocketClient* c) {
+        (void)c; if (_clients > 0) _clients--;
+        Serial.printf("[ws] client closed (%d) free=%u maxblk=%u\n",
+                      _clients, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+    });
     _ws.onFrame([this](PsychicWebSocketRequest* req, httpd_ws_frame* frame) -> esp_err_t {
         // Inbound PC->fw command line(s). Copy to a bounded NUL-terminated buffer and
         // hand each line to the registered handler (@KEY/@INJ/@EMU).
