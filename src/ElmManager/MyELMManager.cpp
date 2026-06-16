@@ -1,5 +1,6 @@
 #include "MyELMManager.h"
 #include <Arduino.h>
+#include "utils/Log.h"
 using std::vector;
 
 // ---- WiFi / TCP / ELM init ----
@@ -7,21 +8,21 @@ using std::vector;
 bool MyELMManager::ensureWifi()
 {
     if (WiFi.status() == WL_CONNECTED) return true;
-    Serial.println("[ELM] WiFi not connected, reconnecting...");
+    LOGW("ELM", "WiFi not connected, reconnecting...");
     WiFi.reconnect();
     return false;
 }
 
 bool MyELMManager::connectTcpOnce(uint16_t p)
 {
-    Serial.printf("[ELM] TCP connect %s:%u ...\n", host.toString().c_str(), p);
+    LOGI("ELM", "TCP connect %s:%u ...", host.toString().c_str(), p);
     wifiClient.stop();
     wifiClient.setTimeout(5000);
     if (!wifiClient.connect(host, p)) {
-        Serial.println("[ELM] TCP connect failed");
+        LOGE("ELM", "TCP connect failed");
         return false;
     }
-    Serial.println("[ELM] TCP connected");
+    LOGI("ELM", "TCP connected");
     return true;
 }
 
@@ -40,7 +41,7 @@ bool MyELMManager::initElmOnce()
 
     // Lock protocol to ISO15765-4 11-bit 500K; let tick() handle ATSH + 10C0
     elm.sendCommand_Blocking("AT SP 6");
-    Serial.println("[ELM] init done");
+    LOGI("ELM", "init done");
 
     elmReady      = true;
     waitState     = WaitState::IDLE;
@@ -64,7 +65,7 @@ bool MyELMManager::ensureTcpAndElm()
         disconnectTcp();
         nextTcpAttemptMs = now + tcpBackoffMs;
         tcpBackoffMs = std::min<uint32_t>(tcpBackoffMs * 2, kBackoffMaxMs);
-        Serial.printf("[ELM] Reconnect in %u ms\n", tcpBackoffMs);
+        LOGI("ELM", "Reconnect in %u ms", tcpBackoffMs);
         return false;
     }
 
@@ -77,7 +78,7 @@ bool MyELMManager::ensureTcpAndElm()
     }
 
     if ((now - lastGoodRxMs) > kDeadLinkMs) {
-        Serial.println("[ELM] Link dead (no good RX). Reconnecting...");
+        LOGE("ELM", "Link dead (no good RX). Reconnecting...");
         disconnectTcp();
         return false;
     }
@@ -351,9 +352,15 @@ String MyELMManager::computeMetricsJson(const std::vector<MetricDef>& metrics,
 static void dumpHex(const vector<uint8_t> &v)
 {
 #if LOG_PID_VALUES
-    Serial.print("[DATA] ");
-    for (uint8_t b : v) Serial.printf("%02X ", b);
-    Serial.printf("(%u bytes)\n", (unsigned)v.size());
+    if (!Log::enabled(LogLevel::TRC)) return;
+    char buf[3 * 64 + 24];
+    int n = 0;
+    for (uint8_t b : v) {
+        if (n + 3 >= (int)sizeof(buf)) break;
+        n += snprintf(buf + n, sizeof(buf) - n, "%02X ", b);
+    }
+    snprintf(buf + n, sizeof(buf) - n, "(%u bytes)", (unsigned)v.size());
+    LOGT("ELM", "%s", buf);
 #endif
 }
 
@@ -377,10 +384,10 @@ void MyELMManager::tick()
         if (elm.nb_rx_state != ELM_SUCCESS)
         {
             // Log the failing PID *before* advancing the index
-            Serial.printf("[ELM] rx error state=%d header=%s pid=%s\n",
-                          (int)elm.nb_rx_state,
-                          currentHeader.c_str(),
-                          plan.empty() ? "-" : plan[planIndex].modePid);
+            LOGW("ELM", "rx error state=%d header=%s pid=%s",
+                 (int)elm.nb_rx_state,
+                 currentHeader.c_str(),
+                 plan.empty() ? "-" : plan[planIndex].modePid);
 
             // Fail an in-progress scan
             if (_scanMode) {
@@ -406,7 +413,7 @@ void MyELMManager::tick()
         case WaitState::HEADER:
             currentHeader  = pendingHeader;
             pendingHeader  = "";
-            Serial.printf("[RECV] OK for ATSH %s\n", currentHeader.c_str());
+            LOGD("ELM", "OK for ATSH %s", currentHeader.c_str());
             break;
 
         case WaitState::SDS:
@@ -417,7 +424,7 @@ void MyELMManager::tick()
             const bool ok = !(uds.size() >= 1 && uds[0] == 0x7F);
             sessions[currentHeader].open   = ok;
             sessions[currentHeader].lastMs = now;
-            Serial.printf("[10C0] %s\n", ok ? "OPENED" : "REFUSED");
+            LOGD("ELM", "10C0 %s", ok ? "OPENED" : "REFUSED");
             break;
         }
 
@@ -443,7 +450,7 @@ void MyELMManager::tick()
 
             const auto &node = plan[planIndex];
 #if LOG_PID_VALUES
-            Serial.printf("[RECV] header=%s pid=%s\n", currentHeader.c_str(), node.modePid);
+            LOGT("ELM", "RECV header=%s pid=%s", currentHeader.c_str(), node.modePid);
             dumpHex(data);
 #endif
             for (const auto &m : node.metrics) {
@@ -451,10 +458,10 @@ void MyELMManager::tick()
                 float v = m.eval(data);
                 valueCache[String(m.shortName)] = v;
 #if LOG_PID_VALUES
-                Serial.printf("  %-32s (%-8s) = %8.3f %s\n",
-                              m.name && m.name[0] ? m.name : m.shortName,
-                              m.shortName ? m.shortName : "-",
-                              v, m.units && m.units[0] ? m.units : "");
+                LOGT("ELM", "  %-32s (%-8s) = %8.3f %s",
+                     m.name && m.name[0] ? m.name : m.shortName,
+                     m.shortName ? m.shortName : "-",
+                     v, m.units && m.units[0] ? m.units : "");
 #endif
             }
             sessions[currentHeader].lastMs = now;
@@ -512,7 +519,7 @@ void MyELMManager::tick()
         pendingHeader = activeHeader;
         char cmd[24];
         snprintf(cmd, sizeof(cmd), "ATSH %s", activeHeader);
-        Serial.printf("[SEND] %s\n", cmd);
+        LOGT("ELM", "SEND %s", cmd);
         elm.sendCommand(cmd);
         waitState = WaitState::HEADER;
         lastCmdMs = now;
@@ -525,11 +532,11 @@ void MyELMManager::tick()
     if (activeNeedsSession)
     {
         if (s.open && (now - s.lastMs) > kReopenSdsMs) {
-            Serial.printf("[SDS] idle>=%ums, re-open (%s)\n", kReopenSdsMs, currentHeader.c_str());
+            LOGD("ELM", "SDS idle>=%ums, re-open (%s)", kReopenSdsMs, currentHeader.c_str());
             s.open = false;
         }
         if (!s.open) {
-            Serial.printf("[SEND] 10C0 (%s)\n", currentHeader.c_str());
+            LOGT("ELM", "SEND 10C0 (%s)", currentHeader.c_str());
             elm.sendCommand("10C0");
             waitState = WaitState::SDS;
             lastCmdMs = now;
@@ -542,7 +549,7 @@ void MyELMManager::tick()
     //         Skipped during scan to avoid extra round-trips.
     if (!_scanMode && s.open && (now - s.lastMs) > kPingPeriodMs)
     {
-        Serial.printf("[SEND] 3E00 (%s)\n", currentHeader.c_str());
+        LOGT("ELM", "SEND 3E00 (%s)", currentHeader.c_str());
         elm.sendCommand("3E00");
         waitState = WaitState::TESTER_PRESENT;
         lastCmdMs = now;
@@ -550,7 +557,7 @@ void MyELMManager::tick()
     }
 
     // ---- G) Send the PID ----
-    Serial.printf("[SEND] %s (%s)\n", activePid, activeHeader);
+    LOGT("ELM", "SEND %s (%s)", activePid, activeHeader);
     elm.sendCommand(activePid);
     waitState = WaitState::PID;
     lastCmdMs = now;

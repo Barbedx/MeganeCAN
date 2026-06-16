@@ -4,6 +4,7 @@
 #include "AffaCommonConstants.h"
 #include "../bus/IClock.h"
 #include "../bus/ICanBus.h"
+#include "../utils/Log.h"   // LOGx (no-op stubs under NATIVE)
 #ifndef NATIVE
 #include <Arduino.h>
 #endif
@@ -25,10 +26,7 @@ public:
     //void setMediaInfo();
 void setKeyHandler(KeyHandler handler)
 {
-#ifndef NATIVE
-    Serial.print("[AffaDisplayBase] setKeyHandler = ");
-    Serial.println(((uint32_t)keyHandler), HEX);
-#endif
+    LOGD("AFFA", "setKeyHandler = %X", (unsigned)(uint32_t)keyHandler);
     keyHandler = handler;
 }
     // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS

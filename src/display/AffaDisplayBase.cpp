@@ -6,12 +6,9 @@ using FuncStatus = AffaCommon::FuncStatus;
 using SyncStatus = AffaCommon::SyncStatus;
 using AffaError = AffaCommon::AffaError;
 
-// The single definition of the AFFA3_PRINT runtime gate (declared extern in
-// utils/AffaDebug.h). Lives here because this TU is compiled in BOTH the firmware and
-// the native test builds; the `vb` serial command flips it. OFF by default so a
-// continuous now-playing re-render doesn't flood/stall the USB-CDC serial link.
-volatile bool g_affaVerbose = false;
- 
+// AFFA3_PRINT now routes through the leveled logger at DBG/"AFFA" (see utils/AffaDebug.h);
+// the old g_affaVerbose gate was folded into the log level.
+
 AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
   {
     AFFA3_PRINT("affa3_do_send called\n");

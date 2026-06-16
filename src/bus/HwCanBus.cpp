@@ -1,5 +1,6 @@
 #include "HwCanBus.h"
 #include <Arduino.h>
+#include "utils/Log.h"
 
 HwCanBus& HwCanBus::instance()
 {
@@ -46,7 +47,7 @@ bool HwCanBus::send(const Frame& f)
         if (millis() - lastWarnMs > 5000)
         {
             lastWarnMs = millis();
-            Serial.println("[CAN] no live bus (no RX) — TX suppressed");
+            LOGW("CAN", "no live bus (no RX) — TX suppressed");
         }
         return false;
     }

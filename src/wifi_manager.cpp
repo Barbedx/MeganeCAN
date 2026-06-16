@@ -39,11 +39,11 @@ namespace WiFiManager
             if (MDNS.begin(gHostname.c_str()))
             {
                 MDNS.addService("http", "tcp", 80);
-                Log::printf("mDNS up: http://%s.local\n", gHostname.c_str());
+                LOGI("WIFI", "mDNS up: http://%s.local", gHostname.c_str());
             }
             else
             {
-                Log::printf("mDNS start failed");
+                LOGE("WIFI", "mDNS start failed");
             }
         }
 
@@ -55,7 +55,7 @@ namespace WiFiManager
             WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
             bool ok = WiFi.softAP(gApSsid.c_str(), gApPass.empty() ? nullptr : gApPass.c_str());
             gSsid = gApSsid;
-            Log::printf("WiFi AP '%s' %s, IP: %s\n", gApSsid.c_str(),
+            LOGI("WIFI", "WiFi AP '%s' %s, IP: %s", gApSsid.c_str(),
                           ok ? "up" : "FAILED", WiFi.softAPIP().toString().c_str());
             dns.start(DNS_PORT, "*", apIP); // captive portal
             // No mDNS in AP mode: multicast send fails (ENOMEM flood) and clients
@@ -82,24 +82,23 @@ namespace WiFiManager
             }
 
             WiFi.begin(ssid.c_str(), pass.c_str());
-            Log::printf("WiFi: joining '%s'", ssid.c_str());
+            LOGI("WIFI", "WiFi: joining '%s'", ssid.c_str());
             uint32_t start = millis();
             while (WiFi.status() != WL_CONNECTED && millis() - start < 12000)
             {
                 delay(250);
-                Serial.print(".");
+                LOGT("WIFI", "waiting for connect...");
             }
-            Log::printf("");
 
             if (WiFi.status() == WL_CONNECTED)
             {
                 gSta  = true;
                 gSsid = ssid.c_str();
-                Log::printf("WiFi STA connected, IP: %s\n", WiFi.localIP().toString().c_str());
+                LOGI("WIFI", "WiFi STA connected, IP: %s", WiFi.localIP().toString().c_str());
                 startMDNS();
                 return true;
             }
-            Log::printf("WiFi STA connect failed");
+            LOGE("WIFI", "WiFi STA connect failed");
             return false;
         }
     } // anonymous namespace
@@ -140,7 +139,7 @@ namespace WiFiManager
         size_t maxBlock = ESP.getMaxAllocHeap();
         if (maxBlock < SCAN_MIN_CONTIG_HEAP)
         {
-            Log::printf("[WiFi] scan skipped: heap too fragmented (maxblk %u, need %u) "
+            LOGW("WIFI", "scan skipped: heap too fragmented (maxblk %u, need %u) "
                         "— disconnect BLE to scan", (unsigned)maxBlock, (unsigned)SCAN_MIN_CONTIG_HEAP);
             return false;
         }
@@ -213,7 +212,7 @@ namespace WiFiManager
         prefs.putString("pass", pass.c_str());
         prefs.putString("staticip", staticIp.c_str());
         prefs.end();
-        Log::printf("WiFi creds saved (ssid='%s', staticip='%s')\n", ssid.c_str(), staticIp.c_str());
+        LOGI("WIFI", "WiFi creds saved (ssid='%s', staticip='%s')", ssid.c_str(), staticIp.c_str());
     }
 
     void ClearCredentials()
@@ -221,7 +220,7 @@ namespace WiFiManager
         prefs.begin("wifi", false);
         prefs.clear();
         prefs.end();
-        Log::printf("WiFi creds cleared");
+        LOGI("WIFI", "WiFi creds cleared");
     }
 
 } // namespace WiFiManager

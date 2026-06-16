@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "../utils/WireProto.h"
 #include "../display/AffaDisplayBase.h"
+#include "utils/Log.h"
 
 // main-side globals this handler drives.
 extern AffaDisplayBase* display;
@@ -38,7 +39,7 @@ void WireConsole::handle(const char* line, void* /*ctx*/)
             f.data.uint8[i] = (uint8_t)strtoul(b, nullptr, 16);
             f.length++;
         }
-        Serial.printf("@INJ(ws) <- id=%03X len=%d\n", (unsigned)f.id, f.length);
+        LOGD("WS", "@INJ(ws) <- id=%03X len=%d", (unsigned)f.id, f.length);
         gotFrame(&f);
     }
     else if (strcmp(tag, WireProto::TAG_EV) == 0)
@@ -50,7 +51,7 @@ void WireConsole::handle(const char* line, void* /*ctx*/)
         char *v = strtok_r(nullptr, " \t", &save);
         bool on = v && atoi(v) != 0;
         if (display) display->setEmuSelfAck(on);
-        Serial.printf("@EMU(ws) self-ACK = %d\n", on);
+        LOGD("WS", "@EMU(ws) self-ACK = %d", on);
     }
     else if (strcmp(tag, WireProto::TAG_KEY) == 0)
     {
@@ -60,6 +61,6 @@ void WireConsole::handle(const char* line, void* /*ctx*/)
         uint16_t code = (uint16_t)atoi(cS);   // decimal, matches /emulate/key
         bool hold = hS && atoi(hS) != 0;
         if (display) display->ProcessKey(static_cast<AffaCommon::AffaKey>(code), hold);
-        Serial.printf("@KEY(ws) <- code=%u hold=%d\n", code, hold);
+        LOGD("WS", "@KEY(ws) <- code=%u hold=%d", code, hold);
     }
 }

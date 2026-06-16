@@ -1,4 +1,5 @@
 #include "AuxModeTracker.h"
+#include "utils/Log.h"
 
 AuxModeTracker::AuxModeTracker()
   : auxActive(false), lastHeaderTime(0) {
@@ -21,42 +22,25 @@ void AuxModeTracker::onCanMessage(const CAN_FRAME& frame) {
       bool nowAux = isAux(header, frame.data.uint8);
       if (nowAux != auxActive) {
         auxActive = nowAux;
-        Serial.print("AUX mode changed: ");
-        Serial.println(auxActive ? "ENTERED" : "EXITED");
+        LOGI("AUX", "AUX mode changed: %s", auxActive ? "ENTERED" : "EXITED");
       }
     }
   }
 }
 
 bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
-    // Debug: print header bytes
-    Serial.print("isAux: Header bytes: ");
-    for (int i = 0; i < 8; i++) {
-      Serial.print("0x");
-      if(head[i] < 0x10) Serial.print("0");
-      Serial.print(head[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
-  
-    // Debug: print text frame bytes (as characters and as hex)
-    Serial.print("isAux: Text bytes: ");
-    for (int i = 0; i < 8; i++) {
-      Serial.print("'"); Serial.print((char)text[i]); Serial.print("' ");
-    }
-    Serial.println();
-    Serial.print("isAux: Text bytes in HEX: ");
-    for (int i = 0; i < 8; i++) {
-      Serial.print("0x");
-      if(text[i] < 0x10) Serial.print("0");
-      Serial.print(text[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
-  
+    // Debug: dump header + text frame bytes (hex + as characters)
+    LOGT("AUX", "isAux: Header bytes: %02X %02X %02X %02X %02X %02X %02X %02X",
+         head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7]);
+    LOGT("AUX", "isAux: Text bytes: '%c' '%c' '%c' '%c' '%c' '%c' '%c' '%c'",
+         (char)text[0], (char)text[1], (char)text[2], (char)text[3],
+         (char)text[4], (char)text[5], (char)text[6], (char)text[7]);
+    LOGT("AUX", "isAux: Text bytes in HEX: %02X %02X %02X %02X %02X %02X %02X %02X",
+         text[0], text[1], text[2], text[3], text[4], text[5], text[6], text[7]);
+
     // Check if the text clearly indicates AUX (just the 3 letters, trailing content varies by radio)
     if (text[1] == 'A' && text[2] == 'U' && text[3] == 'X') {
-        Serial.println("Definitely AUX");
+        LOGD("AUX", "Definitely AUX");
         return true;
     }
     // Check if the text clearly indicates RENAULT (radio/normal mode)
@@ -66,22 +50,22 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
     && text[6] == 'L'
     && text[7] == 'T')
     {
-        Serial.println("Definitely Radio (RENAULT)");
+        LOGD("AUX", "Definitely Radio (RENAULT)");
         return false;
     }
-    
+
     // Check for CD mode (TR [0-9] CD [0-9])
     if (text[1] == 'T' && text[2] == 'R' && text[3] == ' ' &&
-        (text[4] == ' ' || isDigit(text[4])) && 
+        (text[4] == ' ' || isDigit(text[4])) &&
         isDigit(text[5]) && text[6] == ' ' && text[7] == 'C') {
-        Serial.println("Definitely CD mode");
+        LOGD("AUX", "Definitely CD mode");
         return false;
     }
 
     // Check for radio mode (starting with '> ' and header byte 7 >= 0x59)
     if (text[1] == '>' && text[2] == ' ' && text[3] != ' ' &&
         head[6] >= 0x59) {
-        Serial.println("Definitely Radio mode (short)");
+        LOGD("AUX", "Definitely Radio mode (short)");
         return false;
     }
 
@@ -90,7 +74,7 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
         (text[3] == ' ' || isDigit(text[3])) &&
         isDigit(text[4]) && isDigit(text[5]) &&
         isDigit(text[6]) && text[7] == ' ') {
-        Serial.println("Definitely Radio M mode");
+        LOGD("AUX", "Definitely Radio M mode");
         return false;
     }
 
@@ -99,7 +83,7 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
         text[3] == ' ' && isDigit(text[4]) &&
         isDigit(text[5]) && isDigit(text[6]) &&
         text[7] == ' ') {
-        Serial.println("Definitely Radio L mode");
+        LOGD("AUX", "Definitely Radio L mode");
         return false;
     }
 
@@ -107,12 +91,12 @@ bool AuxModeTracker::isAux(const uint8_t* head, const uint8_t* text) {
     if (text[1] == ' ' && text[2] == ' ' && text[3] == ' ' &&
         isDigit(text[4]) && isDigit(text[5]) &&
         isDigit(text[6]) && isDigit(text[7]) && head[6] < 0x59) {
-        Serial.println("Definitely Radio Mode 1");
+        LOGD("AUX", "Definitely Radio Mode 1");
         return false;
     }
 
     // If no clear mode, retain the last known state
-    Serial.println("Undetermined mode - retaining last state.");
+    LOGD("AUX", "Undetermined mode - retaining last state.");
     return auxActive;
 }
 

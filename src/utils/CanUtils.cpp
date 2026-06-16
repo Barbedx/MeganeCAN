@@ -1,5 +1,6 @@
 #include "CanUtils.h"
 #include "../bus/HwCanBus.h"
+#include "Log.h"
 
 // The live-bus gate and the @TX serial mirror now live in HwCanBus (the single
 // CAN_FRAME<->Frame seam). These statics stay as thin delegators so existing
@@ -53,22 +54,15 @@ void CanUtils::sendMsgBuf(uint32_t id, const uint8_t *data, uint8_t len)
 
 void CanUtils::printCanFrame(const CAN_FRAME &frame, bool isOutgoing)
 {
-    const char *direction = isOutgoing ? "[TX]" : "[RX]";
-    Serial.print(direction);
-    Serial.print(" ID: 0x");
-    if (frame.id < 0x100)
-        Serial.print("0"); // pad if needed
-    Serial.print(frame.id, HEX);
-    Serial.print(" Len: ");
-    Serial.print(frame.length);
-    Serial.print(" Data: { ");
-    for (int i = 0; i < frame.length; i++)
-    {
-        if (frame.data.uint8[i] < 0x10)
-            Serial.print("0");
-        Serial.print(frame.data.uint8[i], HEX);
-        if (i < frame.length - 1)
-            Serial.print(" ");
-    }
-    Serial.println(" }");
+    // Per-frame human dump — the firehose. TRACE level, so it is silent unless someone
+    // sets /api/loglevel?n=4. Build the hex only when it will actually be emitted (the
+    // machine @TX/@RX wire frames are a separate, always-on channel in HwCanBus).
+    if (!Log::enabled(LogLevel::TRC))
+        return;
+    char hex[3 * 8 + 1];
+    int p = 0;
+    for (int i = 0; i < frame.length && i < 8; i++)
+        p += snprintf(hex + p, sizeof(hex) - p, "%s%02X", i ? " " : "", frame.data.uint8[i]);
+    LOGT("CAN", "%s %03X [%u] %s", isOutgoing ? "TX" : "RX",
+         (unsigned)frame.id, (unsigned)frame.length, hex);
 }

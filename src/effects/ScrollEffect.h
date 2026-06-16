@@ -1,5 +1,6 @@
-#pragma once 
-#include "display/IDisplay.h"    
+#pragma once
+#include "display/IDisplay.h"
+#include "utils/Log.h"
 
 enum class ScrollDirection {
     Left,
@@ -21,7 +22,7 @@ inline void ScrollEffect(
         for (size_t i = 0; i <= str.size() - windowSize; ++i) {
             display->setText(str.substr(i, windowSize).c_str());
             delay(delayMs);
-            Serial.println("scrolled part: ");
+            LOGT("SCROLL", "scrolled part: ");
 
         }
     } 

@@ -112,7 +112,7 @@ void HttpServerManager::begin()
     setupRoutes();
     if (_wire)
         _wire->attach(_server, "/canstream");   // WebSocket WireProto stream
-    Serial.println("HTTP Server: routes initialized.");
+    LOGI("HTTP", "HTTP Server: routes initialized.");
 }
 
 void HttpServerManager::setupRoutes()
@@ -406,8 +406,8 @@ void HttpServerManager::setupRoutes()
                 return request->reply(400, "text/plain", "Invalid scrollLock format. Use two-digit hex like '7E'");
             scrollLockIndicator = (uint8_t) strtoul(scrollLockStr.c_str(), nullptr, 16);
         }
-        Serial.printf("[showMenu] caption='%s' name1='%s' name2='%s' scrollLock=0x%02X\n",
-                      caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
+        LOGI("MENU", "showMenu caption='%s' name1='%s' name2='%s' scrollLock=0x%02X",
+             caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
         _commands.showMenu(caption.c_str(), name1.c_str(), name2.c_str(), scrollLockIndicator);
         String msg = "Menu sent with scrollLock=0x" + String(scrollLockIndicator, HEX);
         return request->reply(200, "text/plain", msg.c_str());
@@ -427,7 +427,7 @@ void HttpServerManager::setupRoutes()
     _server.on("/display/state", HTTP_POST, [this](PsychicRequest *request) {
         bool enable = request->hasParam("enable") &&
                       request->getParam("enable")->value() == "1";
-        Serial.printf("[HTTP /display/state] enable=%d\n", enable);
+        LOGI("HTTP", "/display/state enable=%d", enable);
         _display.setState(enable);
         return request->reply(200, "text/plain", enable ? "Display ON" : "Display OFF");
     });
@@ -555,6 +555,21 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", "confirm box sent");
     });
 
+    // Runtime log verbosity: /api/loglevel?n=0..4 (E/W/I/D/T). No n => just report.
+    // The only working knob for log level (serial INPUT is dead on the C3 USB-CDC).
+    _server.on("/api/loglevel", HTTP_GET, [](PsychicRequest *request) {
+        if (request->hasParam("n")) {
+            int n = request->getParam("n")->value().toInt();
+            if (n < 0) n = 0;
+            if (n > 4) n = 4;
+            Log::setLevel((LogLevel)n);
+        }
+        char msg[48];
+        snprintf(msg, sizeof(msg), "{\"level\":%d,\"name\":\"%s\"}",
+                 (int)Log::level(), Log::levelName(Log::level()));
+        return request->reply(200, "application/json", msg);
+    });
+
     _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {
         String j = "{\"media\":";
         j += buildMediaJson();
@@ -628,10 +643,10 @@ void HttpServerManager::setupRoutes()
         uint16_t keyCode = request->getParam("key")->value().toInt();
         bool isHold = request->getParam("hold")->value() == "1";
         AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(keyCode);
-        Serial.printf("[HTTP /emulate/key] keyCode=0x%04X isHold=%d -> calling OnKeyPressed\n", keyCode, isHold);
+        LOGI("HTTP", "/emulate/key keyCode=0x%04X isHold=%d -> calling OnKeyPressed", keyCode, isHold);
         _commands.OnKeyPressed(key, isHold);
         String msg = String("Emulated key 0x") + String(keyCode, HEX) + (isHold ? " (Hold)" : " (Press)");
-        Serial.printf("[HTTP /emulate/key] done, reply: %s\n", msg.c_str());
+        LOGI("HTTP", "/emulate/key done, reply: %s", msg.c_str());
         return request->reply(200, "text/plain", msg.c_str());
     });
 }

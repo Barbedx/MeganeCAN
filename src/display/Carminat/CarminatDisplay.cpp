@@ -6,6 +6,8 @@
 
 #include "AuxModeTracker.h"
 #include "utils/TextUtils.h"
+#include "utils/AffaDebug.h"   // AFFA3_PRINT -> LOGD("AFFA", ...)
+#include "utils/Log.h"
 #include "bluetooth.h"
 #include <NimBLEDevice.h>
 #include <vector>
@@ -17,18 +19,8 @@
 // _autoTime is defined in main.cpp; flipped by the Auto-time menu item onChange
 extern bool _autoTime;
 
-// Runtime-gated like utils/AffaDebug.h (this TU defines its own local AFFA3_PRINT).
-// Defined in SerialConsole.cpp; OFF by default so continuous renders don't flood the
-// USB-CDC serial link. Toggle over serial with `vb 1` / `vb 0`.
-extern volatile bool g_affaVerbose;
-inline void AFFA3_PRINT(const char *fmt, ...)
-{
-  if (!g_affaVerbose) return;
-  va_list args;
-  va_start(args, fmt);
-  vprintf(fmt, args);
-  va_end(args);
-}
+// AFFA3_PRINT routes through the leveled logger at DBG/"AFFA" (utils/AffaDebug.h, pulled
+// in via CarminatDisplay.h). Enable at runtime with /api/loglevel?n=3.
 
 int windowFirstItemIndex = 0;
 
@@ -62,8 +54,7 @@ namespace
 
     CanUtils::sendFrame(frame);
 
-    Serial.print("Emulated key press: 0x");
-    // Serial.println(key, HEX);
+    LOGD("KEY", "Emulated key press: 0x%X", raw);
   }
 
   void sendPasswordSequence()
@@ -136,7 +127,7 @@ void CarminatDisplay::initializeMenu()
         snprintf(buf, sizeof(buf), "%02d%02d",
                  item.fields[0].intValue,
                  item.fields[1].intValue);
-        Serial.printf("Time changed to: %s\n", buf);
+        LOGI("MENU", "Time changed to: %s", buf);
         setTime(buf);
     };
 
@@ -160,7 +151,7 @@ void CarminatDisplay::initializeMenu()
         p.begin("config", false);
         p.putString("bt_mode", val);
         p.end();
-        Serial.printf("[Menu] BT Mode saved: %s (reboot to apply)\n", val);
+        LOGI("MENU", "BT Mode saved: %s (reboot to apply)", val);
     };
 
     // "Auto-time" — only in AMS mode; runtime toggle (no reboot needed)
@@ -175,7 +166,7 @@ void CarminatDisplay::initializeMenu()
             p.begin("config", false);
             p.putBool("auto_time", _autoTime);
             p.end();
-            Serial.printf("[Menu] Auto-time: %s\n", _autoTime ? "On" : "Off");
+            LOGI("MENU", "Auto-time: %s", _autoTime ? "On" : "Off");
         };
     }
 
@@ -285,12 +276,8 @@ VoltageInfo getVoltage()
   float voltageAtPin = (adcValue * vRef) / adcResolution;
   float Vbatt = voltageAtPin * ((r1 + r2) / r2);
 
-  Serial.print("Voltage: ");
-  Serial.print(Vbatt, 2);
-  Serial.print(" V | Adc: ");
-  Serial.print(adcValue);
-  Serial.print(" | Scale: ");
-  Serial.println((vRef / adcResolution) * ((r1 + r2) / r2), 6);
+  LOGD("VOLT", "Voltage: %.2f V | Adc: %.0f | Scale: %.6f",
+       Vbatt, adcValue, (vRef / adcResolution) * ((r1 + r2) / r2));
 
   return {Vbatt, adcValue};
 }
@@ -449,9 +436,8 @@ void CarminatDisplay::recv(const Frame &fr)
     }
 
     // Debug log
-    Serial.printf(
-        "[KEY DEBUG] raw=0x%04X masked=0x%04X isHold=%d\n",
-        rawKey, maskedKey, isHold);
+    LOGD("KEY", "raw=0x%04X masked=0x%04X isHold=%d",
+         rawKey, maskedKey, isHold);
     // Cast to enum after masking
     AffaCommon::AffaKey key = static_cast<AffaCommon::AffaKey>(maskedKey);
 
@@ -525,7 +511,7 @@ AffaCommon::AffaError CarminatDisplay::setText(const char *text, uint8_t digit)
   // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
   // sc 151 2 54 3 0 0 0 0 0  to close full window
 
-  Serial.println("[setText] --- Sending Text to Display AFFA3NAV ---");
+  LOGD("TEXT", "Sending Text to Display AFFA3NAV");
   uint8_t mode = 0x77;       // 74- full window, 77-not full. if sended not full when not applid - it fill freze at main screen.
                              // sc 151 2 54 3 0 0 0 0 0  to close full window
   uint8_t rdsIcon = 0x55;    // strtol(rdsIconStr,    nullptr, 16);
@@ -582,7 +568,7 @@ void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 void CarminatDisplay::setAuxMode(bool on)
 {
     _aux.SetAuxMode(on);
-    Serial.printf("[AUX] setAuxMode(%s)\n", on ? "true" : "false");
+    LOGI("AUX", "setAuxMode(%s)", on ? "true" : "false");
 }
 
 void CarminatDisplay::tickMedia()
@@ -603,20 +589,14 @@ void showInfoMenu(
 // if you send 59-7f it shows text with period dot at the end, starting from second symbol. for example sometext=> will apear like omete.x
 //  its also shows somechannel symbol based on asccii code, for example to show 9 you need send 39 or 79, for show # - 23 or 63
 {
-  Serial.println("[showInfoMenu] --- Sending Info Menu ---");
+  LOGD("INFO", "Sending Info Menu");
 
   auto sendMenuItem = [&](uint8_t offset, const char *text, const char *label)
   {
     char padded[8] = {' '};
     strncpy(padded, text, 8);
 
-    Serial.print("[MenuItem] ");
-    Serial.print(label);
-    Serial.print(" | Offset: 0x");
-    Serial.print(offset, HEX);
-    Serial.print(" | Text: \"");
-    Serial.print(padded);
-    Serial.println("\"");
+    LOGD("INFO", "%s | Offset: 0x%X | Text: \"%s\"", label, offset, padded);
 
     CanUtils::sendCan(0x151, 0x10, 0x0B, 0x76, infoPrefix, offset, padded[0], padded[1], padded[2]);
     delay(5);
@@ -628,7 +608,7 @@ void showInfoMenu(
   sendMenuItem(offset2, item2, "Item2");
   sendMenuItem(offset3, item3, "Item3");
 
-  Serial.println("[showInfoMenu] --- Done ---");
+  LOGD("INFO", "Done");
 }
 
 AffaCommon::AffaError CarminatDisplay::setState(bool enabled)
@@ -657,8 +637,7 @@ AffaCommon::AffaError CarminatDisplay::setTime(const char *clock)
   answer.data.uint8[7] = 0x00;
 
   affa3_send(answer.id, answer.data.uint8, answer.length);
-  Serial.print("Sent time set frame with year: ");
-  Serial.println(clock);
+  LOGI("TIME", "Sent time set frame with year: %s", clock);
   return AffaCommon::AffaError::NoError;
 }
 AffaCommon::AffaError CarminatDisplay::highlightItem(uint8_t id)
@@ -678,8 +657,7 @@ AffaCommon::AffaError CarminatDisplay::highlightItem(uint8_t id)
   frame.data.uint8[7] = 0x00;
 
   CanUtils::sendFrame(frame);
-  Serial.print(">> Highlight item: ");
-  Serial.println(id);
+  LOGD("MENU", "Highlight item: %d", id);
   return AffaCommon::AffaError::NoError;
 }
 
@@ -744,7 +722,7 @@ AffaCommon::AffaError CarminatDisplay::showMenu(const char *header, const char *
   // Final length check
   int totalLen = idx;
 
-  Serial.printf("[CAN] do_send totalLen: %d  \n", totalLen);
+  LOGT("CAN", "do_send totalLen: %d", totalLen);
   return affa3_send(0x151, payload, totalLen);
 }
 
@@ -804,7 +782,7 @@ AffaCommon::AffaError CarminatDisplay::showConfirmBoxWithOffsets(const char *cap
   memcpy(buf + n, content, sizeof(content));
   n += sizeof(content);
 
-  Serial.println("[showConfirmBoxWithOffsets] sending confirm box via affa3_send");
+  LOGD("INFO", "sending confirm box via affa3_send");
   return affa3_send(0x151, buf, n);
 }
 
@@ -872,7 +850,7 @@ AffaCommon::AffaError CarminatDisplay::showFullscreenText(const char *line1, con
   if (_2.length()) putLine(_2);
   if (_3.length()) putLine(_3);
 
-  Serial.printf("[showFullscreenText] '%s' / '%s' / '%s'\n", _1.c_str(), _2.c_str(), _3.c_str());
+  LOGD("INFO", "showFullscreenText '%s' / '%s' / '%s'", _1.c_str(), _2.c_str(), _3.c_str());
   return affa3_send(0x151, payload, sizeof(payload));
 }
 

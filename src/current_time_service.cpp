@@ -4,7 +4,8 @@
 #include <NimBLEDevice.h>              // defines BLEClient → NimBLEClient via #definesv
 #include <time.h>
 
-#include <esp32-hal-log.h> 
+#include <esp32-hal-log.h>
+#include "utils/Log.h"
 
 // Current Time Service
 // Documentation: https://www.bluetooth.com/specifications/specs/current-time-service-1-1/
@@ -53,7 +54,7 @@ namespace CurrentTimeService
             CurrentTime time;
             if( length < 9 )
             {
-                Serial.println( "time data length too short" );
+                LOGW( "CTS", "time data length too short" );
                 return time;
             }
             time.mYear = data[ 0 ] | ( data[ 1 ] << 8 );
@@ -70,7 +71,7 @@ namespace CurrentTimeService
 
     void CurrentTime::Dump() const
     {
-        Serial.printf("%hhu/%hhu/%hu %hhu:%hhu:%hhu.%f", mMonth, mDay, mYear, mHours, mMinutes, mSeconds, mSecondsFraction);
+        LOGD("CTS", "%hhu/%hhu/%hu %hhu:%hhu:%hhu.%f", mMonth, mDay, mYear, mHours, mMinutes, mSeconds, mSecondsFraction);
     }
 
     time_t CurrentTime::ToTimeT() const
@@ -107,26 +108,26 @@ namespace CurrentTimeService
     {
         assert( client != nullptr );
 
-        Serial.println( "Starting Time Service" );
-        
+        LOGI( "CTS", "Starting Time Service" );
+
 
         if( !client->isConnected() )
         {
-            Serial.println( "client not connected" );
+            LOGE( "CTS", "client not connected" );
             return false;
         }
 
         auto time_service = client->getService( CURRENT_TIME_SERVICE_UUID );
         if( !time_service )
         {
-            Serial.println( "time service not found" );
+            LOGE( "CTS", "time service not found" );
             return false;
         }
 
         auto current_time_characteristic = time_service->getCharacteristic( CURRENT_TIME_UUID );
         if( !current_time_characteristic )
         {
-            Serial.println( "current time characteristic not found" );
+            LOGE( "CTS", "current time characteristic not found" );
             return false;
         }
 
@@ -135,7 +136,7 @@ namespace CurrentTimeService
         current_time_characteristic->subscribe(true,
             []( BLERemoteCharacteristic* characteristic, uint8_t* data, size_t length, bool is_notify ) {
                 // TODO: notify the application, if interested.
-                Serial.println( "Current time has been edited." );
+                LOGI( "CTS", "Current time has been edited." );
                 auto time = ParseCurrentTime( data, length );
                 time.Dump();
             } );
@@ -162,7 +163,7 @@ namespace CurrentTimeService
         }
 
         gCurrentTimeCharacteristic = current_time_characteristic;
-        Serial.println( "Current Time Service started" );
+        LOGI( "CTS", "Current Time Service started" );
 
         return true;
     }

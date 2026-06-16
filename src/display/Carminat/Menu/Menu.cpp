@@ -1,6 +1,7 @@
 #include "Menu.h"
 #include <cstdio>
 #include <algorithm> // for std::clamp
+#include "utils/Log.h"
 
 bool Menu::updateFieldExternally(const String &label, size_t fieldIndex, int newValue)
 {
@@ -56,7 +57,7 @@ void Menu::show()
 {
     if (items.empty())
     {
-        Serial.println("Menu is empty!");
+        LOGW("MENU", "Menu is empty!");
         return;
     }
 
@@ -82,29 +83,21 @@ void Menu::printMenuToSerial(String header, int item1, int item2, uint8_t scroll
 {
     const auto &menu = items;
     const int total = menu.size();
+    (void)total;
 
-    Serial.println("=== Menu ===");
+    LOGT("MENU", "=== Menu ===");
 
     // Scroll indicators
     if (scrollLockIndicator == 0x07 || scrollLockIndicator == 0x0C)
-        Serial.println("⬆️");
+        LOGT("MENU", "⬆️");
 
-    if (selectedRow == 0)
-        Serial.print("* ");
-    else
-        Serial.print("  ");
-    Serial.println(getItemString(item1));
-
-    if (selectedRow == 1)
-        Serial.print("* ");
-    else
-        Serial.print("  ");
-    Serial.println(getItemString(item2));
+    LOGT("MENU", "%s%s", selectedRow == 0 ? "* " : "  ", getItemString(item1).c_str());
+    LOGT("MENU", "%s%s", selectedRow == 1 ? "* " : "  ", getItemString(item2).c_str());
 
     if (scrollLockIndicator == 0x0B || scrollLockIndicator == 0x0C)
-        Serial.println("⬇️");
+        LOGT("MENU", "⬇️");
 
-    Serial.println("----------------------");
+    LOGT("MENU", "----------------------");
 }
 
 String Menu::getItemString(size_t index) const
@@ -172,23 +165,23 @@ uint8_t Menu::getScrollIndicator()
 
 void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
 {
-    Serial.printf("[Menu::handleKey] key=0x%04X isHold=%d active=%s\n",
-                  static_cast<uint16_t>(key), isHold, active ? "YES" : "NO");
+    LOGD("MENU", "handleKey key=0x%04X isHold=%d active=%s",
+         static_cast<uint16_t>(key), isHold, active ? "YES" : "NO");
     if (!active)
     {
         if (isHold && key == AffaCommon::AffaKey::Load)
         {
-            Serial.println("[Menu::handleKey] -> hold+Load: activating menu");
+            LOGI("MENU", "hold+Load: activating menu");
             active = true;
             show();
         } else {
-            Serial.println("[Menu::handleKey] -> menu not active, key ignored by menu");
+            LOGD("MENU", "menu not active, key ignored by menu");
         }
         return;
     }
 
-    Serial.printf("[Menu::handleKey] menu active, handling key editing=%s selectedIndex=%d\n",
-                  editing ? "YES" : "NO", selectedIndex);
+    LOGD("MENU", "menu active, handling key editing=%s selectedIndex=%d",
+         editing ? "YES" : "NO", selectedIndex);
     switch (key)
     {
 
@@ -221,7 +214,7 @@ void Menu::handleKey(AffaCommon::AffaKey key, bool isHold)
         {
             active = false; // exit menu
             closeMenu();    // call close callback
-            Serial.println("Menu closed");
+            LOGI("MENU", "Menu closed");
             // closeMenu(); TODO: Implement closeMenu Maybe with just set aux text?
         }
         else
@@ -279,7 +272,7 @@ void Menu::editFieldValue(int delta, bool isHold)
     else if (field.type == FieldType::List)
     {
         int newIndex = field.listIndex + delta;
-        Serial.println("List index: " + String(newIndex) + " of " + String(field.list.size()));
+        LOGD("MENU", "List index: %d of %u", newIndex, (unsigned)field.list.size());
         if (newIndex < 0)
             newIndex = 0;
         if (newIndex >= (int)field.list.size() - 1)
@@ -288,7 +281,7 @@ void Menu::editFieldValue(int delta, bool isHold)
         if (newIndex == field.listIndex)
             return; // no change
         field.listIndex = newIndex;
-        Serial.println("New list index: " + String(field.listIndex));
+        LOGD("MENU", "New list index: %d", field.listIndex);
     }
 
     if (field.onChange) // refresh like that????!!!!!!
@@ -298,7 +291,7 @@ void Menu::editFieldValue(int delta, bool isHold)
     // Item-level callback
     if (items[selectedIndex].onChange)
     {
-        Serial.println("Cal,ling callback Item changed: " + items[selectedIndex].label);
+        LOGD("MENU", "Calling callback Item changed: %s", items[selectedIndex].label.c_str());
         items[selectedIndex].onChange(items[selectedIndex]);
     }
 

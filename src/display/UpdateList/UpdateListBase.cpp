@@ -1,6 +1,7 @@
 #include "UpdateListBase.h"
 #include <esp32_can.h>          // CAN_FRAME (recv shim + sync frames)
 #include "utils/CanUtils.h"     // sends (no longer transitive via IDisplay)
+#include "utils/Log.h"
 #include <string.h>
 
 inline void AFFA2_PRINT(const char *fmt, ...)
@@ -73,13 +74,13 @@ void UpdateListBase::recv(const Frame &fr)
 
     if (packet->id == UpdateList::PACKET_ID_SYNC_REPLY)
     {
-        Serial.printf("[UL recv] sync 0x%02X 0x%02X | _skipFuncReg=%s sync_status=0x%02X\n",
-                      packet->data.uint8[0], packet->data.uint8[1],
-                      _skipFuncReg ? "TRUE" : "FALSE",
-                      (uint8_t)_sync_status);
+        LOGT("UL", "sync 0x%02X 0x%02X | _skipFuncReg=%s sync_status=0x%02X",
+             packet->data.uint8[0], packet->data.uint8[1],
+             _skipFuncReg ? "TRUE" : "FALSE",
+             (uint8_t)_sync_status);
         if ((packet->data.uint8[0] == 0x61) && (packet->data.uint8[1] == 0x11))
         {
-            Serial.println("[UL recv] -> sync request, sending registration");
+            LOGI("UL", "-> sync request, sending registration");
             CanUtils::sendCan(UpdateList::PACKET_ID_SYNC, 0x70, 0x1A, 0x11, 0x00, 0x00, 0x00, 0x00, 0x01);
             _sync_status &= ~SyncStatus::FAILED;
             if (packet->data.uint8[2] == 0x01)
@@ -87,18 +88,18 @@ void UpdateListBase::recv(const Frame &fr)
         }
         else if (packet->data.uint8[0] == 0x69)
         {
-            Serial.println("[UL recv] -> peer alive 0x69");
+            LOGT("UL", "-> peer alive 0x69");
             _sync_status |= SyncStatus::PEER_ALIVE;
             tick();
         }
         else
         {
-            Serial.printf("[UL recv] -> unknown sync packet, ignoring\n");
+            LOGW("UL", "-> unknown sync packet, ignoring");
         }
         return;
     }
 
-    Serial.printf("[UL recv] non-sync ID=0x%03X data[0]=0x%02X\n", packet->id, packet->data.uint8[0]);
+    LOGT("UL", "non-sync ID=0x%03X data[0]=0x%02X", packet->id, packet->data.uint8[0]);
 
     if (packet->id & UpdateList::PACKET_REPLY_FLAG)
     {
@@ -140,7 +141,7 @@ void UpdateListBase::recv(const Frame &fr)
                      packet->data.uint8[6] == 'U' &&
                      packet->data.uint8[7] == 'X');
         }
-        Serial.printf("[UL recv] radio SETTEXT, isAux=%d\n", isAux);
+        LOGD("UL", "radio SETTEXT, isAux=%d", isAux);
         onRadioText(isAux);
         return; // do NOT auto-reply — this frame was addressed to the display, not to us
     }
@@ -239,7 +240,7 @@ void UpdateListBase::ProcessKey(AffaCommon::AffaKey key, bool isHold)
     {
         _amsKeysEnabled = !_amsKeysEnabled;
         const char *msg = _amsKeysEnabled ? "AMS  ON " : "AMS OFF ";
-        Serial.printf("[UL] AMS keys %s\n", _amsKeysEnabled ? "enabled" : "disabled");
+        LOGI("UL", "AMS keys %s", _amsKeysEnabled ? "enabled" : "disabled");
         // Send 3x so the message stays visible past the next tickMedia scroll step.
         for (int i = 0; i < 3; i++)
         {

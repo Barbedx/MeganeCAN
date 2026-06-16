@@ -6,7 +6,7 @@
 #include "../display/AffaDisplayBase.h"
 #include "../display/AffaCommonConstants.h"
 #include "../utils/CanUtils.h"
-#include "../utils/AffaDebug.h"  // extern g_affaVerbose (the `vb` toggle target)
+#include "../utils/Log.h"        // Log::setLevel (the `vb` alias target)
 #include "../bluetooth.h"
 #include "../apple_media_service.h"
 #include "../effects/ScrollEffect.h"
@@ -225,13 +225,15 @@ void cmd_txt(SerialCommands *sender)
     display->setText(t.c_str(), digit);
 }
 
-// "vb <0|1>" — toggle the verbose AFFA3 ISO-TP narration. OFF keeps serial stable
-// during continuous renders; ON when you need the per-frame send/ACK trace.
+// "vb <0|1>" — back-compat alias: maps to the leveled logger. vb 1 => DBG (shows the
+// AFFA3 ISO-TP narration), vb 0 => INF. (Prefer /api/loglevel?n=0..4; serial INPUT is
+// dead on the C3 USB-CDC, so this only fires on boards whose serial RX works.)
 void cmd_verbose(SerialCommands *sender)
 {
     const char *v = sender->Next();
-    g_affaVerbose = v && atoi(v) != 0;
-    Serial.printf("[serial] AFFA3 verbose = %d\n", (int)g_affaVerbose);
+    bool on = v && atoi(v) != 0;
+    Log::setLevel(on ? LogLevel::DBG : LogLevel::INF);
+    Serial.printf("[serial] log level = %s\n", Log::levelName(Log::level()));
 }
 
 // "tx <idhex> <b0> [b1..b7]" — transmit ONE raw CAN frame onto the bus (DLC = byte

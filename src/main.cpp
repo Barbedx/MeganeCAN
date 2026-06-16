@@ -19,6 +19,7 @@
 #include "wifi_manager.h"
 #include "utils/CanLog.h"
 #include "utils/CanUtils.h"
+#include "utils/Log.h"
 #include "utils/AppConfig.h"
 #include "bus/HwCanBus.h"
 #include "bus/SerialMirrorTap.h"
@@ -96,8 +97,8 @@ static void radioRecv(const Frame& f, void*) {
 void setFullEmu(bool on) {
     g_transport.setRoute(on ? DisplayTransport::VIRTUAL_ONLY
                             : DisplayTransport::CAN_AND_VIRTUAL);
-    Serial.printf("[route] %s (via fullemu=%d)\n",
-                  DisplayTransport::name(g_transport.route()), on);
+    LOGI("ROUTE", "%s (via fullemu=%d)",
+         DisplayTransport::name(g_transport.route()), on);
 }
 
 // /api/route?mode=can|virtual|both — the one display-routing knob. Returns the name.
@@ -107,7 +108,7 @@ const char* setDisplayRoute(const String& mode) {
     else if (mode == "virtual") r = DisplayTransport::VIRTUAL_ONLY;
     else if (mode == "both")    r = DisplayTransport::CAN_AND_VIRTUAL;
     g_transport.setRoute(r);
-    Serial.printf("[route] %s\n", DisplayTransport::name(r));
+    LOGI("ROUTE", "%s", DisplayTransport::name(r));
     return DisplayTransport::name(r);
 }
 
@@ -176,10 +177,10 @@ void restoreDisplay(IDisplay &display, Preferences &prefs)
     if (!autoRestore)
     {
         prefs.end();
-        Serial.println("Auto restore disabled by setting.");
+        LOGI("SYS", "Auto restore disabled by setting.");
         return;
     }
-    Serial.println("Auto restore getted and is true.");
+    LOGI("SYS", "Auto restore getted and is true.");
     String savedText = prefs.getString("lastText", "");
     String welcomeText = prefs.getString("welcomeText", "");
     prefs.end();
@@ -220,30 +221,30 @@ void initDisplay()
     _elmEnabled = AppConfig::elmEnabled;
     bool skipFuncReg = AppConfig::skipFuncReg;
 
-    Serial.println("[Display Init] Display type: " + displayType);
-    Serial.println("[Display Init] BT mode: " + btMode);
-    Serial.println("[Display Init] Auto-time: " + String(_autoTime ? "on" : "off"));
-    Serial.println("[Display Init] ELM enabled: " + String(_elmEnabled ? "yes" : "no"));
-    Serial.printf("[Display Init] skip_funcreg raw value from NVS: %s\n", skipFuncReg ? "TRUE" : "FALSE (defaulted)");
+    LOGI("DISP", "Display type: %s", displayType.c_str());
+    LOGI("DISP", "BT mode: %s", btMode.c_str());
+    LOGI("DISP", "Auto-time: %s", _autoTime ? "on" : "off");
+    LOGI("DISP", "ELM enabled: %s", _elmEnabled ? "yes" : "no");
+    LOGI("DISP", "skip_funcreg raw value from NVS: %s", skipFuncReg ? "TRUE" : "FALSE (defaulted)");
 
     if (displayType == "carminat")
     {
-        Serial.println("[Display Init] Instantiating CarminatDisplay");
+        LOGI("DISP", "Instantiating CarminatDisplay");
         display = new CarminatDisplay();
     }
     else if (displayType == "updatelist")
     {
-        Serial.println("[Display Init] Instantiating UpdateListDisplay (8-segment)");
+        LOGI("DISP", "Instantiating UpdateListDisplay (8-segment)");
         display = new UpdateListDisplay();
     }
     else if (displayType == "updatelist_menu")
     {
-        Serial.println("[Display Init] Instantiating UpdateListMenuDisplay (full LED)");
+        LOGI("DISP", "Instantiating UpdateListMenuDisplay (full LED)");
         display = new UpdateListMenuDisplay();
     }
     else
     {
-        Serial.println("[Display Init] Instantiating UpdateListBase (fallback)");
+        LOGI("DISP", "Instantiating UpdateListBase (fallback)");
         display = new UpdateListBase();
     }
 
@@ -252,7 +253,7 @@ void initDisplay()
     display->setClock(defaultClock());      // ArduinoClock (millis/delay) for the ACK wait
 
     display->setSkipFuncReg(skipFuncReg);
-    Serial.println("[Display Init] Skip func-reg: " + String(skipFuncReg ? "yes" : "no"));
+    LOGI("DISP", "Skip func-reg: %s", skipFuncReg ? "yes" : "no");
 
     // NOTE: display->begin() is called in setup() AFTER BT mode configuration
     elmManager = new MyELMManager(*display);
@@ -262,7 +263,7 @@ void initDisplay()
     elmManager->loadHeaderConfig(preferences); // load per-header enable/disable from NVS
     if (display->isCarminat())
         static_cast<CarminatDisplay*>(display)->attachElm(elmManager);
-    Serial.println("[Display Init] HttpServerManager initialized");
+    LOGI("DISP", "HttpServerManager initialized");
 }
 bool HandleKey(AffaCommon::AffaKey key, bool isHold)
 {
@@ -334,15 +335,15 @@ void setup()
             AppleMediaService::NotificationLevel::All);
         xTaskCreate([](void*) {
             Bluetooth::Begin("MCD1");
-            Serial.println("[BT] AMS mode started");
+            LOGI("BT", "AMS mode started");
             vTaskDelete(nullptr);
         }, "bt_begin", 16384, nullptr, 1, nullptr);
-        Serial.println("[BT] AMS init launched in background");
+        LOGI("BT", "AMS init launched in background");
     }
     else
     {
         bleKeyboard.begin("MeganeCAN");
-        Serial.println("[BT] Keyboard mode started");
+        LOGI("BT", "Keyboard mode started");
     }
 
     // Networking: join the saved home WiFi (STA + mDNS "meganecan.local" + optional
@@ -373,10 +374,10 @@ void setup()
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);
     CAN0.watchFor();
-    Serial.println(" CAN...............INIT");
+    LOGI("CAN", "CAN...............INIT");
 
-    Serial.println(" all............inited");
-    Serial.println("RESTAPI........done");
+    LOGI("SYS", "all............inited");
+    LOGI("SYS", "RESTAPI........done");
 
     delay(2000);
     restoreDisplay(*display, preferences);
@@ -414,7 +415,7 @@ void loop()
                 snprintf(buf, sizeof(buf), "%02d%02d", t.tm_hour, t.tm_min);
                 display->setTime(buf);
                 _timeSyncDone = true;
-                Serial.printf("[BT] Auto-time synced: %s\n", buf);
+                LOGI("BT", "Auto-time synced: %s", buf);
             }
         }
         if (!Bluetooth::IsConnected())
@@ -431,15 +432,15 @@ void loop()
     {
         lastHeapLog = millis();
         uint32_t maxblk = ESP.getMaxAllocHeap();
-        Serial.printf("[heap] free=%u min=%u maxblk=%u\n",
-                      (unsigned)ESP.getFreeHeap(),
-                      (unsigned)ESP.getMinFreeHeap(),
-                      (unsigned)maxblk);
+        LOGI("HEAP", "free=%u min=%u maxblk=%u",
+             (unsigned)ESP.getFreeHeap(),
+             (unsigned)ESP.getMinFreeHeap(),
+             (unsigned)maxblk);
         // Largest contiguous block is what actually gates BLE/WiFi/HTTP allocations;
         // below this it starts to wedge. Surface it loudly so the cause is visible.
         if (maxblk < 20000)
-            Serial.printf("[heap] LOW MEMORY: largest block %u < 20000 — risk of alloc failures\n",
-                          (unsigned)maxblk);
+            LOGW("HEAP", "LOW MEMORY: largest block %u < 20000 — risk of alloc failures",
+                 (unsigned)maxblk);
     }
 
     display->processEvents();

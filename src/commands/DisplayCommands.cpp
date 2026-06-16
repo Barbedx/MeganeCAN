@@ -1,7 +1,8 @@
 #include "DisplayCommands.h"
 // Update the path if "ScrollEffect.h" is in a subfolder, e.g.:
-#include "../effects/ScrollEffect.h" 
+#include "../effects/ScrollEffect.h"
 #include <display/Carminat/CarminatDisplay.h>
+#include "utils/Log.h"
 
 namespace DisplayCommands
 {
@@ -68,12 +69,12 @@ namespace DisplayCommands
 
     void Manager::OnKeyPressed(AffaCommon::AffaKey key, bool isHold)
     {
-        Serial.printf("[DisplayCommands::OnKeyPressed] key=0x%04X isHold=%d\n",
-                      static_cast<uint16_t>(key), isHold);
+        LOGD("DISP", "OnKeyPressed key=0x%04X isHold=%d",
+             static_cast<uint16_t>(key), isHold);
         _display.ProcessKey(key, isHold);
-        Serial.println("[DisplayCommands::OnKeyPressed] ProcessKey done, calling processEvents");
+        LOGD("DISP", "OnKeyPressed ProcessKey done, calling processEvents");
         _display.processEvents();
-        Serial.println("[DisplayCommands::OnKeyPressed] processEvents done");
+        LOGD("DISP", "OnKeyPressed processEvents done");
     }
 
 }

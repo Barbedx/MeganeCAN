@@ -1,26 +1,71 @@
 #include "Log.h"
 
 #include <stdarg.h>
+#include <string.h>
+#include "WireProto.h"
 
-// The RAM ring log was removed: under load it wrapped within seconds (so it held
-// almost no useful history) yet cost ~16KB of static RAM plus a same-size
-// transient std::string on every /api/log read, which fragmented a memory-tight
-// ESP32 and helped wedge the web server. Live debugging now uses the serial
-// console / the serial proxy (tools/serial_proxy.py). Log::printf still mirrors
-// to Serial so all call sites keep working unchanged.
+// Leveled logger. Formats "<L> [cat] msg" into a fixed stack buffer and hands it to
+// WireProto, which fans it out to every link (UART + WebSocket). No String, no heap.
 namespace Log
 {
+    namespace
+    {
+        volatile LogLevel g_level = LogLevel::INF;
+        const char        LVL_CH[5]   = {'E', 'W', 'I', 'D', 'T'};
+        const char *const LVL_NAME[5] = {"ERR", "WRN", "INF", "DBG", "TRC"};
+
+        // Strip trailing CR/LF so each WireProto record is exactly one line (many legacy
+        // call sites pass a trailing "\n"; SerialWireLink already appends one via println).
+        void rstripEol(char *s)
+        {
+            size_t n = strlen(s);
+            while (n && (s[n - 1] == '\n' || s[n - 1] == '\r'))
+                s[--n] = 0;
+        }
+    } // namespace
+
+    void setLevel(LogLevel lvl) { g_level = lvl; }
+    LogLevel level() { return g_level; }
+    bool enabled(LogLevel lvl) { return (uint8_t)lvl <= (uint8_t)g_level; }
+
+    const char *levelName(LogLevel lvl)
+    {
+        uint8_t i = (uint8_t)lvl;
+        return i < 5 ? LVL_NAME[i] : "?";
+    }
+
+    void emit(LogLevel lvl, const char *cat, const char *fmt, ...)
+    {
+        if ((uint8_t)lvl > (uint8_t)g_level)
+            return;
+        char line[200];
+        int p = snprintf(line, sizeof(line), "%c [%s] ", LVL_CH[(uint8_t)lvl], cat ? cat : "");
+        if (p < 0)
+            return;
+        if (p > (int)sizeof(line) - 1)
+            p = sizeof(line) - 1;
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(line + p, sizeof(line) - p, fmt, ap);
+        va_end(ap);
+        rstripEol(line);
+        WireProto::emitLine(line);
+    }
+
+    // --- back-compat shims --------------------------------------------------------
     void printf(const char *fmt, ...)
     {
-        char line[256];
+        if ((uint8_t)LogLevel::INF > (uint8_t)g_level)
+            return;
+        char line[200];
         va_list ap;
         va_start(ap, fmt);
         vsnprintf(line, sizeof(line), fmt, ap);
         va_end(ap);
-        Serial.printf("[%lu] %s\n", (unsigned long)millis(), line);
+        rstripEol(line);
+        WireProto::emitLine(line);
     }
 
-    String dump() { return String("RAM log disabled — use the serial console / proxy."); }
-
+    String dump() { return String("RAM log disabled — use pio monitor / /wire."); }
     void clear() {}
 }

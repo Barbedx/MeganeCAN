@@ -2,6 +2,7 @@
 #include "apple_media_service.h"
 #include <NimBLEDevice.h>
 #include <esp32-hal-log.h>
+#include "utils/Log.h"
 
 // Apple Media Service Documentation:
 // https://developer.apple.com/library/archive/documentation/CoreBluetooth/Reference/AppleMediaService_Reference/Specification/Specification.html#//apple_ref/doc/uid/TP40014716-CH1-SW7
@@ -56,14 +57,14 @@ namespace AppleMediaService
 
     if (!client->isConnected())
     {
-      Serial.println("client not connected");
+      LOGE("AMS", "client not connected");
       return false;
     }
 
     auto music_service = client->getService(APPLE_SERVICE_UUID);
     if (!music_service)
     {
-      Serial.println("Apple music service not found");
+      LOGE("AMS", "Apple music service not found");
       return false;
     }
 
@@ -71,7 +72,7 @@ namespace AppleMediaService
     remote_command_characteristic = music_service->getCharacteristic(APPLE_REMOTE_COMMAND_UUID);
     if (!remote_command_characteristic)
     {
-      Serial.println("Apple remote command characteristic not found");
+      LOGE("AMS", "Apple remote command characteristic not found");
       return false;
     }
 
@@ -80,14 +81,14 @@ namespace AppleMediaService
     auto entity_attribute_characteristic = music_service->getCharacteristic(APPLE_REMOTE_COMMAND_UUID);
     if (!entity_attribute_characteristic)
     {
-      Serial.println("Apple entity attribute characteristic not found");
+      LOGE("AMS", "Apple entity attribute characteristic not found");
       return false;
     }
 
     auto entity_update = music_service->getCharacteristic(APPLE_ENTITY_UPDATE_UUID);
     if (!entity_update)
     {
-      Serial.println("Apple entity update characteristic not found");
+      LOGE("AMS", "Apple entity update characteristic not found");
       return false;
     }
 
@@ -96,7 +97,7 @@ namespace AppleMediaService
                                bool notify = gNotificationLevel == NotificationLevel::All;
                                if (length < 3)
                                {
-                                 Serial.println("entity_update notification less than 3 bytes, ignoring.");
+                                 LOGW("AMS", "entity_update notification less than 3 bytes, ignoring.");
                                  return;
                                }
                                uint8_t entity_id = data[0];
@@ -104,7 +105,7 @@ namespace AppleMediaService
                                uint8_t flags = data[2];
                                std::string value(reinterpret_cast<char *>(data) + 3, length - 3);
 
-                               Serial.printf("entity update. id: %i, attribute: %i, flags: %i, value: %s\n", entity_id, attribute_id, flags, value.c_str());
+                               LOGD("AMS", "entity update. id: %i, attribute: %i, flags: %i, value: %s", entity_id, attribute_id, flags, value.c_str());
                                switch (entity_id)
                                {
                                case EntityIDPlayer:
@@ -204,23 +205,24 @@ namespace AppleMediaService
     if (remote_command_characteristic != nullptr)
     {
       bool ok = remote_command_characteristic->writeValue(&commandID, sizeof(commandID), true);
-      Serial.printf("[AMS] remote cmd id=%u write -> %s\n", commandID, ok ? "ok" : "FAIL");
+      LOGI("AMS", "remote cmd id=%u write -> %s", commandID, ok ? "ok" : "FAIL");
       return ok;
     }
     else
     {
-      Serial.println("[AMS] remote command characteristic is not initialized!");
+      LOGE("AMS", "remote command characteristic is not initialized!");
       return false;
     }
   }
   void MediaInformation::dump() const
   {
-    Serial.printf("player: %s\n", mPlayerName.c_str()); // TODO:add log
-    Serial.printf("playback state: %i, rate: %f, elapsed: %f, volume: %f\n", mPlaybackState, mPlaybackRate, mElapsedTime, mVolume);
-    Serial.printf("queue index: %i, count: %i, shuffle: %i, repeat: %i\n", mQueueIndex, mQueueCount, mShuffleMode, mRepeatMode);
-    Serial.printf("artist: %s\n", mArtist.c_str());
-    Serial.printf("album: %s\n", mAlbum.c_str());
-    Serial.printf("title: %s\n", mTitle.c_str());
-    Serial.printf("duration: %f\n", mDuration);
+    LOGD("AMS",
+         "player: %s | playback state: %i, rate: %f, elapsed: %f, volume: %f | "
+         "queue index: %i, count: %i, shuffle: %i, repeat: %i | "
+         "artist: %s | album: %s | title: %s | duration: %f",
+         mPlayerName.c_str(),
+         mPlaybackState, mPlaybackRate, mElapsedTime, mVolume,
+         mQueueIndex, mQueueCount, mShuffleMode, mRepeatMode,
+         mArtist.c_str(), mAlbum.c_str(), mTitle.c_str(), mDuration);
   }
 }

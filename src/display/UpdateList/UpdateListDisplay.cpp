@@ -1,5 +1,6 @@
 #include "UpdateListDisplay.h"
 #include "utils/TextUtils.h"
+#include "utils/Log.h"
 
 void UpdateListDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
 {
@@ -32,7 +33,7 @@ void UpdateListDisplay::setMediaInfo(const AppleMediaService::MediaInformation &
     }
 
     _isPlaying = nowPlaying;
-    Serial.printf("[UpdateList] setMediaInfo: playing=%d title=\"%s\"\n", _isPlaying, full.c_str());
+    LOGD("UL", "setMediaInfo: playing=%d title=\"%s\"", _isPlaying, full.c_str());
 }
 
 void UpdateListDisplay::tickMedia()
@@ -73,7 +74,7 @@ void UpdateListDisplay::tickMedia()
 
 void UpdateListDisplay::onBtDisconnected()
 {
-    Serial.println("[UpdateList] BT disconnected — freezing display");
+    LOGI("UL", "BT disconnected -- freezing display");
     _isPlaying = false;
     // Don't reset _titleShownOnce — keeps the frozen title visible without re-sending.
 }
@@ -85,6 +86,6 @@ void UpdateListDisplay::onRadioText(bool isAux)
     // Radio switched to AUX source — re-assert our content.
     // If paused: allow tickMedia to re-send the static title on next tick.
     // If playing: scroll continues normally on next tickMedia tick.
-    Serial.println("[UpdateList] AUX detected from radio — re-asserting display");
+    LOGI("UL", "AUX detected from radio -- re-asserting display");
     _titleShownOnce = false;
 }

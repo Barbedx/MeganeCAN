@@ -6,6 +6,7 @@
 #include <NimBLEDevice.h>
 #include <NimBLEServer.h>
 #include <NimBLEHIDDevice.h>
+#include "utils/Log.h"
 
 // USB HID Consumer Control usage codes
 #define KEY_MEDIA_NEXT_TRACK      0x00B5
@@ -55,7 +56,7 @@ public:
         adv->setScanResponseData(NimBLEAdvertisementData()); // no scan response
         adv->start();
 
-        Serial.println("[BLE Kbd] Advertising started");
+        LOGI("KBD", "Advertising started");
     }
 
     bool isConnected() const { return _connected; }
@@ -72,11 +73,11 @@ public:
     // NimBLEServerCallbacks
     void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
         _connected = true;
-        Serial.println("[BLE Kbd] Connected");
+        LOGI("KBD", "Connected");
     }
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
         _connected = false;
-        Serial.println("[BLE Kbd] Disconnected — restarting adv");
+        LOGI("KBD", "Disconnected — restarting adv");
         NimBLEDevice::getAdvertising()->start();
     }
 
