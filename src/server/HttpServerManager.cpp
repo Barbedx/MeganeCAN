@@ -94,9 +94,11 @@ namespace
 
 void HttpServerManager::begin()
 {
-    // 46 app routes + ElegantOTA's handlers exceed 48 -> the tail routes failed
-    // to register (ESP_ERR_HTTPD_HANDLERS_FULL). Bump the cap so every route fits.
-    _server.config.max_uri_handlers = 64;
+    // App routes + ElegantOTA's handlers + the /canstream WebSocket must all fit, or
+    // the LAST-registered handler silently fails (ESP_ERR_HTTPD_HANDLERS_FULL). That bit
+    // us: ~63 routes + OTA + /canstream pushed past 64, so /canstream (attached last)
+    // 404'd and /wire couldn't connect. Keep generous headroom for new routes.
+    _server.config.max_uri_handlers = 96;
     // The dashboard opens several parallel keep-alive sockets; on a memory-tight
     // ESP32 they pin ~4KB each and the server eventually can't accept new ones
     // (dashboard wedges, heap stuck). LRU purge lets it drop the oldest idle
