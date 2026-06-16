@@ -84,7 +84,9 @@ public:
     AffaCommon::AffaError showFullscreenText(const char *line1, const char *line2, const char *line3) override;
     void hideFullscreenText() override;
     // Transient popup overlay (e.g. "VOL 28") — mode 0x74 setText-family frame.
-    AffaCommon::AffaError showPopupText(const char *text) override;
+    // icon/srcIcon/fmt = the variable header bytes (see IDisplay), exposed for RE.
+    AffaCommon::AffaError showPopupText(const char *text, uint8_t icon = 0x09,
+                                        uint8_t srcIcon = 0xFF, uint8_t fmt = 0x60) override;
     void hidePopup() override;
     // IDisplay confirm-box capability -> the existing showConfirmBoxWithOffsets builder.
     AffaCommon::AffaError showConfirmBox(const char *caption, const char *row1, const char *row2) override

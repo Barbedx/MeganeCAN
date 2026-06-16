@@ -60,8 +60,13 @@ public:
     // setText wire family as radio text but mode 0x74 (full-window overlay); captured
     // from the real radio as `0x151 10 0E 74 09 55 FF 60 01 <8 text bytes>`. The panel
     // shows it briefly and auto-reverts. Optional; default no-op.
-    virtual AffaCommon::AffaError showPopupText(const char *text)
-    { (void)text; return AffaCommon::AffaError::NoError; }
+    // icon/srcIcon/fmt are the variable header bytes (defaults reproduce the captured
+    // "VOL 28" popup: 74 <icon> 55 <srcIcon> <fmt> 01). icon = the left icon set,
+    // srcIcon = source/right icon (0xFF none, e.g. "LIST"), fmt = text style
+    // (0x59-0x7F plain ASCII, 0x19-0x3F radio digits+dot). Sweep them to discover sets.
+    virtual AffaCommon::AffaError showPopupText(const char *text,
+        uint8_t icon = 0x09, uint8_t srcIcon = 0xFF, uint8_t fmt = 0x60)
+    { (void)text; (void)icon; (void)srcIcon; (void)fmt; return AffaCommon::AffaError::NoError; }
     // Dismiss the popup / full-window overlay (single frame 02 54 03 on 0x151).
     virtual void hidePopup() {}
 protected:

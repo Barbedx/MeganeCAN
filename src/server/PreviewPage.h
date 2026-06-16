@@ -74,8 +74,12 @@ static const char PREVIEW_PAGE[] = R"HTML(<!doctype html><html><head><meta chars
 
 <div class=card>
  <h3>Popup overlay (auto-hides)</h3>
- <small>small box over the main screen, like the radio's "VOL 28" on volume change.</small><br>
+ <small>small box over the main screen, like "VOL 28". Stays up while the screen
+ redraws under it. icon/src/fmt = header bytes (hex) — sweep to find icon sets.</small><br>
  <input id=pop placeholder="text (8 chars)" maxlength=8 value="VOL 28">
+ <input id=pic placeholder="icon" maxlength=2 value="09" style="width:60px">
+ <input id=psrc placeholder="src" maxlength=2 value="FF" style="width:60px">
+ <input id=pfmt placeholder="fmt" maxlength=2 value="60" style="width:60px">
  <div><button class=go onclick=showPopup()>Show popup</button><button onclick=getq('/api/popup/close')>Close</button></div>
 </div>
 
@@ -112,7 +116,7 @@ function showMenu(){getq('/affa3/setMenu?caption='+enc($('h').value)+'&name1='+e
 function showInfo(){getq('/api/info?l1='+enc($('i1').value)+'&l2='+enc($('i2').value)+'&l3='+enc($('i3').value))}
 function showConfirm(){getq('/api/confirm?caption='+enc($('cc').value)+'&row1='+enc($('c1').value)+'&row2='+enc($('c2').value))}
 function showFull(){getq('/api/fulltext?l1='+enc($('ft1').value)+'&l2='+enc($('ft2').value)+'&l3='+enc($('ft3').value))}
-function showPopup(){getq('/api/popup?text='+enc($('pop').value))}
+function showPopup(){getq('/api/popup?text='+enc($('pop').value)+'&icon='+$('pic').value+'&src='+$('psrc').value+'&fmt='+$('pfmt').value)}
 function state(on){post('/display/state?enable='+on)}
 async function poll(){
  try{

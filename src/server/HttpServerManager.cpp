@@ -573,7 +573,12 @@ void HttpServerManager::setupRoutes()
     // /api/popup/close dismisses it (the panel also auto-reverts on its own).
     _server.on("/api/popup", HTTP_GET, [this](PsychicRequest *request) {
         String t = request->hasParam("text") ? request->getParam("text")->value() : String("");
-        _display.showPopupText(t.c_str());
+        auto hx = [&](const char *k, uint8_t def) -> uint8_t {
+            return request->hasParam(k)
+                       ? (uint8_t)strtol(request->getParam(k)->value().c_str(), nullptr, 16)
+                       : def;
+        };
+        _display.showPopupText(t.c_str(), hx("icon", 0x09), hx("src", 0xFF), hx("fmt", 0x60));
         return request->reply(200, "text/plain", "popup sent");
     });
     _server.on("/api/popup/close", HTTP_GET, [this](PsychicRequest *request) {
