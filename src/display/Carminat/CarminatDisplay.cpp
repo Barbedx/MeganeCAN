@@ -17,14 +17,17 @@
 // _autoTime is defined in main.cpp; flipped by the Auto-time menu item onChange
 extern bool _autoTime;
 
+// Runtime-gated like utils/AffaDebug.h (this TU defines its own local AFFA3_PRINT).
+// Defined in SerialConsole.cpp; OFF by default so continuous renders don't flood the
+// USB-CDC serial link. Toggle over serial with `vb 1` / `vb 0`.
+extern volatile bool g_affaVerbose;
 inline void AFFA3_PRINT(const char *fmt, ...)
 {
-  // #ifdef DEBUG
+  if (!g_affaVerbose) return;
   va_list args;
   va_start(args, fmt);
   vprintf(fmt, args);
   va_end(args);
-  // #endif
 }
 
 int windowFirstItemIndex = 0;
@@ -330,9 +333,12 @@ void CarminatDisplay::recv(const Frame &fr)
 
   if (packet->id == Carminat::PACKET_ID_SYNC_REPLY)
   { /* Pakiety synchronizacyjne */
-    Serial.printf("[recv] sync packet 0x%02X 0x%02X | _skipFuncReg=%s\n",
-                  packet->data.uint8[0], packet->data.uint8[1],
-                  _skipFuncReg ? "TRUE (will ignore)" : "FALSE (will process!)");
+    // Gated: in skip_funcreg (passive) mode the display pings 0x69 every second and
+    // this line floods the log for no reason. AFFA3_PRINT honours the `vb` toggle, so
+    // it's silent by default and visible when you actually want the sync trace.
+    AFFA3_PRINT("[recv] sync packet 0x%02X 0x%02X | _skipFuncReg=%s\n",
+                packet->data.uint8[0], packet->data.uint8[1],
+                _skipFuncReg ? "TRUE (will ignore)" : "FALSE (will process!)");
     if (_skipFuncReg)
     {
       return;
@@ -810,10 +816,12 @@ AffaCommon::AffaError CarminatDisplay::showInfoMenu(const char *item1, const cha
   return AffaCommon::AffaError::NoError;
 }
 
-// IDisplay capability: generic 3-line info popup -> Carminat showInfoMenu defaults.
+// IDisplay capability: generic 3-line info popup -> Carminat showInfoMenu. Offsets
+// 0x41/0x44/0x48 and prefix 0x60 reproduce the OEM settings list byte-for-byte (real
+// capture: `76 60 41 .. AUX ON`, `76 60 44 .. AF ON`, `76 60 48 .. SPEED 0`).
 AffaCommon::AffaError CarminatDisplay::showInfoPopup(const char *line1, const char *line2, const char *line3)
 {
-  return showInfoMenu(line1, line2, line3);
+  return showInfoMenu(line1, line2, line3, 0x41, 0x44, 0x48, 0x60);
 }
 
 void CarminatDisplay::hideInfoPopup()
@@ -821,6 +829,58 @@ void CarminatDisplay::hideInfoPopup()
   // Best-effort dismiss: return to normal text. The exact popup-close command is
   // still being confirmed on the car; refine once observed.
   setText("RENAULT", 0);
+}
+
+// Fullscreen big-text screen — reverse-engineered from the OEM "Please insert
+// navigation CD" capture (logs affa3 new / "nav pressed"). Same 0x21 screen command
+// as showMenu but mode byte 0x05 (vs 0x01 windowed): the panel takes the whole screen
+// and renders later menu/volume as popups over it. ISO-TP content (96 bytes, len 0x60):
+//   [0..5]   21 05 FF 00 00 40       cmd, mode=fullscreen, header
+//   [6..31]  00 ...                  zero header region
+//   [32..95] text block, lines separated by 0x0D ('\r'), space-padded
+// affa3_do_send adds the 0x2N PCI for the consecutive frames; we pre-build 10 60 + the
+// 6-byte first-frame content exactly like showMenu does.
+AffaCommon::AffaError CarminatDisplay::showFullscreenText(const char *line1, const char *line2, const char *line3)
+{
+  String _1 = transliterateToAscii(String(line1 ? line1 : ""));
+  String _2 = transliterateToAscii(String(line2 ? line2 : ""));
+  String _3 = transliterateToAscii(String(line3 ? line3 : ""));
+
+  uint8_t payload[2 + 96] = {0};
+  payload[0] = 0x10;   // ISO-TP first frame
+  payload[1] = 0x60;   // 96 content bytes follow
+  // content[0..5] (payload[2..7])
+  payload[2] = 0x21;   // screen command
+  payload[3] = 0x05;   // mode = FULLSCREEN (0x01 = windowed menu)
+  payload[4] = 0xFF;
+  payload[5] = 0x00;
+  payload[6] = 0x00;
+  payload[7] = 0x40;
+  // content[6..31] stay zero. Text block at content offset 32 (payload index 34),
+  // space-filled first so unused cells render blank, not garbage.
+  for (int k = 2 + 32; k < 2 + 96; k++)
+    payload[k] = 0x20;
+
+  int p = 2 + 34;      // content offset 34 (2 leading spaces at 32..33, as captured)
+  auto putLine = [&](const String &s) {
+    for (size_t i = 0; i < s.length() && p < 2 + 95; i++)
+      payload[p++] = (uint8_t)s[i];
+    if (p < 2 + 96)
+      payload[p++] = 0x0D;   // line break
+  };
+  if (_1.length()) putLine(_1);
+  if (_2.length()) putLine(_2);
+  if (_3.length()) putLine(_3);
+
+  Serial.printf("[showFullscreenText] '%s' / '%s' / '%s'\n", _1.c_str(), _2.c_str(), _3.c_str());
+  return affa3_send(0x151, payload, sizeof(payload));
+}
+
+void CarminatDisplay::hideFullscreenText()
+{
+  // Close the full window. The OEM closes it by re-selecting the audio source; the
+  // raw command captured/noted in setText() is a single frame `02 54 03` on 0x151.
+  CanUtils::sendCan(0x151, 0x02, 0x54, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00);
 }
 
 // ---- Page management ----

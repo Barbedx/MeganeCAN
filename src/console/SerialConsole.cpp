@@ -5,6 +5,8 @@
 #include <esp32_can.h>
 #include "../display/AffaDisplayBase.h"
 #include "../display/AffaCommonConstants.h"
+#include "../utils/CanUtils.h"
+#include "../utils/AffaDebug.h"  // extern g_affaVerbose (the `vb` toggle target)
 #include "../bluetooth.h"
 #include "../apple_media_service.h"
 #include "../effects/ScrollEffect.h"
@@ -15,6 +17,19 @@ extern String btMode;
 extern void gotFrame(CAN_FRAME *frame);
 
 namespace {
+
+// The proxy buttons / freeform box send screen text through the SerialCommands
+// tokenizer, which splits on spaces — so every field must be a single space-free
+// token. Convention: the sender encodes spaces as '_' and an empty field as '~'.
+// This reverses it back into the real string.
+String decodeField(const char *tok)
+{
+    if (!tok || strcmp(tok, "~") == 0)
+        return String("");
+    String s(tok);
+    s.replace('_', ' ');
+    return s;
+}
 
 void cmd_enable(SerialCommands *sender)
 {
@@ -125,6 +140,125 @@ void cmd_emu(SerialCommands *sender)
     Serial.printf("@EMU self-ACK = %d\n", on);
 }
 
+// ---- Screen-state commands (mirror the /affa3/setMenu, /api/info, /api/confirm HTTP
+// routes) so the whole display surface is drivable from serial — no WiFi needed. Text
+// fields are decodeField()'d (spaces as '_', empty as '~').
+
+// "menu <caption> <item1> <item2> [scrollHex]" — the menu / now-playing screen.
+// scrollHex: 00 none / 0B down / 07 up / 0C both (default 0B).
+void cmd_menu(SerialCommands *sender)
+{
+    if (!display) return;
+    String cap = decodeField(sender->Next());
+    String i1  = decodeField(sender->Next());
+    String i2  = decodeField(sender->Next());
+    const char *scrollTok = sender->Next();
+    uint8_t scroll = 0x0B;
+    if (scrollTok && *scrollTok)
+        scroll = (uint8_t)strtoul(scrollTok, nullptr, 16);
+    Serial.printf("[serial menu] cap='%s' i1='%s' i2='%s' scroll=0x%02X\n",
+                  cap.c_str(), i1.c_str(), i2.c_str(), scroll);
+    display->showMenu(cap.c_str(), i1.c_str(), i2.c_str(), scroll);
+}
+
+// "info <line1> <line2> <line3>" — the 3-line info popup (8 chars/slot).
+void cmd_info(SerialCommands *sender)
+{
+    if (!display) return;
+    String l1 = decodeField(sender->Next());
+    String l2 = decodeField(sender->Next());
+    String l3 = decodeField(sender->Next());
+    Serial.printf("[serial info] '%s' '%s' '%s'\n", l1.c_str(), l2.c_str(), l3.c_str());
+    display->showInfoPopup(l1.c_str(), l2.c_str(), l3.c_str());
+}
+
+// "infox" — close/hide the info popup.
+void cmd_infox(SerialCommands *sender)
+{
+    if (!display) return;
+    Serial.println("[serial info] close");
+    display->hideInfoPopup();
+}
+
+// "popup <caption> <row1> <row2>" — the big confirm box.
+void cmd_popup(SerialCommands *sender)
+{
+    if (!display) return;
+    String cap = decodeField(sender->Next());
+    String r1  = decodeField(sender->Next());
+    String r2  = decodeField(sender->Next());
+    Serial.printf("[serial popup] cap='%s' r1='%s' r2='%s'\n",
+                  cap.c_str(), r1.c_str(), r2.c_str());
+    display->showConfirmBox(cap.c_str(), r1.c_str(), r2.c_str());
+}
+
+// "full <line1> <line2> <line3>" — fullscreen big-text screen (0x21 mode 0x05), e.g.
+// the OEM "Please insert / navigation CD". Lines are \r-joined and centred-ish.
+void cmd_full(SerialCommands *sender)
+{
+    if (!display) return;
+    String l1 = decodeField(sender->Next());
+    String l2 = decodeField(sender->Next());
+    String l3 = decodeField(sender->Next());
+    Serial.printf("[serial full] '%s' '%s' '%s'\n", l1.c_str(), l2.c_str(), l3.c_str());
+    display->showFullscreenText(l1.c_str(), l2.c_str(), l3.c_str());
+}
+
+// "fclose" — dismiss the fullscreen text (close full window).
+void cmd_fclose(SerialCommands *sender)
+{
+    if (!display) return;
+    Serial.println("[serial full] close");
+    display->hideFullscreenText();
+}
+
+// "txt <text> [digit]" — short radio text line.
+void cmd_txt(SerialCommands *sender)
+{
+    if (!display) return;
+    String t = decodeField(sender->Next());
+    const char *digitTok = sender->Next();
+    uint8_t digit = 255;
+    if (digitTok && *digitTok)
+        digit = (uint8_t)atoi(digitTok);
+    Serial.printf("[serial txt] '%s' digit=%d\n", t.c_str(), digit);
+    display->setText(t.c_str(), digit);
+}
+
+// "vb <0|1>" — toggle the verbose AFFA3 ISO-TP narration. OFF keeps serial stable
+// during continuous renders; ON when you need the per-frame send/ACK trace.
+void cmd_verbose(SerialCommands *sender)
+{
+    const char *v = sender->Next();
+    g_affaVerbose = v && atoi(v) != 0;
+    Serial.printf("[serial] AFFA3 verbose = %d\n", (int)g_affaVerbose);
+}
+
+// "tx <idhex> <b0> [b1..b7]" — transmit ONE raw CAN frame onto the bus (DLC = byte
+// count, 1..8). The core protocol-RE primitive: poke the panel/radio with arbitrary
+// bytes and watch the [RX] answers. Goes through CanUtils::sendFrame, so it mirrors
+// @TX and is busAlive-gated (suppressed on a dead bench bus). To replay a multi-frame
+// ISO-TP sequence, send each frame (10.., 21.., 22..) as its own `tx` line.
+void cmd_tx(SerialCommands *sender)
+{
+    char *idStr = sender->Next();
+    if (!idStr) { Serial.println("usage: tx <idhex> <b0..b7>"); return; }
+    CAN_FRAME f;
+    f.id = (uint32_t)strtoul(idStr, nullptr, 16);
+    f.extended = false;
+    f.rtr = false;
+    f.length = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        char *b = sender->Next();
+        if (!b) break;
+        f.data.uint8[i] = (uint8_t)strtoul(b, nullptr, 16);
+        f.length++;
+    }
+    Serial.printf("[serial tx] id=0x%03X len=%d ->\n", (unsigned)f.id, f.length);
+    CanUtils::sendFrame(f);
+}
+
 SerialCommand cmd_inj("@INJ", cmd_inject);
 SerialCommand cmd_emu_c("@EMU", cmd_emu);
 SerialCommand cmd_e("e", cmd_enable);
@@ -136,8 +270,19 @@ SerialCommand cmd_cb("cb", cmd_clearbonds);
 SerialCommand cmd_pp("pp", cmd_playpause);
 SerialCommand cmd_nx("nx", cmd_next);
 SerialCommand cmd_pv("pv", cmd_prev);
+SerialCommand cmd_menu_c("menu", cmd_menu);
+SerialCommand cmd_info_c("info", cmd_info);
+SerialCommand cmd_infox_c("infox", cmd_infox);
+SerialCommand cmd_popup_c("popup", cmd_popup);
+SerialCommand cmd_full_c("full", cmd_full);
+SerialCommand cmd_fclose_c("fclose", cmd_fclose);
+SerialCommand cmd_txt_c("txt", cmd_txt);
+SerialCommand cmd_vb_c("vb", cmd_verbose);
+SerialCommand cmd_tx_c("tx", cmd_tx);
 
-char serial_command_buffer[64];
+// 160 bytes: the new multi-field screen commands (e.g. "popup <caption> <row1> <row2>"
+// with underscore-encoded text) easily exceed the old 64-byte line buffer.
+char serial_command_buffer[160];
 char serial_delim[] = " \r\n";
 SerialCommands serialCommands(&Serial, serial_command_buffer, sizeof(serial_command_buffer), serial_delim);
 
@@ -161,6 +306,15 @@ void SerialConsole::begin()
     serialCommands.AddCommand(&cmd_pp);
     serialCommands.AddCommand(&cmd_nx);
     serialCommands.AddCommand(&cmd_pv);
+    serialCommands.AddCommand(&cmd_menu_c);
+    serialCommands.AddCommand(&cmd_info_c);
+    serialCommands.AddCommand(&cmd_infox_c);
+    serialCommands.AddCommand(&cmd_popup_c);
+    serialCommands.AddCommand(&cmd_full_c);
+    serialCommands.AddCommand(&cmd_fclose_c);
+    serialCommands.AddCommand(&cmd_txt_c);
+    serialCommands.AddCommand(&cmd_vb_c);
+    serialCommands.AddCommand(&cmd_tx_c);
 }
 
 void SerialConsole::loop()

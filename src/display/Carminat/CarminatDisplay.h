@@ -78,6 +78,11 @@ public:
     // IDisplay info-popup capability (maps to showInfoMenu with default offsets).
     AffaCommon::AffaError showInfoPopup(const char *line1, const char *line2, const char *line3) override;
     void hideInfoPopup() override;
+
+    // Fullscreen big-text screen (0x21 mode 0x05) — reverse-engineered from the OEM
+    // "Please insert navigation CD" capture. Up to 3 centred-ish lines, \r-separated.
+    AffaCommon::AffaError showFullscreenText(const char *line1, const char *line2, const char *line3) override;
+    void hideFullscreenText() override;
     // IDisplay confirm-box capability -> the existing showConfirmBoxWithOffsets builder.
     AffaCommon::AffaError showConfirmBox(const char *caption, const char *row1, const char *row2) override
     { return showConfirmBoxWithOffsets(caption, row1, row2); }

@@ -44,6 +44,16 @@ public:
     // interface. CarminatDisplay maps it to showConfirmBoxWithOffsets.
     virtual AffaCommon::AffaError showConfirmBox(const char *caption, const char *row1, const char *row2)
     { (void)caption; (void)row1; (void)row2; return AffaCommon::AffaError::NoError; }
+
+    // Fullscreen text screen — the big centred message the OEM uses (e.g. "Please
+    // insert navigation CD"). Wire-distinct from the windowed menu: same 0x21 screen
+    // command but mode byte 0x05 (vs 0x01), which tells the panel to take the whole
+    // screen and render later menu/volume as popups over it. Up to 3 lines, \r-joined.
+    // Optional; default no-op so non-Carminat displays + the web UI depend only on this.
+    virtual AffaCommon::AffaError showFullscreenText(const char *line1, const char *line2, const char *line3)
+    { (void)line1; (void)line2; (void)line3; return AffaCommon::AffaError::NoError; }
+    // Dismiss the fullscreen text (back to the normal screen).
+    virtual void hideFullscreenText() {}
 protected:
     virtual void onKeyPressed(AffaCommon::AffaKey key, bool isHold) =0;
 

@@ -112,27 +112,94 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .l:hover{background:#151a26}
   mark{background:#f9e2af;color:#11111b}
   #filter{max-width:200px;flex:0 0 180px}
-  #screen{position:fixed;top:52px;right:12px;width:360px;background:#0a1f14;border:2px solid #1f6b3a;
-          border-radius:10px;padding:12px 14px;z-index:3;box-shadow:0 6px 24px #000a;
-          font:15px/1.5 Consolas,monospace;color:#7fffb0}
-  #screen .hdr{color:#aef;font-weight:bold;border-bottom:1px solid #1f6b3a;padding-bottom:6px;margin-bottom:8px;
-               display:flex;justify-content:space-between}
-  #screen .it{padding:4px 8px;border-radius:5px;white-space:pre}
-  #screen .it.sel{background:#1f6b3a;color:#eafff2}
-  #screen .meta{margin-top:8px;font-size:11px;color:#3a7a55}
-  #screen .arrow{color:#7fffb0}
+  #ctrl{position:fixed;top:52px;right:12px;width:300px;max-height:calc(100vh - 64px);overflow:auto;
+        background:#0a1f14;border:2px solid #1f6b3a;border-radius:10px;padding:10px 12px;z-index:3;
+        box-shadow:0 6px 24px #000a;font:12px/1.4 Consolas,monospace;color:#7fffb0}
+  #ctrl .hdr{color:#aef;font-weight:bold;border-bottom:1px solid #1f6b3a;padding-bottom:6px;margin-bottom:6px}
+  #ctrl .grp{border-top:1px solid #11321f;padding:7px 0 3px}
+  #ctrl .grp:first-of-type{border-top:0}
+  #ctrl .t{color:#5fd08a;margin-bottom:3px;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  #ctrl input,#ctrl select{width:100%;box-sizing:border-box;margin:2px 0;background:#06140d;color:#cdeedd;
+        border:1px solid #1f6b3a;border-radius:5px;padding:5px 7px;font:12px Consolas,monospace}
+  #ctrl button{background:#1f6b3a;color:#eafff2;border:0;border-radius:5px;padding:5px 9px;margin:4px 4px 0 0;
+        cursor:pointer;font:12px Consolas,monospace}
+  #ctrl button:hover{background:#2d8a4f}
+  #ctrl .row{display:flex;gap:6px}
+  #ctrl .row input{flex:1}
+  #ctrl .note{color:#3a7a55;font-size:10px;margin-top:6px}
 </style></head><body>
-<div id="screen">
-  <div class="hdr">decoded screen ↗</div>
-  <div class="meta">The decoded display now lives on the ESP itself (one decoder,
-  no drift): open <b>http://meganecan.local/preview</b> (type text + see it) or
-  <b>/wire</b>. This proxy is the raw serial log + @TX/@RX frames.</div>
+<div id="ctrl">
+  <div class="hdr">AFFA3 control ↗</div>
+
+  <div class="grp">
+    <div class="t">Menu / now-playing</div>
+    <input id="mCap" placeholder="caption / header">
+    <input id="mI1" placeholder="item 1">
+    <input id="mI2" placeholder="item 2">
+    <select id="mScr">
+      <option value="0B">arrows: ↓ down (0B)</option>
+      <option value="07">arrows: ↑ up (07)</option>
+      <option value="0C">arrows: ↕ both (0C)</option>
+      <option value="00">arrows: none (00)</option>
+    </select>
+    <button onclick="fireMenu()">Show menu</button>
+  </div>
+
+  <div class="grp">
+    <div class="t">Info popup (8 ch / line)</div>
+    <input id="iL1" placeholder="line 1" maxlength="8">
+    <input id="iL2" placeholder="line 2" maxlength="8">
+    <input id="iL3" placeholder="line 3" maxlength="8">
+    <button onclick="fireInfo()">Show info</button>
+    <button onclick="send2('infox')">Close info</button>
+  </div>
+
+  <div class="grp">
+    <div class="t">Fullscreen big text (0x21/05)</div>
+    <input id="fL1" placeholder="line 1 (e.g. Please insert)">
+    <input id="fL2" placeholder="line 2 (e.g. navigation CD)">
+    <input id="fL3" placeholder="line 3">
+    <button onclick="fireFull()">Show fullscreen</button>
+    <button onclick="send2('fclose')">Close fullscreen</button>
+  </div>
+
+  <div class="grp">
+    <div class="t">Confirm popup</div>
+    <input id="pCap" placeholder="caption (button)">
+    <input id="pR1" placeholder="row 1">
+    <input id="pR2" placeholder="row 2">
+    <button onclick="firePopup()">Show popup</button>
+  </div>
+
+  <div class="grp">
+    <div class="t">Text · power · verbose</div>
+    <input id="tTxt" placeholder="radio text line">
+    <button onclick="fireTxt()">Set text</button>
+    <button onclick="send2('e')">Disp ON</button>
+    <button onclick="send2('d')">Disp OFF</button>
+    <button onclick="send2('vb 1')">verbose on</button>
+    <button onclick="send2('vb 0')">verbose off</button>
+  </div>
+
+  <div class="grp">
+    <div class="t">Raw TX (protocol RE)</div>
+    <div class="row">
+      <input id="rxId" placeholder="id hex" style="flex:0 0 64px">
+      <input id="rxB" placeholder="bytes: 10 5A 21 01 ...">
+    </div>
+    <button onclick="fireRaw()">Send frame</button>
+    <div class="note">tx sends one raw CAN frame on the bus, then watch the
+    [RX] answers in the log. Replay a multi-frame ISO-TP sequence as several
+    Send-frame lines (10.., 21.., 22..). @INJ &lt;id&gt; &lt;bytes&gt; injects an RX frame.</div>
+  </div>
 </div>
 <div id="bar">
   <span id="dot"></span>
   <input id="filter" placeholder="фільтр (regex)">
-  <input id="cmd" placeholder="команда в плату:  cb=clearbonds  pp=play/pause  nx=next  pv=prev  e/d=display" autocomplete="off">
+  <input id="cmd" placeholder="serial cmd:  tx 151 10 5A 21..  @INJ id bytes..  menu/info/popup/txt  vb 0|1  pp/nx/pv/cb" autocomplete="off">
   <button onclick="send()">Send</button>
+  <button onclick="mark()" title="insert a labelled divider into the capture">Mark</button>
+  <button onclick="location.href='/log'" title="download the raw serial.log as text">Save log</button>
   <button onclick="document.getElementById('log').innerHTML=''">Clear</button>
 </div>
 <div id="log"></div>
@@ -165,6 +232,27 @@ function send(){
   fetch('/send',{method:'POST',body:v}); cmd.value='';
 }
 cmd.addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
+
+// --- AFFA3 control panel: build a serial command line and POST it to the board. The
+// firmware SerialCommands tokenizer splits on spaces, so each text field is sent as a
+// single space-free token: spaces -> '_', empty -> '~' (firmware decodeField reverses
+// it). send2() fires a literal command (no encoding).
+function send2(c){ fetch('/send',{method:'POST',body:c}); }
+function enc(id){ const v=document.getElementById(id).value.trim().replace(/ /g,'_'); return v===''?'~':v; }
+function fireMenu(){ send2('menu '+enc('mCap')+' '+enc('mI1')+' '+enc('mI2')+' '+document.getElementById('mScr').value); }
+function fireInfo(){ send2('info '+enc('iL1')+' '+enc('iL2')+' '+enc('iL3')); }
+function fireFull(){ send2('full '+enc('fL1')+' '+enc('fL2')+' '+enc('fL3')); }
+function firePopup(){ send2('popup '+enc('pCap')+' '+enc('pR1')+' '+enc('pR2')); }
+function fireTxt(){ send2('txt '+enc('tTxt')); }
+function fireRaw(){
+  const id=document.getElementById('rxId').value.trim(); if(!id) return;
+  const b=document.getElementById('rxB').value.trim();
+  send2('tx '+id+(b?' '+b:''));
+}
+function mark(){
+  const label=prompt('mark label (e.g. "press NAV now"):','MARK');
+  if(label!==null) fetch('/mark',{method:'POST',body:label});
+}
 </script></body></html>"""
 
 
@@ -177,6 +265,21 @@ class Handler(BaseHTTPRequestHandler):
             body = PAGE.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif self.path == "/log" or self.path.startswith("/log?"):
+            # Raw text capture — download the full serial.log as plain text. This is the
+            # replacement for "save the whole HTML page": a clean log the affa_decode.py
+            # tool (and humans) can read directly, no markup to strip.
+            try:
+                with open(LOG_FILE, "rb") as f:
+                    body = f.read()
+            except Exception:
+                body = b""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", "attachment; filename=affa3-capture.log")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -226,6 +329,14 @@ class Handler(BaseHTTPRequestHandler):
             ok = send_command(cmd)
             log_and_broadcast("--- [proxy] >>> %s %s ---" % (cmd, "" if ok else "(NO SERIAL)"))
             self.send_response(200 if ok else 503)
+            self.end_headers()
+        elif self.path == "/mark":
+            # Insert a labelled divider into both the live view and serial.log, so a
+            # capture can be split by what you were doing (e.g. "press NAV now").
+            length = int(self.headers.get("Content-Length", 0))
+            label = self.rfile.read(length).decode("utf-8", errors="replace").strip()
+            log_and_broadcast("=================== MARK: %s ===================" % label)
+            self.send_response(200)
             self.end_headers()
         else:
             self.send_response(404)
