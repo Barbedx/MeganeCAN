@@ -879,21 +879,26 @@ AffaCommon::AffaError CarminatDisplay::showPopupText(const char *text, uint8_t i
                                                      uint8_t srcIcon, uint8_t fmt)
 {
   String _t = transliterateToAscii(String(text ? text : "")); // Carminat can't render UTF-8
-  uint8_t data[2 + 6 + 8];
+  // Text cell count: min 8 keeps the captured "VOL 28" byte-identical (header+8 = len
+  // 0x0E); allow up to POPUP_MAX so longer text (e.g. a notification sender) can probe
+  // how wide the popup window actually renders on the panel.
+  const uint8_t POPUP_MAX = 16;
+  uint8_t tlen = (uint8_t)_t.length();
+  if (tlen < 8) tlen = 8;
+  if (tlen > POPUP_MAX) tlen = POPUP_MAX;
+  uint8_t data[2 + 6 + POPUP_MAX];
   uint8_t n = 0;
-  data[n++] = 0x10;      // ISO-TP first frame
-  data[n++] = 0x0E;      // 14 content bytes follow (6 header + 8 text)
-  data[n++] = 0x74;      // mode: full-window popup overlay (vs 0x77 windowed radio text)
-  data[n++] = icon;      // left icon set (capture: 0x09)
-  data[n++] = 0x55;      // fixed
-  data[n++] = srcIcon;   // source/right icon (capture: 0xFF none; e.g. "LIST")
-  data[n++] = fmt;       // text format (capture: 0x60 plain; 0x19-0x3F radio digits+dot)
-  data[n++] = 0x01;      // control byte
-  char padded[9] = {0};
-  strncpy(padded, _t.c_str(), 8);          // 8 visible cells, space-padded
-  for (uint8_t i = 0; i < 8; i++)
-    data[n++] = padded[i] ? padded[i] : ' ';
-  LOGD("POPUP", "showPopupText '%s' icon=%02X src=%02X fmt=%02X", _t.c_str(), icon, srcIcon, fmt);
+  data[n++] = 0x10;          // ISO-TP first frame
+  data[n++] = (uint8_t)(6 + tlen); // content length = 6-byte header + text cells
+  data[n++] = 0x74;          // mode: full-window popup overlay (vs 0x77 windowed radio text)
+  data[n++] = icon;          // left icon set (capture: 0x09)
+  data[n++] = 0x55;          // fixed
+  data[n++] = srcIcon;       // source/right icon (capture: 0xFF none; e.g. "LIST")
+  data[n++] = fmt;           // text format (capture: 0x60 plain; 0x19-0x3F radio digits+dot)
+  data[n++] = 0x01;          // control byte
+  for (uint8_t i = 0; i < tlen; i++)
+    data[n++] = (i < _t.length()) ? (uint8_t)_t[i] : ' ';  // space-pad unused cells
+  LOGD("POPUP", "showPopupText '%s' icon=%02X src=%02X fmt=%02X len=%u", _t.c_str(), icon, srcIcon, fmt, tlen);
   return affa3_send(0x151, data, n);
 }
 

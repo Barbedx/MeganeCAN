@@ -244,20 +244,15 @@ void CarminatNowPlaying::renderNotificationScreen(const AppleNotificationService
   if (_menu.isActive())
     return;
 
-  // Line 1: source app (e.g. "Telegram") + sender — answers "звідки + від кого".
+  // Compact NON-DESTRUCTIVE popup overlay: pop "who it's from" over the current screen
+  // (media / radio / whatever) without redrawing it — the panel keeps the screen under
+  // it. The popup is short, so prefer the sender, falling back to the source app.
   // The Carminat charset can't render UTF-8, so transliterate Cyrillic -> Latin.
   String app    = String(AppleNotificationService::AppName(n.appId).c_str());
   String sender = transliterateToAscii(String(n.title.c_str()));
-  String header = app;
-  if (sender.length()) header += ": " + sender;
-  if (header.length() > 26) header = header.substring(0, 26);
+  String who    = sender.length() ? sender : app;
 
-  // Lines 2-3: the message body across both 20-char rows (more of it visible).
-  String msg = transliterateToAscii(String(n.message.c_str()));
-  String line2 = msg.substring(0, 20);
-  String line3 = (msg.length() > 20) ? msg.substring(20, 40) : String("");
-
-  _panel.showMenu(header.c_str(), line2.c_str(), line3.c_str(), 0x00);
+  _panel.showPopupText(who.c_str(), 0x09, 0xFF, 0x60);
 }
 
 String CarminatNowPlaying::buildScrollingTitle()

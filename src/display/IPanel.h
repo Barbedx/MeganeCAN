@@ -21,4 +21,8 @@ struct IPanel {
                                            const char *item2, uint8_t scrollLockIndicator) = 0;
     virtual AffaCommon::AffaError setText(const char *text, uint8_t digit) = 0;
     virtual AffaCommon::AffaError highlightItem(uint8_t id) = 0;
+    // Compact non-destructive popup overlay (the "VOL 28"-style box). Lets collaborators
+    // (e.g. NowPlaying) pop a notification over the current screen without redrawing it.
+    virtual AffaCommon::AffaError showPopupText(const char *text, uint8_t icon,
+                                                uint8_t srcIcon, uint8_t fmt) = 0;
 };
