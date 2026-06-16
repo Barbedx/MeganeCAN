@@ -49,6 +49,24 @@ Captured payload for "Please insert / navigation CD":
 (no per-frame PCI). `len` = total content byte count (e.g. `0x5A`=90 menu, `0x60`=96
 fullscreen, `0x0E`=14 text, `0x0B`=11 info row). See `showMenu` / `showFullscreenText`.
 
+## Other channels & screens (from /canstream captures, 2026-06-17)
+- **0x1C1** = key/button events (ACK 0x5C1). `03 89 <keyHi> <keyLo>`; RollUp=`01 01`,
+  Load=`00 00`, +hold OR 0xC0 into keyLo (`03 89 00 C0`). `sendPasswordSequence` = 5-3-2-1.
+- **0x1F1** = IMAGE channel (the "planet"/nav bitmap), ACK 0x5F1. Independent of radio text.
+  ISO-TP first frame `11 2E` → **302-byte** payload. Header starts
+  `21 0B 00 25 41 42 43 44 45 46 00 01 30 …` then bitmap data. (302 B ≈ 1bpp ~48×50.)
+  The burst is ~43 frames in ~200ms and the firmware drops a chunk each time (CAN RX
+  throughput, NOT the WS buffer) — so capture several cold boots and `affa_decode.py
+  --id 1F1 --merge` the concatenation to union the fragments into the full bitmap.
+- Funcreg/registration handshake spans 0x1C1/0x151/0x1F1 (replies `70 …`, acks `74 …`).
+
+## "CODE" / password screen (0x151, windowed text)
+Header `77 55 55 FF 60 01` (mode 0x77, icon 0x55, fmt 0x60 plain). Renders in two steps:
+1. `"  CODE  "`  (`21 20 20 43 4F 44 45 20`)
+2. entry field `"  <cur>000 "` (`21 20 20 B0 30 30 30 20`) — **`0xB0` = blink cursor on
+   digit 0**, advancing `B0→B1→…` as digits are accepted. After 5-3-2-1 the radio shows
+   normal text (`77 09 55 FF 31 01 "   1056"` = "105.6").
+
 ## Tools
 - `tools/extract_log.py "<saved-page>.html"` → strips the proxy HTML dump to plain text.
 - `tools/affa_decode.py LOG [--id 151] [--merge]` → reassembles ISO-TP and decodes each
