@@ -71,10 +71,11 @@ static const char PREVIEW_PAGE[] = R"HTML(<!doctype html><html><head><meta chars
 </div>
 
 <div class=card>
- <h3>Transport</h3>
- <button onclick=route('virtual')>virtual (desk)</button>
- <button onclick=route('both')>both (car)</button>
- <button onclick=route('can')>can only</button>
+ <h3>Transport — <span id=rtnow>?</span></h3>
+ <small>both/can = drives the REAL panel. virtual = bench only (CAN TX off).</small><br>
+ <button id=rt_virtual onclick=route('virtual')>virtual (desk)</button>
+ <button id=rt_both onclick=route('both')>both (car)</button>
+ <button id=rt_can onclick=route('can')>can only</button>
 </div>
 
 <script>
@@ -83,8 +84,14 @@ const esc=s=>(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]
 const enc=encodeURIComponent;
 async function getq(u){try{return await(await fetch(u)).text()}catch(e){return''}}
 async function post(u){try{return await(await fetch(u,{method:'POST'})).text()}catch(e){return''}}
-function route(m){getq('/api/route?mode='+m).then(()=>{$('mode').textContent='route='+m})}
-route('virtual'); // preview default: twin renders without a real panel
+function route(m){getq('/api/route?mode='+m).then(()=>{
+  $('mode').textContent='route='+m;
+  const now=$('rtnow'); if(now) now.textContent=m.toUpperCase();
+  ['virtual','both','can'].forEach(x=>{const b=$('rt_'+x); if(b) b.style.outline=(x===m)?'2px solid #7fffb0':'none';});
+})}
+route('both'); // car-safe default: real panel is driven AND the twin decodes for the
+               // preview pane. On a bench with NO real panel, click "virtual (desk)"
+               // so the twin ACKs (route 'virtual' cuts CAN TX — don't auto-force it).
 function showMenu(){getq('/affa3/setMenu?caption='+enc($('h').value)+'&name1='+enc($('a').value)+'&name2='+enc($('b').value)+'&scrollLock='+$('sl').value)}
 function showInfo(){getq('/api/info?l1='+enc($('i1').value)+'&l2='+enc($('i2').value)+'&l3='+enc($('i3').value))}
 function showConfirm(){getq('/api/confirm?caption='+enc($('cc').value)+'&row1='+enc($('c1').value)+'&row2='+enc($('c2').value))}
