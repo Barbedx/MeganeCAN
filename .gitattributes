@@ -1,0 +1,12 @@
+# Normalize line endings: store LF in the repo, check out native on Windows.
+# Stops the "LF will be replaced by CRLF" churn warnings on every commit.
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.bin   binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.7z    binary
+*.tar   binary
+*.tdv   binary
