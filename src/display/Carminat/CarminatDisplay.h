@@ -11,6 +11,8 @@
 #include "Menu/Menu.h"          // Include the shared MenuItemType and MenuItem definitions
 #include "AuxModeTracker.h"     // AUX-mode state (member; read by recv + NowPlaying)
 #include "CarminatNowPlaying.h" // media + notification collaborator
+#include "MenuController.h"     // navigation stack (page + key routing)
+#include "DiagController.h"     // ELM / diagnostics pages
 
 class IPage;
 class DiagPage;
@@ -40,7 +42,9 @@ public:
               }
 
           ),
-          _nowPlaying(*this, _aux, mainMenu)   // panel = *this (IPanel); aux + menu seams
+          _nowPlaying(*this, _aux, mainMenu),  // panel = *this (IPanel); aux + menu seams
+          _menuCtrl(mainMenu),
+          _diag(*this, mainMenu)
     {
 
         initializeFuncs();
@@ -103,12 +107,10 @@ protected:
     }
 
 private:
-    IPage*                       _currentPage = nullptr;
-    MyELMManager*                _elm         = nullptr;
-    std::map<String, DiagPage*>  _diagPages;
-
-    // Declared after mainMenu (above) so the init list _nowPlaying(*this,_aux,mainMenu)
-    // sees both fully constructed (member init follows declaration order).
+    // Declared after mainMenu (above) so the constructor init list sees mainMenu (and
+    // _aux before _nowPlaying) fully constructed — member init follows declaration order.
     AuxModeTracker     _aux;         // AUX-mode tracker (was a file-scope global)
     CarminatNowPlaying _nowPlaying;  // media + ANCS-notification screen collaborator
+    MenuController     _menuCtrl;    // navigation: active page + key routing
+    DiagController     _diag;        // ELM diagnostics pages + live menu fields
 };

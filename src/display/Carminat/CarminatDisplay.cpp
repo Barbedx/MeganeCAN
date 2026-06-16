@@ -194,8 +194,7 @@ void CarminatDisplay::initializeMenu()
                 MenuItem(e.title, std::vector<String>{""}, 0, false));
             String hdr(e.key);
             item.onActivate = [this, hdr]() {
-                auto it = _diagPages.find(hdr);
-                if (it != _diagPages.end()) pushPage(it->second);
+                if (DiagPage* p = _diag.page(hdr)) pushPage(p);
             };
         }
     }
@@ -485,8 +484,7 @@ void CarminatDisplay::processEvents()
   }
 
   // Tick the active page (rate-limited internally by DiagPage)
-  if (_currentPage)
-      _currentPage->onTick();
+  _menuCtrl.tickCurrentPage();
 }
 /**
  * Sends a text string to the car display over CAN bus.
@@ -568,26 +566,11 @@ void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &in
 
 void CarminatDisplay::ProcessKey(AffaCommon::AffaKey key, bool isHold)
 {
-    Serial.printf("[CarminatDisplay::ProcessKey] key=0x%04X isHold=%d currentPage=%s menuActive=%s keyHandler=%s\n",
-                  static_cast<uint16_t>(key), isHold,
-                  _currentPage ? "YES" : "NO",
-                  mainMenu.isActive() ? "YES" : "NO",
-                  keyHandler ? "SET" : "NULL");
-
-    if (_currentPage) {
-        Serial.println("[CarminatDisplay::ProcessKey] -> delegating to currentPage");
-        _currentPage->handleKey(key, isHold);
-        return;
-    }
-    Serial.println("[CarminatDisplay::ProcessKey] -> calling mainMenu.handleKey");
-    mainMenu.handleKey(key, isHold);
-
-    if (!mainMenu.isActive() && keyHandler) {
-        Serial.println("[CarminatDisplay::ProcessKey] -> menu not active, calling keyHandler");
+    // Page/menu routing lives in MenuController; the keyHandler fall-through stays
+    // here, where keyHandler lives (AffaDisplayBase). routeKey returns false only
+    // when no page is active and the menu didn't consume the key.
+    if (!_menuCtrl.routeKey(key, isHold) && keyHandler)
         keyHandler(key, isHold);
-    } else if (!mainMenu.isActive() && !keyHandler) {
-        Serial.println("[CarminatDisplay::ProcessKey] -> menu not active AND keyHandler is NULL, key dropped!");
-    }
 }
 
 void CarminatDisplay::setAuxMode(bool on)
@@ -761,14 +744,7 @@ AffaCommon::AffaError CarminatDisplay::showMenu(const char *header, const char *
 
 void CarminatDisplay::onElmUpdate(const char* key, float value)
 {
-    if (strcmp(key, "PR071") == 0)
-    {
-        mainMenu.updateFieldExternally("Voltage", 0, (int)roundf(value));
-    }
-    else if (strcmp(key, "DRV_BOOST") == 0)
-    {
-        mainMenu.updateFieldExternally("Boost", 0, (int)roundf(value));
-    }
+    _diag.onElmUpdate(key, value);
 }
 
 // Big "confirm box" popup (caption button + two text rows) over 0x151.
@@ -851,26 +827,15 @@ void CarminatDisplay::hideInfoPopup()
 
 void CarminatDisplay::attachElm(MyELMManager* m)
 {
-    _elm = m;
-    _diagPages["7E0"] = new DiagPage(*this, m, "7E0", "ENGINE");
-    _diagPages["743"] = new DiagPage(*this, m, "743", "GEARBOX");
-    _diagPages["744"] = new DiagPage(*this, m, "744", "HVAC");
-    _diagPages["745"] = new DiagPage(*this, m, "745", "ECU 745");
-    _diagPages["74D"] = new DiagPage(*this, m, "74D", "ALT GBX");
+    _diag.attachElm(m);
 }
 
 void CarminatDisplay::pushPage(IPage* p)
 {
-    if (!p) return;
-    _currentPage = p;
-    p->onEnter();
+    _menuCtrl.pushPage(p);
 }
 
 void CarminatDisplay::popPage()
 {
-    if (!_currentPage) return;
-    _currentPage->onExit();
-    _currentPage = nullptr;
-    if (mainMenu.isActive())
-        mainMenu.show();
+    _menuCtrl.popPage();
 }
