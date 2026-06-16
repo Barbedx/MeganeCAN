@@ -1,4 +1,6 @@
 #include "UpdateListBase.h"
+#include <esp32_can.h>          // CAN_FRAME (recv shim + sync frames)
+#include "utils/CanUtils.h"     // sends (no longer transitive via IDisplay)
 #include <string.h>
 
 inline void AFFA2_PRINT(const char *fmt, ...)

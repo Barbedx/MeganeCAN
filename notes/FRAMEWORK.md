@@ -60,9 +60,12 @@ register it in `App` — no edits scattered through `main`.
 
 ## Roadmap to the framework (incremental, each shippable)
 1. ✅ Ports for bus/clock/transport/virtual-display; fakes; native tests.
-2. ✅ `IDisplay::recv(Frame)` — CAN_FRAME leak removed from the port (step 1: signature
-   + Frame→CAN_FRAME shim in the bodies; bench-verified). *Next:* rewrite the bodies on
-   Frame + route replies through `_bus` → host-test the AFFA3 handshake.
+2. ✅ Display port is Frame-only + the radio SEND is host-tested. `IDisplay` no longer
+   pulls esp32_can/CanUtils/Arduino; `AffaDisplayBase::affa3_do_send` rewritten on
+   `Frame` (no CAN_FRAME/CanUtils/Serial), clock+bus injected → it compiles + unit-tests
+   on the host (test_radio_send: the 14-frame ISO-TP sequence). *Next:* rewrite the
+   `recv()` bodies on Frame + route their replies through `_bus` → host-test the inbound
+   sync/ACK handshake too (currently still shimmed Frame→CAN_FRAME at entry).
 3. Extract media (AMS) + notifications (ANCS) behind `IMediaSource`/`INotifSource`
    ports so the screen logic stops depending on the BLE stack directly.
 4. `IConfigStore` port over NVS; the typed `Config` becomes the single source of truth.

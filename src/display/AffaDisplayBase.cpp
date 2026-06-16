@@ -8,8 +8,10 @@ using AffaError = AffaCommon::AffaError;
  
 AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len)
   {
-    Serial.println("affa3_do_send called");
-    struct CAN_FRAME packet;
+    AFFA3_PRINT("affa3_do_send called\n");
+    // Portable Frame, sent through the injected bus — no vendor CAN_FRAME / CanUtils,
+    // so this (the AFFA3 ISO-TP send + ACK loop) builds + unit-tests on the host.
+    Frame packet;
     uint8_t i, stat, num = 0, left = len;
     int16_t timeout;
 
@@ -21,42 +23,34 @@ AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len
       i = 0;
 
       packet.id = funcs[idx].id;
-      packet.length = AffaCommon::PACKET_LENGTH;
+      packet.len = AffaCommon::PACKET_LENGTH;
+      packet.extended = false;
 
       if (num > 0)
       {
-        packet.data.uint8[i++] = 0x20 + num;
+        packet.data[i++] = 0x20 + num;
       }
 
       while ((i < AffaCommon::PACKET_LENGTH) && (left > 0))
       {
-        packet.data.uint8[i++] = *data++;
+        packet.data[i++] = *data++;
         left--;
       }
 
       for (; i < AffaCommon::PACKET_LENGTH; i++)
       {
-        packet.data.uint8[i] = getPacketFiller();  //Affa3Nav::PACKET_FILLER;
+        packet.data[i] = getPacketFiller();  //Affa3Nav::PACKET_FILLER;
       }
 
       AFFA3_PRINT("Sending packet #%d to ID 0x%03X: ", num, packet.id);
-      for (int j = 0; j < packet.length; j++)
-        AFFA3_PRINT("%02X ", packet.data.uint8[j]);
+      for (int j = 0; j < packet.len; j++)
+        AFFA3_PRINT("%02X ", packet.data[j]);
       AFFA3_PRINT("\n");
 
       funcs[idx].stat = FuncStatus::WAIT;
 
-      if (_bus) {
-        Frame f;
-        f.id = packet.id;
-        f.extended = packet.extended;
-        f.len = packet.length > 8 ? 8 : packet.length;
-        for (int i = 0; i < f.len; i++)
-          f.data[i] = packet.data.uint8[i];
-        _bus->send(f);
-      } else {
-        CanUtils::sendFrame(packet);   // default path (delegates to HwCanBus)
-      }
+      if (_bus)
+        _bus->send(packet);
 
       // Bench emulator self-ACK: no real display answers, so acknowledge our own
       // frame here (PARTIAL while bytes remain, DONE on the last). `left` is already
@@ -71,7 +65,7 @@ AffaError AffaDisplayBase::affa3_do_send(uint8_t idx, uint8_t *data, uint8_t len
       uint16_t wait_counter = 0;
       while ((funcs[idx].stat == FuncStatus::WAIT) && (--timeout > 0))
       {
-        _clock->delayMs(1);
+        if (_clock) _clock->delayMs(1);
 
         // Log every 500ms
         if (wait_counter++ % 500 == 0)

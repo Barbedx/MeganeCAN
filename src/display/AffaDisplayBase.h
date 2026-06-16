@@ -2,9 +2,11 @@
 
 #include "IDisplay.h"
 #include "AffaCommonConstants.h"
-#include <Arduino.h>
-#include "../bus/ArduinoClock.h"
+#include "../bus/IClock.h"
 #include "../bus/ICanBus.h"
+#ifndef NATIVE
+#include <Arduino.h>
+#endif
 
 
 // forward-declare, щоб не тягнути весь apple_media_service.h сюди
@@ -23,8 +25,10 @@ public:
     //void setMediaInfo();
 void setKeyHandler(KeyHandler handler)
 {
+#ifndef NATIVE
     Serial.print("[AffaDisplayBase] setKeyHandler = ");
     Serial.println(((uint32_t)keyHandler), HEX);
+#endif
     keyHandler = handler;
 }
     // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS
@@ -63,8 +67,8 @@ void setKeyHandler(KeyHandler handler)
 
 protected:
     static constexpr int SYNC_TIMEOUT = 5;
-    IClock* _clock = &defaultClock();
-    ICanBus* _bus = nullptr;   // nullptr -> fall back to CanUtils::sendFrame
+    IClock* _clock = nullptr;   // set via setClock (ArduinoClock on target, FakeClock in tests)
+    ICanBus* _bus = nullptr;    // set via setBus (HwCanBus on target, Loopback in tests)
     KeyHandler keyHandler = nullptr;
     SyncStatus _sync_status = SyncStatus::FAILED;
     bool _skipFuncReg = false;

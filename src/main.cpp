@@ -18,6 +18,7 @@
 #include "apple_media_service.h"
 #include "wifi_manager.h"
 #include "utils/CanLog.h"
+#include "utils/CanUtils.h"
 #include "utils/AppConfig.h"
 #include "bus/HwCanBus.h"
 #include "bus/SerialMirrorTap.h"
@@ -274,8 +275,9 @@ void initDisplay()
         display = new UpdateListBase();
     }
 
-    selectVirtualDisplay(displayType);   // FULL-EMULATION twin matches the radio protocol
-    display->setBus(HwCanBus::instance()); // radio sends through the bus seam (behavior-neutral)
+    selectVirtualDisplay(displayType);     // FULL-EMULATION twin matches the radio protocol
+    display->setBus(HwCanBus::instance());  // radio sends through the bus seam (behavior-neutral)
+    display->setClock(defaultClock());      // ArduinoClock (millis/delay) for the ACK wait
 
     display->setSkipFuncReg(skipFuncReg);
     Serial.println("[Display Init] Skip func-reg: " + String(skipFuncReg ? "yes" : "no"));

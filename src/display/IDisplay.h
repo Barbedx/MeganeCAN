@@ -1,9 +1,9 @@
 #pragma once
-#include <esp32_can.h> /* https://github.com/collin80/esp32_can */
 #include "AffaCommonConstants.h" /* Constants related to Affa3 */
 #include "../bus/Frame.h"        /* portable CAN frame — the display port speaks this, not CAN_FRAME */
-#include <utils/CanUtils.h>
-#include <Arduino.h>
+
+// The display PORT is hardware-free: it speaks Frame + plain C strings only (no
+// esp32_can / CanUtils / Arduino). Concrete displays include what they need.
 
 class IDisplay {
 public:

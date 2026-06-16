@@ -1,4 +1,6 @@
 #include "CarminatDisplay.h"
+#include <esp32_can.h>          // CAN_FRAME (recv shim) — no longer transitive via IDisplay
+#include "utils/CanUtils.h"     // sends
 #include "Pages/DiagPage.h"
 #include "ElmManager/MyELMManager.h"
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
-#include <vector>  
+#include <esp32_can.h>   // CAN_FRAME (no longer pulled transitively via IDisplay)
+#include <vector>
 #include "../../AffaDisplayBase.h"
 // enum class MenuItemType {
 //     StaticText,
