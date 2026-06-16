@@ -380,7 +380,18 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     // For example, you can parse the data and update the display or internal state
   }
 
-  bool answerNeeded = _skipFuncReg; // TODO:move to settings
+  // In radio mode (skipFuncReg) we ACK data packets so the radio doesn't stall.
+  // But we must NOT reply to the radio's own sync frames (0x3AF / 0x3CF) —
+  // that would produce a spurious 0x7AF reply (0x3AF|0x400).
+  bool isSyncPacket = (packet->id == Carminat::PACKET_ID_SYNC ||
+                       packet->id == Carminat::PACKET_ID_SYNC_REPLY);
+  bool answerNeeded = _skipFuncReg ;
+
+  if (isSyncPacket && _skipFuncReg)
+  {
+    Serial.printf("[recv] skipFuncReg: ignoring sync frame id=0x%03X (would produce 0x%03X)\n",
+                  packet->id, packet->id | Carminat::PACKET_REPLY_FLAG);
+  }
 
   if (answerNeeded)
   {
@@ -392,6 +403,8 @@ void CarminatDisplay::recv(CAN_FRAME *packet)
     reply.data.uint8[i++] = 0x74;
     for (; i < AffaCommon::PACKET_LENGTH; i++)
       reply.data.uint8[i] = Carminat::PACKET_FILLER;
+    Serial.printf("[recv] skipFuncReg: ACK data frame id=0x%03X -> reply 0x%03X\n",
+                  packet->id, reply.id);
     CanUtils::sendFrame(reply);
   }
 

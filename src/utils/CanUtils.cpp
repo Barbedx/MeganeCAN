@@ -19,21 +19,7 @@ void CanUtils::sendCan(uint32_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t 
 }
 void CanUtils::sendFrame(CAN_FRAME &frame)
 {
-    if (frame.id != 0x3AF)
-    {
-        Serial.print("Sending CAN frame: ID=0x");
-        Serial.print(frame.id, HEX);
-        Serial.print(" Data: ");
-        for (int i = 0; i < frame.length; i++)
-        {
-            Serial.print(frame.data.uint8[i], HEX);
-            if (i < frame.length - 1)
-            {
-                Serial.print(" ");
-            }
-        }
-        Serial.println();
-    }
+    printCanFrame(frame, true);
     CAN0.sendFrame(frame);
 }
 void CanUtils::sendMsgBuf(uint32_t id, const uint8_t *data, uint8_t len)
