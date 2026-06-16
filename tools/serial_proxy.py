@@ -123,9 +123,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   #screen .arrow{color:#7fffb0}
 </style></head><body>
 <div id="screen">
-  <div class="hdr"><span id="scrHdr">— display —</span><span class="arrow" id="scrArrow"></span></div>
-  <div id="scrItems"></div>
-  <div class="meta" id="scrMeta">waiting for @TX frames… (enable: /api/emu?on=1)</div>
+  <div class="hdr">decoded screen ↗</div>
+  <div class="meta">The decoded display now lives on the ESP itself (one decoder,
+  no drift): open <b>http://meganecan.local/preview</b> (type text + see it) or
+  <b>/wire</b>. This proxy is the raw serial log + @TX/@RX frames.</div>
 </div>
 <div id="bar">
   <span id="dot"></span>
@@ -151,80 +152,14 @@ function add(text){
   while(log.childElementCount>4000) log.removeChild(log.firstChild);
   if(stick) log.scrollTop=log.scrollHeight;
 }
-// ---- AFFA3 / Carminat virtual display decoder ----
-// Faithful decode of the REAL @TX frames — the emulator mirrors the production
-// display, just listening on serial instead of CAN. Dispatch by the first frame:
-//   10 5A 21 01 …            showMenu  (menu / now-playing / notification), 96B ISO-TP
-//   10 0B 76 <pfx> <off> …   showInfoMenu item (info popup); pairs with a 0x21 cont
-//   07 29 01 <rowId> …       highlight (menu selection)
-// ISO-TP: first frame 0x10 = 8 payload bytes; consecutive 0x2N append bytes[1..].
-let asm=[], asmActive=false, mode=null;          // mode: 'menu' | 'info'
-const scr={hdr:'',items:[],sel:null,scroll:0};
-let info={}, infoPend=null;                      // info popup: offset -> text
-function asciiz(p,a,z){let s='';for(let i=a;i<=z&&i<p.length;i++){const c=p[i];if(c===0)break;s+=String.fromCharCode(c);}return s.trim();}
-function bytesTxt(arr){return arr.map(c=>(c>=0x20&&c<0x7f)?String.fromCharCode(c):'').join('').trim();}
-function decodeMenu(p){
-  if(p.length<96) return;
-  scr.scroll=p[10]; scr.hdr=asciiz(p,11,36)||'(menu)';
-  scr.items=[{id:p[38],text:asciiz(p,39,63)},{id:p[65],text:asciiz(p,66,95)}];
-  renderMenu();
-}
-function onTx(idHex,bytes){
-  if(idHex!=='151') return;            // Carminat display ctrl/text
-  const b0=bytes[0];
-  if(b0===0x10){
-    if(bytes[1]===0x5A){               // showMenu (menu/media/notif)
-      mode='menu'; asm=bytes.slice(0); asmActive=true; scr.sel=null; decodeMenu(asm); return;
-    }
-    if(bytes[1]===0x0B && bytes[2]===0x76){  // showInfoMenu item: pfx[3] off[4] chars[5..7] + 0x21 cont
-      mode='info'; asmActive=false;
-      if(bytes[4]===0x41) info={};     // 0x41 = first slot → start of a fresh popup
-      infoPend={off:bytes[4], chars:bytes.slice(5,8)};
-      return;
-    }
-    asmActive=false; return;           // other first-frames (setText 0x0E…) — TODO
-  }
-  if((b0&0xF0)===0x20){                // consecutive frame
-    if(mode==='menu' && asmActive){ asm=asm.concat(bytes.slice(1)); decodeMenu(asm); return; }
-    if(mode==='info' && infoPend){
-      infoPend.chars=infoPend.chars.concat(bytes.slice(1,6));   // 8-char field total
-      info[infoPend.off]=bytesTxt(infoPend.chars); infoPend=null; renderInfo(); return;
-    }
-    return;
-  }
-  if(b0===0x07 && bytes[1]===0x29 && bytes[2]===0x01){ scr.sel=bytes[3]; if(mode==='menu') renderMenu(); return; }
-}
-function paint(hdr,arrow,lines,meta){
-  document.getElementById('scrHdr').textContent=hdr;
-  document.getElementById('scrArrow').textContent=arrow;
-  const box=document.getElementById('scrItems'); box.innerHTML='';
-  lines.forEach(l=>{ const d=document.createElement('div'); d.className='it'+(l.sel?' sel':'');
-    d.textContent=(l.sel?'▶ ':'  ')+(l.text||''); box.appendChild(d); });
-  document.getElementById('scrMeta').textContent=meta;
-}
-function renderMenu(){
-  paint(scr.hdr||'— display —',
-        scr.scroll===0x0B?'↓':scr.scroll===0x07?'↑':scr.scroll===0x0C?'↕':'',
-        scr.items.filter(it=>it.text||it.id).map(it=>({text:it.text,sel:it.id===scr.sel})),
-        'AFFA3 0x151 · showMenu · '+asm.length+'B');
-}
-function renderInfo(){
-  const offs=Object.keys(info).map(Number).sort((a,b)=>a-b);
-  paint('ⓘ Info popup','',
-        offs.map(o=>({text:info[o],sel:false})),
-        'AFFA3 0x151 · showInfoMenu · off '+offs.map(o=>'0x'+o.toString(16)).join(' '));
-}
-function screenFeed(line){
-  const m=line.match(/@TX\s+([0-9A-Fa-f]+)\s+(.+)$/);
-  if(!m) return;
-  const id=m[1].toUpperCase().replace(/^0+(?=.)/,'');
-  const bytes=m[2].trim().split(/\s+/).map(h=>parseInt(h,16)).filter(n=>!isNaN(n));
-  onTx(id,bytes);
-}
+// NOTE: this proxy no longer decodes the AFFA3 screen. There is ONE decoder — the
+// firmware's ScreenDecode/twin (served at /api/screen, rendered by /preview + /wire
+// on the device). Re-decoding @TX here was a second, drift-prone copy. This tool is
+// now a faithful raw serial log + @TX/@RX frame view, which is what serial is best at.
 const es=new EventSource('/stream');
 es.onopen=()=>dot.classList.add('on');
 es.onerror=()=>dot.classList.remove('on');
-es.onmessage=e=>{ add(e.data); try{screenFeed(e.data);}catch(err){} };
+es.onmessage=e=>{ add(e.data); };
 function send(){
   const v=cmd.value.trim(); if(!v) return;
   fetch('/send',{method:'POST',body:v}); cmd.value='';

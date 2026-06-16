@@ -10,6 +10,7 @@
 #include "../utils/AppConfig.h"
 #include "../wire/WsWireLink.h"
 #include "WirePage.h"
+#include "PreviewPage.h"
 #include "DashboardPage.h"
 #include "DiagPage.h"
 #include "Affa3TestPage.h"
@@ -123,6 +124,9 @@ void HttpServerManager::setupRoutes()
     // http://<esp-ip>/wire from any phone/PC on the ESP's network.
     _server.on("/wire", HTTP_GET, [this](PsychicRequest *request)
                { return request->reply(200, "text/html", WIRE_PAGE); });
+    // Dead-simple end-user display preview: type text, see the firmware-decoded screen.
+    _server.on("/preview", HTTP_GET, [this](PsychicRequest *request)
+               { return request->reply(200, "text/html", PREVIEW_PAGE); });
 
     _server.on("/static", HTTP_GET, [this](PsychicRequest *request) {
         if (!request->hasParam("text"))

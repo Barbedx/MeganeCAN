@@ -69,8 +69,6 @@ small{color:#6c7086}
       <button onclick="getq('/api/fullemu?on=1')">Full-emu ON</button>
       <button onclick="getq('/api/fullemu?on=0')">Full-emu OFF</button>
     </div>
-    <h3 style=margin-top:10px>ESP self-decoded screen <small>(full-emu)</small></h3>
-    <div class=scr id=espscr><div class=hdr>—</div></div>
     <div class=row>
       <input id=raw placeholder="@INJ 3CF 61 11 / @KEY 0 1 / @EMU 1" style=flex:1>
       <button onclick=sendRaw()>WS send</button>
@@ -100,38 +98,15 @@ function noteId(id,bytes){
     e.row.innerHTML='<td>'+id+'</td><td class=c></td><td class=d></td>';$('ids').appendChild(e.row);}
   e.row.children[1].textContent=e.n;e.row.children[2].textContent=e.last;
 }
-// ---- AFFA3 screen decode (ported from serial_proxy.py) ----
-let asm=[],asmActive=false,mode=null;const scr={hdr:'',items:[],sel:null,scroll:0};let info={},infoPend=null;
-function asciiz(p,a,z){let s='';for(let i=a;i<=z&&i<p.length;i++){const c=p[i];if(c===0)break;if(c>=32&&c<127)s+=String.fromCharCode(c)}return s.trim()}
-function bytesTxt(a){return a.map(c=>(c>=32&&c<127)?String.fromCharCode(c):'').join('').trim()}
-function decodeMenu(p){if(p.length<96)return;scr.scroll=p[10];scr.hdr=asciiz(p,11,36)||'(menu)';scr.items=[{id:p[38],text:asciiz(p,39,63)},{id:p[65],text:asciiz(p,66,95)}];renderMenu()}
-function onTx(id,b){
-  if(id!=='151')return;const b0=b[0];
-  if(b0===0x10){
-    if(b[1]===0x5A){mode='menu';asm=b.slice(0);asmActive=true;scr.sel=null;decodeMenu(asm);return}
-    if(b[1]===0x0B&&b[2]===0x76){mode='info';asmActive=false;if(b[4]===0x41)info={};infoPend={off:b[4],chars:b.slice(5,8)};return}
-    asmActive=false;return;
-  }
-  if((b0&0xF0)===0x20){
-    if(mode==='menu'&&asmActive){asm=asm.concat(b.slice(1));decodeMenu(asm);return}
-    if(mode==='info'&&infoPend){infoPend.chars=infoPend.chars.concat(b.slice(1,6));info[infoPend.off]=bytesTxt(infoPend.chars);infoPend=null;renderInfo();return}
-    return;
-  }
-  if(b0===0x07&&b[1]===0x29&&b[2]===0x01){scr.sel=b[3];if(mode==='menu')renderMenu();return}
-}
-function paint(hdr,arrow,lines,meta){
-  let h='<div class=hdr>'+esc(arrow+' '+hdr)+'</div>';
-  lines.forEach(l=>h+='<div class="it'+(l.sel?' sel':'')+'">'+esc((l.sel?'▶ ':'  ')+(l.text||''))+'</div>');
-  h+='<small>'+esc(meta)+'</small>';$('screen').innerHTML=h;
-}
 function esc(s){return(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-function renderMenu(){paint(scr.hdr||'— display —',scr.scroll===0x0B?'↓':scr.scroll===0x07?'↑':scr.scroll===0x0C?'↕':'',scr.items.filter(it=>it.text||it.id).map(it=>({text:it.text,sel:it.id===scr.sel})),'0x151 showMenu '+asm.length+'B')}
-function renderInfo(){const o=Object.keys(info).map(Number).sort((a,b)=>a-b);paint('ⓘ Info popup','',o.map(k=>({text:info[k],sel:false})),'0x151 showInfoMenu')}
+// NOTE: the decoded screen comes from /api/screen — the ONE firmware decoder
+// (ScreenDecode/the twin). The page no longer re-decodes frames in JS (that was a
+// second, drift-prone copy). The "Live frames" panel shows the raw @TX/@RX only.
 // ---- stream ----
 function handle(line){
   const m=line.match(/@(TX|RX)\s+([0-9A-Fa-f]+)\s+(.*)$/);
   if(m){const id=m[2].toUpperCase().replace(/^0+(?=.)/,'');const bytes=m[3].trim().split(/\s+/).map(h=>parseInt(h,16)).filter(n=>!isNaN(n));
-    addLog(line,m[1]==='TX'?'tx':'rx');noteId(id,bytes);if(m[1]==='TX')try{onTx(id,bytes)}catch(e){}}
+    addLog(line,m[1]==='TX'?'tx':'rx');noteId(id,bytes);}
   else addLog(line,'');
   frames++;$('cnt').textContent=frames+' frames';
   if(rec){recBuf.push((Date.now()-recT0)+' '+line)}
@@ -156,9 +131,9 @@ async function pollScreen(){try{
   const stale=(s.screenAge_ms<0)||(s.screenAge_ms>5000);
   let h='<div class=hdr>'+esc((stale?'(stale) ':'')+arrow+' '+(s.header||'—'))+'</div>';
   [s.item0,s.item1].forEach((t,i)=>{if(t){const sel=(s.sel===126&&i===0)||(s.sel===127&&i===1);h+='<div class="it'+(sel?' sel':'')+'">'+esc((sel?'▶ ':'  ')+t)+'</div>'}});
-  document.getElementById('espscr').innerHTML=h;
+  document.getElementById('screen').innerHTML=h;
 }catch(e){}}
-setInterval(pollScreen,1500);pollScreen();
+setInterval(pollScreen,600);pollScreen();
 function sendRaw(){const v=$('raw').value.trim();if(v&&ws&&ws.readyState===1){ws.send(v);$('raw').value=''}}
 $('raw').addEventListener('keydown',e=>{if(e.key==='Enter')sendRaw()});
 // ---- record ----
