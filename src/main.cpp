@@ -26,6 +26,7 @@
 #include "wire/SerialWireLink.h"
 #include "wire/WsWireLink.h"
 #include "utils/WireProto.h"
+#include "record/IsoTpCapture.h"
 #include "vdisplay/CarminatVirtualDisplay.h"
 #include "vdisplay/UpdateListSegVirtualDisplay.h"
 #include "vdisplay/UpdateListLcdVirtualDisplay.h"
@@ -60,6 +61,29 @@ WsWireLink     g_wsLink;
 struct WsRecorderTap : IBusTap {
     void onRx(const Frame& f) override { g_wsLink.emitRxFrame(f.id, f.data, f.len); }
 };
+
+// Lossless grabber for the 0x1F1 nav/planet image (302-byte ISO-TP). Fed in gotFrame so
+// it captures the whole burst directly (the @RX WS stream drops frames under the burst).
+// Snapshot served at /api/image. See notes/AFFA3_SCREENS.md.
+static IsoTpCapture g_imgCapture(0x1F1);
+
+String imageCaptureJson()
+{
+    String j = "{\"id\":\"1F1\",\"declared\":";
+    j += String(g_imgCapture.declared());
+    j += ",\"got\":" + String(g_imgCapture.length());
+    j += ",\"complete\":";
+    j += g_imgCapture.complete() ? "true" : "false";
+    j += ",\"hex\":\"";
+    const uint8_t *p = g_imgCapture.data();
+    char b[3];
+    for (uint32_t i = 0; i < g_imgCapture.length(); i++) {
+        snprintf(b, sizeof(b), "%02X", p[i]);
+        j += b;
+    }
+    j += "\"}";
+    return j;
+}
 
 // ---- FULL-EMULATION ---------------------------------------------------------------
 // An in-firmware virtual display driven by the radio over the bus. When on, a real
@@ -156,6 +180,7 @@ void gotFrame(CAN_FRAME *frame)
     if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
         CanUtils::printCanFrame(*frame, false);
     CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
+    g_imgCapture.onRx(frame->id, frame->data.uint8, frame->length); // grab 0x1F1 image whole
 
     // The display port speaks Frame, not the vendor CAN_FRAME.
     Frame fr;

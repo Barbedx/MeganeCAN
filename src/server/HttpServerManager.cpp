@@ -481,6 +481,13 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", (String("route=") + applied).c_str());
     });
 
+    // The last complete 0x1F1 ISO-TP message (the nav/planet image), captured whole in
+    // the RX path (lossless, unlike the @RX WS stream). {declared, got, complete, hex}.
+    _server.on("/api/image", HTTP_GET, [](PsychicRequest *request) {
+        extern String imageCaptureJson();
+        return request->reply(200, "application/json", imageCaptureJson().c_str());
+    });
+
     // The ESP's own decoded screen (always-live in CAN_AND_VIRTUAL / VIRTUAL routes).
     _server.on("/api/screen", HTTP_GET, [](PsychicRequest *request) {
         extern String fullEmuScreenJson();
