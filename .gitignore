@@ -10,5 +10,6 @@
 logs
 logs/
 tools/serial.log
+tools/*.canlog
 __pycache__/
 *.pyc
