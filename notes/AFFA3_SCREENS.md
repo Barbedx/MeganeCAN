@@ -52,12 +52,20 @@ fullscreen, `0x0E`=14 text, `0x0B`=11 info row). See `showMenu` / `showFullscree
 ## Other channels & screens (from /canstream captures, 2026-06-17)
 - **0x1C1** = key/button events (ACK 0x5C1). `03 89 <keyHi> <keyLo>`; RollUp=`01 01`,
   Load=`00 00`, +hold OR 0xC0 into keyLo (`03 89 00 C0`). `sendPasswordSequence` = 5-3-2-1.
-- **0x1F1** = IMAGE channel (the "planet"/nav bitmap), ACK 0x5F1. Independent of radio text.
-  ISO-TP first frame `11 2E` → **302-byte** payload. Header starts
-  `21 0B 00 25 41 42 43 44 45 46 00 01 30 …` then bitmap data. (302 B ≈ 1bpp ~48×50.)
-  The burst is ~43 frames in ~200ms and the firmware drops a chunk each time (CAN RX
-  throughput, NOT the WS buffer) — so capture several cold boots and `affa_decode.py
-  --id 1F1 --merge` the concatenation to union the fragments into the full bitmap.
+- **0x1F1** = NAVIGATION channel (AFFA3NAV — the project goal), ACK 0x5F1. Independent
+  of radio text. ISO-TP first frame `11 2E` → **302-byte** message.
+  REINTERPRETATION (2026-06-17): this is most likely **structured nav STATE/commands, not
+  a streamed bitmap**. The "earth/planet" is the *idle* state (no route — same condition
+  as "insert navigation CD"); the globe glyph already lives in the display. When routing,
+  this channel should carry directives (turn-arrow direction + distance e.g. "600 km" +
+  street). The `21 0B 00 25 41 42 43 44 45 46 00 01 30 …` are fields, not pixels.
+  Idle-state payload (first 118 B, lossless via /api/image):
+  `21 0B 00 25 41 42 43 44 45 46 00 01 30 30 00*… 38 … 66 … 41 80 …` (see /api/image).
+  Capture is frame-lossy because esp32_can sets `rx_queue_len = 6` (lib, hardcoded) and
+  the ~43-frame burst overflows it; /api/image (IsoTpCapture in gotFrame) still only gets
+  ~17 frames for the same reason. Decoding the FIELDS matters more than a perfect grab.
+  NEXT: replay a captured 0x1F1 payload from the ESP and mutate bytes while watching the
+  panel, to map the arrow/distance/street fields — then generate nav from iPhone Maps.
 - Funcreg/registration handshake spans 0x1C1/0x151/0x1F1 (replies `70 …`, acks `74 …`).
 
 ## "CODE" / password screen (0x151, windowed text)
