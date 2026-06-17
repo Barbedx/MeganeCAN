@@ -84,6 +84,17 @@ static const char PREVIEW_PAGE[] = R"HTML(<!doctype html><html><head><meta chars
 </div>
 
 <div class=card>
+ <h3>Radio text / AUX / Voltage</h3>
+ <small>ad-hoc helpers (no save). Text = plain setText line; AUX = put radio in aux mode;
+ Voltage = diagnostic value the panel shows.</small><br>
+ <input id=rt placeholder="Radio text" value="MeganeCAN">
+ <div><button class=go onclick=showText()>Show text</button></div>
+ <div><button class=go onclick=setAux()>Set AUX</button></div>
+ <input id=volt placeholder="Voltage e.g. 12.4" value="12.4" style="width:120px">
+ <button class=go onclick=setVolt()>Set V</button>
+</div>
+
+<div class=card>
  <h3>Display power</h3>
  <small>OFF = panel shows its own clock + outside temp (built-in sensor).</small><br>
  <button onclick=state(1)>Display ON</button>
@@ -117,6 +128,9 @@ function showInfo(){getq('/api/info?l1='+enc($('i1').value)+'&l2='+enc($('i2').v
 function showConfirm(){getq('/api/confirm?caption='+enc($('cc').value)+'&row1='+enc($('c1').value)+'&row2='+enc($('c2').value))}
 function showFull(){getq('/api/fulltext?l1='+enc($('ft1').value)+'&l2='+enc($('ft2').value)+'&l3='+enc($('ft3').value))}
 function showPopup(){getq('/api/popup?text='+enc($('pop').value)+'&icon='+$('pic').value+'&src='+$('psrc').value+'&fmt='+$('pfmt').value)}
+function showText(){getq('/static?text='+enc($('rt').value))}
+function setAux(){post('/setaux')}
+function setVolt(){getq('/setVoltage?voltage='+enc($('volt').value))}
 function state(on){post('/display/state?enable='+on)}
 async function poll(){
  try{

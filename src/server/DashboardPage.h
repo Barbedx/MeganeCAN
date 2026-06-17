@@ -81,32 +81,12 @@ td,th{padding:3px 6px}
 </div></details>
 
 <details><summary>Display &amp; text</summary><div class="body">
-  <div class="row">
-    <button onclick="postf('/display/state',{enable:1}).then(()=>toast('Display ON'))">Display ON</button>
-    <button class="sec" onclick="postf('/display/state',{enable:0}).then(()=>toast('Display OFF'))">Display OFF</button>
-  </div>
-  <hr>
-  <label class="muted">Static text</label>
-  <input id="staticTextInput" placeholder="Text">
-  <label class="ck"><input type="checkbox" id="staticSave"> Save</label>
-  <button class="wide" onclick="showStatic()">Show static text</button>
-  <hr>
-  <label class="muted">Info popup &mdash; Carminat only (other displays ignore it); 3 lines, &le;8 chars</label>
-  <input id="if1" placeholder="line 1" maxlength="8">
-  <input id="if2" placeholder="line 2" maxlength="8">
-  <input id="if3" placeholder="line 3" maxlength="8">
-  <div class="row">
-    <button onclick="showInfo()">Show info popup</button>
-    <button class="sec" onclick="closeInfo()">Close</button>
-  </div>
-  <hr>
-  <label class="muted">Scroll text</label>
+  <label class="muted">Welcome text (shown on boot)</label>
   <input id="welcomeTextInput" placeholder="Text">
   <label class="ck"><input type="checkbox" id="scrollSave"> Save as welcome</label>
   <button class="wide" onclick="showScroll()">Scroll text</button>
   <hr>
   <div class="row"><input id="timeInput" placeholder="Time HHMM" maxlength="4"><button onclick="getq('/settime?time='+encodeURIComponent(g('timeInput').value)).then(()=>toast('Time set'))">Set time</button></div>
-  <div class="row"><input id="voltInput" placeholder="Voltage"><button onclick="getq('/setVoltage?voltage='+encodeURIComponent(g('voltInput').value)).then(()=>toast('Voltage set'))">Set V</button></div>
   <label class="ck"><input type="checkbox" id="autoRestoreCheckbox" onchange="getq('/config/restore?enable='+(this.checked?'1':'0')).then(()=>toast('Saved'))"> Auto-restore text on startup</label>
 </div></details>
 
@@ -150,24 +130,6 @@ td,th{padding:3px 6px}
   <div id="elmHeaders" class="muted" style="margin-top:8px">...</div>
 </div></details>
 
-<details><summary>Button emulation</summary><div class="body">
-  <button class="sec wide" onclick="postf('/setaux',{}).then(()=>toast('AUX set'))">Set AUX mode</button>
-  <div id="keys" style="margin-top:8px"></div>
-  <div class="muted" id="keyResult"></div>
-</div></details>
-
-<details><summary>CAN logging</summary><div class="body">
-  <label class="ck"><input type="checkbox" id="canEn"> Enable CAN logging</label>
-  <input id="canIds" placeholder="ID filter (hex, comma-sep; blank = all) e.g. 151,3CF">
-  <div class="row"><button onclick="saveCan()">Save</button><button class="sec" onclick="loadCan();refreshCanSeen()">Refresh</button></div>
-  <div class="row">
-    <a href="/api/can/log" download="can.log" style="flex:1"><button class="sec wide">Download CAN log</button></a>
-    <button class="sec" onclick="postf('/api/can/clear',{}).then(()=>{toast('CAN cleared');refreshCanSeen();})">Clear</button>
-  </div>
-  <div class="muted" style="margin-top:8px">Seen IDs (tap to add to filter):</div>
-  <div id="canSeen"></div>
-</div></details>
-
 <details><summary>System</summary><div class="body">
   <p><a href="/api/log" download="meganecan.log">Download log &darr;</a></p>
   <button class="sec wide" onclick="postf('/api/log/clear',{}).then(()=>toast('Log cleared'))">Clear log</button>
@@ -185,10 +147,7 @@ async function getq(u){try{return await(await fetch(u)).text();}catch(e){toast('
 async function postf(u,o){const body=new URLSearchParams(o);try{return await(await fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body})).text();}catch(e){toast('error');}}
 function cmd(c){fetch('/api/cmd?c='+encodeURIComponent(c));}
 function mmss(s){s=Math.max(0,Math.floor(s));return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2);}
-function showStatic(){let u='/static?text='+encodeURIComponent(g('staticTextInput').value);if(g('staticSave').checked)u+='&save=on';getq(u).then(()=>toast('Shown'));}
 function showScroll(){let u='/scroll?text='+encodeURIComponent(g('welcomeTextInput').value);if(g('scrollSave').checked)u+='&save=on';getq(u).then(()=>toast('Scrolling'));}
-function showInfo(){getq('/api/info?l1='+encodeURIComponent(g('if1').value)+'&l2='+encodeURIComponent(g('if2').value)+'&l3='+encodeURIComponent(g('if3').value)).then(()=>toast('Info popup'));}
-function closeInfo(){getq('/api/info/close').then(()=>toast('Info close'));}
 
 function renderMedia(d){try{
   if(!d.connected){g('npPlayer').textContent='Not connected';g('npTitle').textContent='-';g('npArtist').textContent='';g('npBar').value=0;g('npProg').textContent='';return;}
@@ -228,10 +187,6 @@ async function loadElmHeaders(){const r=await fetch('/api/elm/headers');if(!r.ok
   g('elmHeaders').innerHTML=h;}
 async function setHeader(hdr,en){await postf('/api/elm/headers',{header:hdr,enabled:en?'1':'0'});}
 
-const KEYS=[['Load',0],['Roll Up',257],['Roll Down',321],['Pause',5],['Src >',1],['Src <',2],['Vol +',3],['Vol -',4]];
-function buildKeys(){let h='';KEYS.forEach(k=>{h+='<div class="row"><button onclick="sendKey('+k[1]+',0)">'+k[0]+'</button><button class="sec" onclick="sendKey('+k[1]+',1)">'+k[0]+' (hold)</button></div>';});g('keys').innerHTML=h;}
-async function sendKey(key,hold){g('keyResult').textContent=await postf('/emulate/key',{key,hold:hold?'1':'0'});}
-
 async function loadConfig(){try{
   g('elmEnabledCheckbox').checked=(await getq('/getelmenabled'))==='1';
   const dt=await getq('/getdisplaytype');[...g('displayTypeSelect').options].forEach((o,i)=>{if(o.value===dt)g('displayTypeSelect').selectedIndex=i;});
@@ -239,21 +194,13 @@ async function loadConfig(){try{
   g('autoTimeCheckbox').checked=(await getq('/getautotime'))==='1';
   g('skipFuncRegCheckbox').checked=(await getq('/getskipfuncreg'))==='1';
   g('autoRestoreCheckbox').checked=(await getq('/config/restore'))==='1';
-  g('staticTextInput').value=await getq('/getlasttext');
   g('welcomeTextInput').value=await getq('/getwelcometext');
 }catch(e){}}
 
-async function loadCan(){const d=await(await fetch('/api/can/config')).json();g('canEn').checked=d.enabled;g('canIds').value=d.filter||'';}
-function renderCanSeen(d){try{const seen=(d.seen||[]).sort((a,b)=>b.n-a.n);
-  let h='';seen.forEach(s=>{h+='<button class="sec" style="margin:2px;padding:5px 8px" onclick="addId(\''+s.id+'\')">'+s.id+' ('+s.n+')</button>';});
-  g('canSeen').innerHTML=h||'<span class="muted">none yet</span>';}catch(e){}}
-async function refreshCanSeen(){try{const d=await(await fetch('/api/can/config')).json();renderCanSeen(d);}catch(e){}}
 async function refreshDashboard(){try{const d=await(await fetch('/api/dashboard')).json();
-  renderMedia(d.media);renderNotifs(d.notifs);renderBt(d.bt);renderWifi(d.wifi);renderCanSeen(d.can);}catch(e){}}
-function addId(id){const f=g('canIds');const cur=f.value.split(/[,\s]+/).filter(Boolean);if(!cur.includes(id))cur.push(id);f.value=cur.join(',');}
-async function saveCan(){await postf('/api/can/config',{enabled:g('canEn').checked?'1':'0',ids:g('canIds').value});toast('CAN config saved');}
+  renderMedia(d.media);renderNotifs(d.notifs);renderBt(d.bt);renderWifi(d.wifi);}catch(e){}}
 
-buildKeys();loadConfig();loadElmHeaders();loadCan();
+loadConfig();loadElmHeaders();
 refreshDashboard();
 setInterval(refreshDashboard,2500);
 </script></body></html>

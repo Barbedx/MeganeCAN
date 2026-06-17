@@ -1,13 +1,14 @@
 #pragma once
 #include <Arduino.h>
 
-// Self-contained wireless CAN viewer + display steering, served at /wire. Opens a
-// WebSocket to /canstream (the WsWireLink stream), renders the live @TX/@RX frames
-// with a SavvyCAN-style ID filter + per-ID table, decodes the AFFA3 screen (same
-// semantics as tools/serial_proxy.py), steers the display over HTTP (/emulate/key,
-// /api/emu, /setaux), and records the stream to a downloadable .canlog (the exact
-// format ReplayCanBus parses). Works from any phone/PC browser on the ESP's network
-// — no laptop tool required.
+// The bus view + protocol-RE page, served at /wire. Opens a WebSocket to /canstream
+// (the WsWireLink stream), renders the live @TX/@RX frames with a SavvyCAN-style ID
+// filter + per-ID table, decodes the AFFA3 screen (same semantics as
+// tools/serial_proxy.py), steers the display over HTTP (/emulate/key), records the
+// stream to a downloadable .canlog (the exact format ReplayCanBus parses), and owns
+// the firmware-side CAN log controls (/api/can/config, /api/can/log, /api/can/clear).
+// Transport (route) + AUX live on /preview. Works from any phone/PC browser on the
+// ESP's network — no laptop tool required.
 static const char WIRE_PAGE[] PROGMEM = R"WIRE(<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>MeganeCAN Wire</title><style>
@@ -60,21 +61,31 @@ small{color:#6c7086}
       <button class=k onclick="key(1,0)">Src▶</button>
       <button class=k onclick="key(2,0)">◀Src</button>
     </div>
-    <div class=row>
-      <button onclick="emu(1)">Self-ACK ON</button>
-      <button onclick="emu(0)">OFF</button>
-      <button onclick="getq('/setaux')">Set AUX</button>
-    </div>
-    <div class=row>
-      <button onclick="getq('/api/fullemu?on=1')">Full-emu ON</button>
-      <button onclick="getq('/api/fullemu?on=0')">Full-emu OFF</button>
-    </div>
+    <small>transport/AUX &rarr; <a href="/preview" style=color:#89b4fa>/preview</a></small>
     <div class=row>
       <input id=raw placeholder="@INJ 3CF 61 11 / @KEY 0 1 / @EMU 1" style=flex:1>
       <button onclick=sendRaw()>WS send</button>
     </div>
     <h3 style=margin-top:10px>IDs seen</h3>
     <table id=idsT><thead><tr><th>ID</th><th>#</th><th>last data</th></tr></thead><tbody id=ids></tbody></table>
+  </div>
+
+  <div class=card>
+    <h3>CAN log</h3>
+    <div class=row>
+      <label><input type=checkbox id=canEn> enable</label>
+    </div>
+    <div class=row>
+      <input id=canIds placeholder="ID filter (hex, comma-sep; blank = all) e.g. 151,3CF" style=flex:1>
+    </div>
+    <div class=row>
+      <button onclick=saveCan()>Save</button>
+      <button onclick="loadCan();refreshCanSeen()">Refresh</button>
+      <a href="/api/can/log" download="can.log"><button>Download CAN log</button></a>
+      <button onclick="postf('/api/can/clear',{}).then(()=>{refreshCanSeen()})">Clear</button>
+    </div>
+    <small>Seen IDs (tap to add to filter):</small>
+    <div id=canSeen class=row style=margin-top:4px></div>
   </div>
 </div>
 
@@ -123,7 +134,14 @@ connect();
 async function postf(u,o){const b=new URLSearchParams(o);const r=await fetch(u,{method:'POST',body:b});return r.text()}
 async function getq(u){const r=await fetch(u);return r.text()}
 function key(code,hold){postf('/emulate/key',{key:code,hold:hold?1:0})}
-function emu(on){getq('/api/emu?on='+(on?1:0))}
+// ---- CAN log (firmware-side capture; backend routes shared with the old dashboard) ----
+async function loadCan(){try{const d=await(await fetch('/api/can/config')).json();$('canEn').checked=d.enabled;$('canIds').value=d.filter||'';renderCanSeen(d);}catch(e){}}
+function renderCanSeen(d){try{const list=(d.seen||[]).slice().sort((a,b)=>b.n-a.n);
+  let h='';list.forEach(s=>{h+='<button onclick="addId(\''+s.id+'\')">'+s.id+' ('+s.n+')</button>';});
+  $('canSeen').innerHTML=h||'<small>none yet</small>';}catch(e){}}
+async function refreshCanSeen(){try{const d=await(await fetch('/api/can/config')).json();renderCanSeen(d);}catch(e){}}
+function addId(id){const f=$('canIds');const cur=f.value.split(/[,\s]+/).filter(Boolean);if(!cur.includes(id))cur.push(id);f.value=cur.join(',');}
+async function saveCan(){await postf('/api/can/config',{enabled:$('canEn').checked?'1':'0',ids:$('canIds').value});}
 async function pollScreen(){try{
   const s=await(await fetch('/api/screen')).json();
   const arrow=s.scroll===11?'↓':s.scroll===7?'↑':s.scroll===12?'↕':'';
@@ -134,6 +152,7 @@ async function pollScreen(){try{
   document.getElementById('screen').innerHTML=h;
 }catch(e){}}
 setInterval(pollScreen,600);pollScreen();
+loadCan();
 function sendRaw(){const v=$('raw').value.trim();if(v&&ws&&ws.readyState===1){ws.send(v);$('raw').value=''}}
 $('raw').addEventListener('keydown',e=>{if(e.key==='Enter')sendRaw()});
 // ---- record ----
