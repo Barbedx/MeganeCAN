@@ -106,4 +106,12 @@ namespace AppleMediaService
     inline bool BookmarkTrack() { return SendRemoteCommand(RemoteCommandID::BookmarkTrack); }
 
     bool StartMediaService(BLEClient *client);
+
+    // Drop the cached remote-command characteristic. MUST be called whenever the
+    // owning NimBLEClient goes away — NimBLEServer::getClient() keeps a single
+    // client for the whole server and calls deleteServices() when it is rebound,
+    // which frees every NimBLERemoteCharacteristic we cached here. Without this,
+    // a second peer connecting turns setRemoteCommandValue() into a write through
+    // freed memory.
+    void Detach();
 }

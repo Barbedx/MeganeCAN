@@ -278,6 +278,7 @@ namespace AppleNotificationService
         if (!gControlPoint || !dataSource || !notifSource)
         {
             Log::printf("ANCS characteristics not found");
+            Detach();
             return false;
         }
 
@@ -285,5 +286,12 @@ namespace AppleNotificationService
         notifSource->subscribe(true, onNotificationSource);
         Log::printf("ANCS started");
         return true;
+    }
+
+    void Detach()
+    {
+        gControlPoint = nullptr;
+        Lock lock;
+        gPending.clear();
     }
 }

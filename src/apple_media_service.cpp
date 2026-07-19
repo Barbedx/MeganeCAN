@@ -51,9 +51,18 @@ namespace AppleMediaService
     return gMediaInformation;
   }
 
+  void Detach()
+  {
+    remote_command_characteristic = nullptr;
+  }
+
   bool StartMediaService(BLEClient *client)
   {
     assert(client != nullptr);
+
+    // Every failure path below must leave the cache empty rather than pointing at
+    // characteristics owned by a client we did not finish binding.
+    Detach();
 
     if (!client->isConnected())
     {
@@ -82,6 +91,7 @@ namespace AppleMediaService
     if (!entity_attribute_characteristic)
     {
       LOGE("AMS", "Apple entity attribute characteristic not found");
+      Detach();
       return false;
     }
 
@@ -89,6 +99,7 @@ namespace AppleMediaService
     if (!entity_update)
     {
       LOGE("AMS", "Apple entity update characteristic not found");
+      Detach();
       return false;
     }
 

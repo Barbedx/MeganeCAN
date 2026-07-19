@@ -37,4 +37,8 @@ namespace AppleNotificationService
     // deferred Control Point write to fetch attributes for a new notification.
     // Doing that write inside the notify callback deadlocks the NimBLE host.
     void Process();
+
+    // Drop the cached Control Point characteristic and any pending fetches. See
+    // AppleMediaService::Detach() — same lifetime hazard, same trigger.
+    void Detach();
 }
