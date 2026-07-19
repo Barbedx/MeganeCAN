@@ -1,0 +1,185 @@
+===== POST id=10564 number=1 time=2025-05-16T14:03:38+00:00
+Hello,
+
+
+I've successfully installed a DUDU7 in my 2006 Clio III with this Canbus
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-05-16/1747403984-285241-image.png]
+
+
+My only complaint would be that i've lost and miss some functionnalities :
+ 
+
+- Outdoor temperature was on the original display of the car, but now is missing on the head unit
+
+- Most of the car informations are missing (speed, doors, etc..)
+
+
+On the forum i've landed on this post [https://forum.dudu-auto.com/d/455-canbus-support-for-renault-clio-3-2009-not-working-well] which make me assume that it would be possible to these missing functionnalities could be added if you know were to grab them
+
+
+Upon searching, I've found a blog article [https://x0r.fr/blog/39] of someone that has decoded some data from the bus.
+
+
+How can I help you implement it ? Also if necessary I can test and provide data from my car
+
+
+Thanks
+
+
+===== POST id=10597 number=2 time=2025-05-17T07:11:23+00:00
+
+
+===== POST id=10599 number=3 time=2025-05-17T08:06:51+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/1] Can't the top status bar show the outside temperature when it's open?
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-05-17/1747469022-60240-image.png]
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-05-17/1747469056-941647-image.png]
+
+Can the OEM screen display door and speed info? Any pics of the OEM screen displaying this info?
+
+
+===== POST id=10680 number=4 time=2025-05-18T17:11:47+00:00
+Hi, here is the OEM screen (which must stay connected for SWC to work)
+
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-05-18/1747587884-88331-pxl-20250517-162820405mp.jpg]
+
+
+Temperature is indeed visible on the OEM, but not on the DUDU
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-05-18/1747588173-598046-pxl-20250517-162729749mp.jpg]
+
+
+Doors and speed are displayed on the dashboard, might these data are available in the CAN bus 🤔
+
+
+===== POST id=10700 number=5 time=2025-05-19T03:23:10+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/4] Not this status bar, I mean the Android status bar showing the external temperature. Do you have the android status bar turned on?
+
+
+===== POST id=10852 number=6 time=2025-05-20T16:55:12+00:00
+Hi,
+
+
+As you can see temp is not displayed either on the Android navbar
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-05-20/1747760037-694183-screenshot-20241203-041729.png]
+
+
+
+===== POST id=11026 number=7 time=2025-05-23T03:00:05+00:00
+Is your OEM screen working properly after installing the DUDU?
+
+
+===== POST id=11048 number=8 time=2025-05-23T06:43:21+00:00
+Yes it is
+
+
+===== POST id=11097 number=9 time=2025-05-24T02:38:25+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/8] With the OEM screen retained, the CANBUS box does not acquire the external temperature, which is viewed in the OEM screen
+
+
+===== POST id=11169 number=10 time=2025-05-25T11:54:18+00:00
+Ok, but when I disconnect the OEM screen SWC won't work anymore and still no temp displayed.
+ 
+
+Also, for my understanding, does the CAN bus box allow Dudu to read whatever he want or it only exposes a certain list of data to the host and can't be extended ?
+
+
+===== POST id=11222 number=11 time=2025-05-26T03:43:59+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/10] The OEM screen is retained and the CANBUS Box does not obtain external temperature data over the CAN bus.
+
+The DUDU can only access the data built into the CANBUS Box, not whatever the DUDU wants, the CANBUS Box will provide.
+
+
+===== POST id=11404 number=12 time=2025-05-28T15:58:09+00:00
+Ok thanks for the clarification ! Do you know then what exactly for this specific canbus box what is provided to the host ? Also, can the missing data be obtained from an OBD dongle ?
+
+
+===== POST id=11464 number=13 time=2025-05-29T06:29:51+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/12] The CANBUS bus box does not disclose its information.
+
+
+
+===== POST id=12140 number=14 time=2025-06-06T16:42:31+00:00
+SWC and temperature are on the multimedia canbus in clio III. They aren't accessible from the normal canbus pins which adapters use. Reverse / lights on are available on both, normal canbus and multimedia canbus. 
+
+I have decoded a lot of canbus messages in my Clio III (including DPF soot, particle regeneration etc). They all work fine in Torque.
+
+For SWC I have a workaround, small box from connects2 for clio III which is connected to multimedia canbus and has hot wire for illumination, hot wire for reverse and two wires for protocols for pioneer, alpine, etc that can be learnt by headunit.
+ 
+
+===== POST id=13243 number=15 time=2025-06-24T02:07:11+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/14] I was wrong about the temperature. I have successfully decoded using esp32 and connection to obd2:
+
+- state of all doors, lights, indicators and ignition position)
+
+- outside temperature
+
+- steering wheel angle and speed of rotation.
+
+These are on main canbus.
+
+SWC controls are on the multimedia canbus which is available on the obd2 port but different pins.
+
+Canbus decoder would need to be double as must be decoding two can buses.
+
+I'm now experimenting with commands to the headunit in Raise VW standard which seem to be working.
+
+I'm not concerned about SWC as I have connects2 device from previous installation which Dudu learnt.
+
+I will post code once finished for anyone interested. Hardware cost is around 10USD.
+ 
+
+===== POST id=13288 number=16 time=2025-06-24T15:14:50+00:00
+I have a phase 2 clio 3 (200) and for the canbus to work the top screenhad to come out as one of the harness leads was part of the new radio loom
+
+
+I had to try a couple different harnesses, first one didn’t work at all with canbus, the second works without issue with doors and light sync, but no speed
+  
+
+None of them give internal temp
+ 
+
+===== POST id=13295 number=17 time=2025-06-24T16:31:57+00:00
+doozy [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/16] there were two options for clio III, one is with update radio and small screen. I've got tom Tom carminat which is slightly different with screen with navi from the factory.
+
+Steering wheel stalks work slightly different for either model.
+ 
+
+===== POST id=13349 number=18 time=2025-06-25T08:35:08+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/17] Ahh that makes things a bit more interesting, I just had the rs monitor top screen, the French don’t make things easy
+ 
+
+===== POST id=13601 number=19 time=2025-06-28T08:53:06+00:00
+So just to update this thread.
+
+Communication with Dudu is fine now and what's working:
+
+- door open / close
+
+- external temperature
+
+- vehicle data: RPM, speed, odometer, water temperature
+
+- steering wheel angles.
+
+These are common for all clio III and will be compatible with for sure Nissan Quashquai J10, possibly with Megane II or / and III.
+
+Now adding second canbus transceiver to be able to do all SWC not only a few that my connects2 adapter provides (in clio III you must retain either Tomtom navi screen and BIC module, both in the dash, in standard clio you must retain the original screen. I tucked mine somewhere in the dash so they aren't visible). 
+
+The whole project is on single esp32 dev board with two can transceivers.
+
+There is no point of sending anything to the canbus because in my clio it's manual AC so only on / off via a button.
+
+I decoded much more data (indicators, lights, parking brake) but there is no source to tell me what commands should be sent to the HU in Raise VWPQ protocol.
+
+I am unable so far to decode fuel level but it must be somewhere in the can messages as instrument cluster shows it. Will keep trying.
+ 
+
+===== POST id=13606 number=20 time=2025-06-28T11:15:13+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/19] for someone who said he doesnt have time to tinker, you sure do a lot of tinkering!  🫣
+ 
+

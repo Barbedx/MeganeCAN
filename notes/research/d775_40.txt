@@ -1,0 +1,182 @@
+===== POST id=13384 number=41 time=2025-06-25T14:54:07+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/39] spent some time getting around it and I've got basic functionality implemented.
+
+Do you know the commands for indicators, headlights/ hazard lights please for Raise vw?
+ 
+
+===== POST id=13416 number=42 time=2025-06-25T22:14:31+00:00
+Mikescotland [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/41]
+ 
+
+It doesnt seem to exist from looking at this: https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/RZC_VolkswagenSeriesProtocol.java [https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/RZC_VolkswagenSeriesProtocol.java]
+
+
+===== POST id=13418 number=43 time=2025-06-25T22:31:05+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/42] thanks. I suspected so but I'm also puzzled why Dudu has in canbus options "animation when indicator lights are on" (tried with connecting 360 camera wire to indicator and it triggers only 360 camera left /right but no animation), and also some canboxes on Ali with "lights" described as being passed to the hu...
+ 
+
+===== POST id=13422 number=44 time=2025-06-25T23:33:37+00:00
+Mikescotland [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/43]
+ 
+
+There might exist a different canbox UART protocol that supports those signals. You can look around in that repo if you find anything.
+
+
+===== POST id=13567 number=45 time=2025-06-27T15:27:03+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/44] thanks.
+
+If you don't mind me pestering you. I have a few questions, I'm making the project using esp32 (easier for me). Vehicle info behaves as expected, sending it every 500ms. With door I have slight problem.
+
+- How frequently is it supposed to be sent via uart?
+
+- Is there any command to signal the door is closed? (because if I stopped transmitting door open command), last open door was opened even without any transmission on uart to HU.
+
+
+===== POST id=13624 number=46 time=2025-06-28T17:39:35+00:00
+I think you just need to send it when any of the properties you can find here change state: https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/canbox.c#L181C1-L220C2 [https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/canbox.c#L181C1-L220C2]
+
+
+If the door is closed, the bit corresponding to that particular door state is set to 0 and the state signal I linked above is sent with the updated state.
+
+
+
+===== POST id=13627 number=47 time=2025-06-28T20:54:36+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/46] thanks. I figured it out as a workaround.
+
+Created three states: door open, door changing, door quiet and sending constantly when door open / changing and command closed door a few times after closing and then silence.
+
+I understand HU expects - 420 / 420  for steering wheel angle? Mapped it and on the vehicle info screen I have values up to around 45° left and 45° right. It's actual road wheels angle I believe. Is that correct? 360 reversing barely moves when full lock!
+ 
+
+===== POST id=13648 number=48 time=2025-06-29T08:08:41+00:00
+Mikescotland [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/47] From checking the code, for Raise/VW/PQ steering wheel angle is sent as a value between -540 to 540. What those values map to in actual physical angles, I do not know. I would suggest you play around with it until it looks right.
+
+
+===== POST id=15726 number=49 time=2025-07-31T14:37:49+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/16] exterior temp in your code seams to be engine temp and has 2bytes
+
+
+
+===== POST id=15727 number=50 time=2025-07-31T14:40:14+00:00
+You are probably right! Happy to take a PR 🙂
+
+
+===== POST id=15765 number=51 time=2025-07-31T21:46:28+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/50] i am sorry over read . Correct is msg4 msg5 bytes are for temp from right mirror .i copyed your project but cant get it running in visual studio code to make file and test it. Same build make difrent files. Cant test code becouse doesnt compile the same 6kb mising. I am not programmer  🙁  Temp 1st byte is for region and second is incremented by 0.25C. e66 gives temp 25.5. and what is pr i am not familar with this
+
+
+===== POST id=15766 number=52 time=2025-07-31T22:18:15+00:00
+Can hazard lights and turn signal use from canbus not direct wire? How to get rid of anoying radar picture iregular pops up when reversing. If it is on in settings then it is on. But in off state it  blinks😃
+
+
+===== POST id=15882 number=53 time=2025-08-03T00:44:29+00:00
+[IMG https://forum.dudu-auto.com/assets/files/2025-08-03/1754181791-505790-img-20250803-032921-6272.jpg]
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-08-03/1754181762-755903-img-20250803-032916-0782.jpg]
+
+Hu rounds it up. For xc90 07 facelift d5 7seat fuel tank has 68l.
+
+
+===== POST id=15939 number=54 time=2025-08-04T02:11:49+00:00
+gun4a17 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/53] 
+
+@dudu-lai [https://forum.dudu-auto.com/u/dudu-lai]
+ 
+
+===== POST id=15987 number=55 time=2025-08-04T12:15:13+00:00
+gun4a17 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/51] I suggest you try cursor or copilot or some other integrated IDE + LLM that should be able to help you work through any basic issues from error messages etc. I don't have bandwidth to provide the sort of hands-on support you are looking for unfortunately.
+
+
+PR = Pull request [https://docs.github.com/articles/about-pull-requests].
+
+
+===== POST id=15995 number=56 time=2025-08-04T13:56:21+00:00
+DUDU-Meng [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/54] i did something wrong?
+
+
+===== POST id=16090 number=57 time=2025-08-06T02:33:59+00:00
+gun4a17 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/56] 
+
+Sorry, I don't see any problems with your photo. For questions related to this agreement, please contact @dudu-lai [https://forum.dudu-auto.com/u/dudu-lai] directly.
+
+
+===== POST id=16291 number=58 time=2025-08-09T01:25:55+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/55] addition to your library, currently testing. Toyota corolla / rav4 profile, Toyota protocol:
+
+
+Lights : 
+
+data=2e 7d 02 01 XX CS, the 5th byte (XX):
+
+
+ - 00 (All Off)
+
+ - 08 (Right Indicator)
+
+ - 10 (Left Indicator)
+
+ - 40 (Headlights)
+
+ - c0 (Headlights with High Beam)
+
+ 
+Checksum CS: (0x2D - sum of the known data bytes) & 0FF.
+
+
+Looks like in available docs the 0x7d address doesn't exist. Must have been added after 2019. Rest of the protocol like steering wheel 0x29 etc is the same.
+ 
+
+More to follow
+ 
+
+
+===== POST id=16313 number=59 time=2025-08-09T14:49:49+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/55] thanks to @MihaiFlorin [https://forum.dudu-auto.com/u/MihaiFlorin] for patiently providing logs remotely, now we have all combinations of the lights on bit 5 of 0x7d address:
+
+
+ - All Off: 0x00
+
+
+ - Right Indicator On: 0x08
+
+
+ - Left Indicator On: 0x10
+
+
+ - Hazard Lights On: 0x18
+
+
+
+ - Headlights On: 0x40
+
+
+ - Headlights On + Right Indicator On: 0x48
+
+
+ - Headlights On + Left Indicator On: 0x50
+
+
+ - Headlights On + Hazard Lights On: 0x58
+
+
+
+ - Headlights & High Beam On: 0xC0
+
+
+ - Headlights & High Beam On + Right Indicator On: 0xC8
+
+
+ - Headlights & High Beam On + Left Indicator On: 0xD0
+
+
+ - Headlights & High Beam On + Hazard Lights On: 0xD8
+
+
+
+And now a surprise. Injecting it into VW PQ protocol (same address) causes indicator animation (edge pulsating light) on DUDU7 (if chosen in Dudu settings) albeit with no icons on the status bar...
+ 
+
+===== POST id=16327 number=60 time=2025-08-09T20:11:20+00:00
+Mikescotland [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/59] Glad to help.
+ 
+

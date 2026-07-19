@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ESP32-based CAN-bus companion for Renault Mégane 2 infotainment/multimedia displays. The firmware connects an ESP32-C3 to the vehicle CAN bus and communicates with the OEM "AFFA3" display unit via CAN frames, bridging phone media controls (Apple Media Service over BLE), providing OBD/ELM327 diagnostics via a WiFi ELM327 adapter, and exposing a web UI for configuration and OTA updates.
 
+**ACTIVE REDESIGN — read `notes/ARCHITECTURE-V2.md` before any new work.** The OEM radio was
+replaced by a DUDU7 Android head unit; the project is expanding to a dual-board gateway
+(this C3 board + a radio-less ESP32-WROVER on the vehicle main CAN, linked over UART) that
+emulates a Raise canbox toward the DUDU7 and reads its media metadata back to the OEM display.
+That document is self-contained (full research annex: Raise protocol bytes, Mégane II CAN ID
+hypotheses, DUDU7 facts, P0 refactor anchors with file:line); raw research dumps are in
+`notes/research/`. Current phase and per-phase acceptance criteria are in its §9.
+
 ## Build & Flash (PlatformIO)
 
 ```bash

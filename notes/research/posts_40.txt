@@ -1,0 +1,742 @@
+===== POST id=18227 number=41 time=2025-09-05T18:17:14+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/40] Clio 3 phase 2
+
+
+===== POST id=18228 number=42 time=2025-09-05T18:19:27+00:00
+mesyounes [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/41] tomtom navi or just radio with the small amber screen?
+
+I've got Tom Tom navi and not sure if the SWC canbus messages will be the same as just radio and screen.
+
+Engine data will be the same.
+
+I'll put it all together and post it.
+
+I'm using ObdII socket as both canbuses (multimedia and engine) are present on it in Renault.
+
+Coolant temperature and battery voltage is present on Renault canbus but the command to the headunit is unknown (yet) for me. So for now it's without it (dudu doesn't show this values from canbus on the status bar anyway but from obd BT adapter only).
+ 
+
+===== POST id=18231 number=43 time=2025-09-05T19:00:21+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/42] Radio and screen with temp
+
+To give you more information, I have a "simple soft" CANbus. The SWC works, but I have no information about the car's doors, temperature, reverse gear, etc.
+
+Is it possible to connect two CANbuses? one for SWC and another for infos ?
+
+Please, can you give me your OBD wiring diagram? 
+
+Thank you very much and have a nice evening.
+
+
+===== POST id=18241 number=45 time=2025-09-05T22:20:38+00:00
+How is Simple Soft connected to the car? Multimedia CANBUS?
+
+
+I am attaching a dirty schematic for my adaptor - I wasn't expecting to share it - it was just to design the PCB and it will be delivered in a few days. I used two ESP32 (big ones, as I had two spare just getting dust, it fine to use ESP32 mini). One ESP32 is for multimedia CAN for SWC, one ESP32 is for engine/body CAN, SWC is passing UART messages to main ESP32, and from this one it goes to the HU (that is to connect two UART lines to one UART input in the HU). There is also a header for a 1.8 inch TFT as my car is a diesel and I have a DPF so I'd like to know when it's regenerating, so I keep driving.
+
+12V to power it comes from ACC line. ILLUMI input was meant to be for switching display to night mode, but at the end of the day I used CANBUS message for lights for this, so it can be used and programmed for any 12V trigger.
+
+https://drive.google.com/file/d/1jZfsXzPao81jlkQmT2NBGCT_h3H_-lT7/view?usp=sharing [https://drive.google.com/file/d/1jZfsXzPao81jlkQmT2NBGCT_h3H_-lT7/view?usp=sharing]
+
+Once the board(s) arrive, I will test it and refine the code for ESP32 CAN and SWC and publish it.
+
+Renault OBD pinout is here: https://pinoutguide.com/CarElectronics/renault_obd2_diag_pinout.shtml [https://pinoutguide.com/CarElectronics/renault_obd2_diag_pinout.shtml] with multimedia canbus also indicated on pins 12/13.
+
+You would need the following from Renault canbus:
+
+0x60D - Status, Doors & Temperature 
+
+This is a multi-purpose message containing information about vehicle status, lights, doors, and ambient temperature. It expects a data length of at least 5 bytes.
+
+Bytes 0-2: A 24-bit field holding various status flags.
+
+Bit 11: High beams are on.
+
+Bit 13: Left indicator is active.
+
+Bit 14: Right indicator is active.
+
+Bit 17: Headlights are on.
+
+Bit 18: Parking lights are on.
+
+Bit 19: Passenger door is open.
+
+Bit 20: Driver's door is open. 
+
+Bit 21: Rear right door is open
+
+Bit 22: Rear left door is open
+
+Bit 23: Boot is open.
+
+
+Byte 4: Contains the outside temperature. The value is calculated by subtracting 40 from the byte's value (
+
+
+data[4] - 40.0f).
+
+
+0x5FD - Odometer
+ 
+
+This message provides the vehicle's total distance traveled. It expects a data length of at least 3 bytes.
+
+Bytes 0-2: A 24-bit integer representing the odometer reading. The final value in kilometers is obtained by combining the bytes and dividing by 16 (
+
+((data[0] << 16) | (data[1] << 8) | data[2]) / 16).
+
+
+0x181 - Engine RPM
+ 
+
+This message contains the current engine speed. It expects a data length of at least 2 bytes.
+
+
+Bytes 0-1: A 16-bit integer representing the engine revolutions per minute. The value is formed by concatenating the two bytes (
+
+
+(data[0] << 8) | data[1]).
+
+
+
+0x0C2 - Steering Wheel Angle
+ 
+
+This message relays the raw angle of the steering wheel. It expects at least 1 byte of data.
+
+
+
+Byte 0: A raw, single-byte value for the steering wheel's position. This value is then mapped from its raw range to a final angle in degrees.
+
+
+
+
+0x5C5 - Parking Brake Status
+ 
+
+This message indicates whether the parking brake is engaged. It uses at least 1 byte of data.
+
+
+Byte 0: A status byte where bit 2 indicates the brake status. The parking brake is considered
+ 
+
+ON when this bit is 0.
+
+
+0x354 - Speed & Brake Pedal
+
+This message provides the vehicle's current speed, a trip distance, and the brake pedal status. It requires a data length of at least 5 bytes.
+
+
+Bytes 0-1: A 16-bit value for vehicle speed. The final value is calculated by multiplying the raw integer by 0.01 (
+
+
+((data[0] << 8) | data[1]) * 0.01f).
+
+
+Bytes 2-3: A 16-bit value for a trip counter. The final distance is calculated by multiplying the raw integer by 0.1 (
+
+
+((data[3] << 8) | data[2]) * 0.1f).
+
+
+
+Byte 4: A status byte where bit 4 indicates if the brake pedal is being pressed ((data[4] & (1 << 4)) != 0).
+
+
+===== POST id=18275 number=46 time=2025-09-06T14:01:03+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/45] My "simple soft" is connected to multimedia CANBUS.
+
+
+Your project looks very interesting. I'll wait for the results and I hope you'll share the code with us. 
+
+Have a good day.
+
+
+===== POST id=18320 number=47 time=2025-09-07T15:27:53+00:00
+mesyounes [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/46] In this project you wont be able to use Simplesoft adaptor as the protocol isn't something I know, so cannot translate.
+
+What works:
+
+RPM, Speed, Steering Wheel Angle, Outside Temperature, All Lights & Indicators, All Doors, Odometer, All Steering Wheel Controls.
+
+What DOESN'T work:
+
+Average consumption (not present in Clio III), Seatbet & Parking Brake (yet, present in Clio III, protocol known, errors), TPMS (my Clio III does not have it) etc,
+
+For all engine/body protocol for Toyota RAV4 2018-2020 refer here: https://drive.google.com/file/d/1iFQtRCPRPOZsFAjxb1eWVp3IcNeYncvQ/view [https://drive.google.com/file/d/1iFQtRCPRPOZsFAjxb1eWVp3IcNeYncvQ/view]
+
+CAN Bus Button Matrix Clio III Carminat TomTom (Multimedia Can) - warning: screen and BIC must be left alone, tuck them under the dash somewhere. The SWC buttons are a matrix switches > then go to BIC module under dash and from the BIC module Multimedia CAN is taken to OBDII port on pins 12/13. I have no idea if in the normal Clio III with amber small screen the CAN is the same. 
+
+All frames are sent on CAN ID 0x58F with a Data Length of 8. Canbus speed 500kbps (same as main one)
+
+Button Name	Action	CAN Bus Data Payload
+
+- Volume Up	Short Press	89 00 03 BB BB BB BB BB
+
+- Long Press	89 00 43 BB BB BB BB BB
+
+- Volume Down	Short Press	89 00 04 BB BB BB BB BB
+
+- Long Press	89 00 44 BB BB BB BB BB
+
+- Next Track	Short Press	89 01 01 BB BB BB BB BB
+
+- Long Scroll	89 01 02 BB BB BB BB BB
+
+- Previous Track	Short Press	89 01 41 BB BB BB BB BB
+
+- Long Scroll	89 01 42 BB BB BB BB BB
+
+- Mute	Short Press	89 00 05 BB BB BB BB BB
+
+- Source/Audio	Short Press	89 00 02 BB BB BB BB BB
+
+- Telephone	Short Press	89 00 01 BB BB BB BB BB
+
+- Voice	Short Press	89 00 06 BB BB BB BB BB
+
+- OK	Short Press	89 00 00 BB BB BB BB BB
+
+- (Any Button)	Release	80 01 BB BB BB BB BB
+
+
+There are two ESP32's in the project, each with a SN65HVD230 CJMCU-230 CANBUS transceivers (one for SWC canbus and the second one for the engine/body canbus). SWC translates the SWC commands into Toyota RAV4 protocol and injects them into main ESP32. SWC commands have priority over engine and body messages, as any delay with volume, track etc would be annoying. The pin numbering in the Arduino sketches is according to the schematic here (dirty schematic, I can't be bothered to make it "pretty"): https://drive.google.com/file/d/1jZfsXzPao81jlkQmT2NBGCT_h3H_-lT7/view [https://drive.google.com/file/d/1jZfsXzPao81jlkQmT2NBGCT_h3H_-lT7/view]
+
+SWC ESP32 maps the buttons to closest equivalent in the Toyota RAV4 protocol. SOURCE button doesn't do anything so feel free to map it to anything you like as per protocol here: https://drive.google.com/file/d/1iFL_Nui0X3n9P1Bsn-8NDJzWbIL6fmh6/view [https://drive.google.com/file/d/1iFL_Nui0X3n9P1Bsn-8NDJzWbIL6fmh6/view]
+
+Now, MUTE is long press of SOURCE/MODE, however, none of the long presses work in 3.6 beta DUDU from 05 September (let's wait, it was working before that update). 
+
+Engine/body: there is known Canbus address for seatbelt and parking brake in Clio III, however it is not yet in the sketch for ESP32 as there was a DUDU error and it was throwing immediately automatic gearbox icons etc. I am not sure if they fixed it in this update, I will check in the following week. If so, I will update the sketch.
+
+ESP Engine/Body
+
+#include <ESP32-TWAI-CAN.hpp>
+#include <HardwareSerial.h>
+#include <cmath>
+
+// =========================================================================
+// Configuration
+// =========================================================================
+#define CAN_TX 5
+#define CAN_RX 4
+
+const int CAN_ID_STATUS_DOORS_TEMP = 0x60D;
+const int CAN_ID_ODOMETER = 0x5FD;
+const int CAN_ID_RPM = 0x181;
+const int CAN_ID_STEERING = 0x0C2;
+const int CAN_ID_PARKING_BRAKE = 0x5C5;
+const int CAN_ID_SPEED_BRAKE = 0x354;
+const int CAN_BAUD_RATE = 500000;
+
+// --- Steering Angle Calibration ---
+const int STEERING_RAW_LEFT = 148;
+const int STEERING_RAW_RIGHT = 107;
+const int STEERING_FINAL_LEFT = -540;
+const int STEERING_FINAL_RIGHT = 540;
+
+// --- UART Setup for Headunit (Output) ---
+const int UART_TX_PIN = 17;
+const long UART_BAUD_RATE = 38400;
+HardwareSerial UartPort(1);
+
+// --- UART Setup for Injector (Input from SWC ESP32) ---
+const int UART_INJECTOR_RX_PIN = 25; // GPIO pin to receive data from the other ESP32
+const int UART_INJECTOR_TX_PIN = 26; // Not used, but required for initialization
+const long UART_INJECTOR_BAUD_RATE = 38400; // Must match the sending ESP32's baud rate
+HardwareSerial UartInjectorPort(2); // Using UART2
+
+// --- CAN->UART Command Bytes ---
+const uint8_t CMD_DOOR_STATUS = 0x24;
+const uint8_t CMD_MULTI_FUNCTION = 0x7D;
+const uint8_t CMD_STEERING_WHEEL = 0x29;
+const uint8_t CMD_OUTSIDE_TEMP = 0x28;
+
+// --- Send Intervals (ms) ---
+const long STEERING_SEND_INTERVAL_MS = 200;
+const long STATUS_SEND_INTERVAL_MS = 250;
+const long DOOR_PERIODIC_INTERVAL_MS = 2000;
+const long SPEED_SEND_INTERVAL_MS = 500;
+const long RPM_SEND_INTERVAL_MS = 333;
+const long TEMP_SEND_INTERVAL_MS = 5000;
+const long ODOMETER_SEND_INTERVAL_MS = 10000;
+const long INDICATOR_TIMEOUT_MS = 500;
+
+// --- UART Bitmasks for Doors ---
+const uint8_t MASK_DOOR_DRIVER = 1 << 7;
+const uint8_t MASK_DOOR_PASSENGER = 1 << 6;
+const uint8_t MASK_DOOR_BOOT = 1 << 3;
+
+// Global Variables
+CanFrame rxFrame;
+int outsideTemperature = 15;
+uint32_t odometerValue = 0;
+uint16_t engineRpm = 0;
+int steeringAngleRaw = 0;
+int16_t rczSteeringAngle = 0;
+uint8_t currentDoorStateMask = 0;
+bool isParkingBrakeOn = false;
+bool lastParkingBrakeState = false;
+float vehicleSpeed = 0.0;
+float tripDistance = 0.0;
+bool isBrakePedalPressed = false;
+bool headlightsOn = false;
+bool highBeamsOn = false;
+bool parkingLightsOn = false;
+uint8_t lastLightsStateByte = 0;
+unsigned long lastLeftIndicatorSignalTime = 0;
+unsigned long lastRightIndicatorSignalTime = 0;
+unsigned long lastSteeringSendTime = 0;
+unsigned long lastStatusSendTime = 0;
+unsigned long lastDoorPeriodicSendTime = 0;
+unsigned long lastSpeedSendTime = 0;
+unsigned long lastRpmSendTime = 0;
+unsigned long lastTempSendTime = 0;
+unsigned long lastOdometerSendTime = 0;
+
+void sendCanboxMessage(uint8_t cmd, const uint8_t* data, uint8_t len) {
+    uint8_t sum = cmd + len;
+    uint8_t frame[len + 4];
+    frame[0] = 0x2E;
+    frame[1] = cmd;
+    frame[2] = len;
+    for (uint8_t i = 0; i < len; ++i) {
+        sum += data[i];
+        frame[3 + i] = data[i];
+    }
+    frame[3 + len] = sum ^ 0xFF;
+    UartPort.write(frame, len + 4);
+}
+
+void sendDoorCommand(uint8_t doorMask) { sendCanboxMessage(CMD_DOOR_STATUS, &doorMask, 1); }
+
+void sendOutsideTempMessage(int temp) {
+    uint8_t encoded = uint8_t((temp + 40) * 2);
+    uint8_t payload[12] = {0};
+    payload[5] = encoded;
+    sendCanboxMessage(CMD_OUTSIDE_TEMP, payload, 12);
+}
+
+void sendLightsUartMessage(uint8_t lightsState) {
+    uint8_t payload[2] = { 0x01, lightsState };
+    sendCanboxMessage(CMD_MULTI_FUNCTION, payload, 2);
+}
+
+void sendOdometerUartMessage(uint32_t odo) {
+    uint8_t payload[12] = { 0x04, uint8_t(odo), uint8_t(odo >> 8), uint8_t(odo >> 16), 0,0,0,0,0,0,0,0 };
+    sendCanboxMessage(CMD_MULTI_FUNCTION, payload, 12);
+}
+
+void sendRpmUartMessage(uint16_t rpm) {
+    uint16_t half = rpm / 2;
+    uint8_t payload[3] = { 0x0A, uint8_t(half & 0xFF), uint8_t(half >> 8) };
+    sendCanboxMessage(CMD_MULTI_FUNCTION, payload, 3);
+}
+
+void sendSpeedUartMessage(float speed) {
+    uint16_t raw = uint16_t(speed * 100.0f);
+    uint8_t payload[5] = { 0x03, uint8_t(raw & 0xFF), uint8_t(raw >> 8), 0x00, 0x00 };
+    sendCanboxMessage(CMD_MULTI_FUNCTION, payload, 5);
+}
+
+void sendSteeringAngleMessage(int16_t angle) {
+    uint8_t payload[2] = { uint8_t(angle & 0xFF), uint8_t(angle >> 8) };
+    sendCanboxMessage(CMD_STEERING_WHEEL, payload, 2);
+}
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Initialize UART port to the headunit
+  UartPort.begin(UART_BAUD_RATE, SERIAL_8N1, -1, UART_TX_PIN);
+
+  // Initialize UART port for message injection
+  UartInjectorPort.begin(UART_INJECTOR_BAUD_RATE, SERIAL_8N1, UART_INJECTOR_RX_PIN, UART_INJECTOR_TX_PIN);
+  Serial.println("Injector UART port initialized. Listening for messages...");
+
+  ESP32Can.setPins(CAN_TX, CAN_RX);
+  ESP32Can.setSpeed(ESP32Can.convertSpeed(CAN_BAUD_RATE));
+  ESP32Can.begin();
+}
+
+void loop() {
+  unsigned long now = millis();
+  bool swcMessageHandled = false;
+
+  // --- Priority handling for SWC messages ---
+  if (UartInjectorPort.available()) {
+    swcMessageHandled = true; // Flag that we are handling a priority message
+    while (UartInjectorPort.available()) {
+      // Read one byte from the injector port
+      uint8_t byteFromOtherEsp = UartInjectorPort.read();
+      // Immediately write (forward) that byte to the headunit port
+      UartPort.write(byteFromOtherEsp);
+    }
+  }
+
+  // If a steering wheel control message was just forwarded,
+  // skip the rest of the loop to give it priority and prevent interleaving.
+  if (swcMessageHandled) {
+    return;
+  }
+
+  // --- Read CAN frames (only if no SWC message was handled) ---
+  if (ESP32Can.readFrame(rxFrame)) {
+    switch (rxFrame.identifier) {
+      case CAN_ID_STATUS_DOORS_TEMP:
+        if (rxFrame.data_length_code >= 5) {
+          outsideTemperature = round(float(rxFrame.data[4]) - 40.0f);
+          uint32_t status = (uint32_t(rxFrame.data[0]) << 16) | (uint32_t(rxFrame.data[1]) << 8) | uint32_t(rxFrame.data[2]);
+          if (status & (1UL << 13)) lastLeftIndicatorSignalTime = now;
+          if (status & (1UL << 14)) lastRightIndicatorSignalTime = now;
+          headlightsOn = status & (1UL << 17);
+          highBeamsOn = status & (1UL << 11);
+          parkingLightsOn = status & (1UL << 18);
+          uint8_t mask = 0;
+          if (status & (1UL << 20)) mask |= MASK_DOOR_DRIVER;
+          if (status & (1UL << 19)) mask |= MASK_DOOR_PASSENGER;
+          if (status & (1UL << 23)) mask |= MASK_DOOR_BOOT;
+          currentDoorStateMask = mask;
+        }
+        break;
+      case CAN_ID_ODOMETER:
+        if (rxFrame.data_length_code >= 3) {
+          uint32_t raw = (uint32_t(rxFrame.data[0]) << 16) | (uint32_t(rxFrame.data[1]) << 8) | uint32_t(rxFrame.data[2]);
+          odometerValue = raw / 16;
+        }
+        break;
+      case CAN_ID_RPM:
+        if (rxFrame.data_length_code >= 2) {
+          engineRpm = (uint16_t(rxFrame.data[0]) << 8) | uint16_t(rxFrame.data[1]);
+        }
+        break;
+      case CAN_ID_STEERING:
+        if (rxFrame.data_length_code >= 1) {
+          steeringAngleRaw = rxFrame.data[0];
+          rczSteeringAngle = map(steeringAngleRaw, STEERING_RAW_LEFT, STEERING_RAW_RIGHT, STEERING_FINAL_RIGHT, STEERING_FINAL_LEFT);
+        }
+        break;
+      case CAN_ID_PARKING_BRAKE:
+        if (rxFrame.data_length_code >= 1) {
+          isParkingBrakeOn = (rxFrame.data[0] & (1 << 2)) == 0;
+        }
+        break;
+      case CAN_ID_SPEED_BRAKE:
+        if (rxFrame.data_length_code >= 5) {
+          uint16_t rawSpeed = (uint16_t(rxFrame.data[0]) << 8) | uint16_t(rxFrame.data[1]);
+          vehicleSpeed = rawSpeed * 0.01f;
+          uint16_t rawDist = (uint16_t(rxFrame.data[3]) << 8) | uint16_t(rxFrame.data[2]);
+          tripDistance = rawDist * 0.1f;
+          isBrakePedalPressed = (rxFrame.data[4] & (1 << 4)) != 0;
+        }
+        break;
+    }
+  }
+
+  // --- Lights & indicators on-change ---
+  bool leftActive = (now - lastLeftIndicatorSignalTime < INDICATOR_TIMEOUT_MS);
+  bool rightActive = (now - lastRightIndicatorSignalTime < INDICATOR_TIMEOUT_MS);
+  uint8_t lightMask = 0;
+  if (rightActive) lightMask |= 0x08;
+  if (leftActive) lightMask |= 0x10;
+  if (highBeamsOn) lightMask |= 0x20;
+  if (headlightsOn) lightMask |= 0x40;
+  if (parkingLightsOn) lightMask |= 0x80;
+  if (lightMask != lastLightsStateByte) {
+    sendLightsUartMessage(lightMask);
+    lastLightsStateByte = lightMask;
+  }
+
+  // --- Scheduled sends ---
+  if (now - lastSteeringSendTime >= STEERING_SEND_INTERVAL_MS) {
+    lastSteeringSendTime = now;
+    sendSteeringAngleMessage(rczSteeringAngle);
+  }
+  if (now - lastStatusSendTime >= STATUS_SEND_INTERVAL_MS) {
+    lastStatusSendTime = now;
+    sendDoorCommand(currentDoorStateMask);
+  }
+  if (now - lastDoorPeriodicSendTime >= DOOR_PERIODIC_INTERVAL_MS) {
+    lastDoorPeriodicSendTime = now;
+    sendDoorCommand(currentDoorStateMask);
+  }
+  if (now - lastOdometerSendTime >= ODOMETER_SEND_INTERVAL_MS) {
+    lastOdometerSendTime = now;
+    sendOdometerUartMessage(odometerValue);
+  }
+  if (now - lastTempSendTime >= TEMP_SEND_INTERVAL_MS) {
+    lastTempSendTime = now;
+    sendOutsideTempMessage(outsideTemperature);
+  }
+  if (now - lastRpmSendTime >= RPM_SEND_INTERVAL_MS) {
+    lastRpmSendTime = now;
+    sendRpmUartMessage(engineRpm);
+  }
+  if (now - lastSpeedSendTime >= SPEED_SEND_INTERVAL_MS) {
+    lastSpeedSendTime = now;
+    sendSpeedUartMessage(vehicleSpeed);
+  }
+}
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+ESP SWC
+
+#include <ESP32-TWAI-CAN.hpp>
+#include <HardwareSerial.h>
+
+// --- Configuration ---
+#define CAN_RX_PIN 5
+#define CAN_TX_PIN 4
+#define CAN_BAUD_RATE 500000
+const uint32_t CAN_ID_STEERING_WHEEL = 0x58F;
+
+// --- UART Output for Toyota Protocol ---
+#define UART_TX_PIN 26 // Output pin for the translated commands
+#define UART_RX_PIN 25 // Not used, but required for begin()
+const long UART_BAUD_RATE = 38400;
+
+// --- Keypress delay for standard buttons ---
+#define KEYPRESS_DELAY_MS 120 
+
+// Use UART Port 1 for the output
+HardwareSerial UartPort(1);
+
+// State tracking variable
+bool isButtonPressed = false;
+
+/**
+ * @brief Constructs and sends a steering wheel control message via UART.
+ * @param keyCode The button identifier from the Toyota protocol.
+ * @param keyStatus The state of the button (0=released, 1=pressed, 2=long press).
+ */
+void sendToyotaUartMessage(uint8_t keyCode, uint8_t keyStatus) {
+  uint8_t frame[6];
+  
+  frame[0] = 0x2e;
+  frame[1] = 0x20;
+  frame[2] = 0x02;
+  frame[3] = keyCode;
+  frame[4] = keyStatus;
+
+  uint8_t sum = frame[1] + frame[2] + frame[3] + frame[4];
+  frame[5] = sum ^ 0xFF;
+
+  Serial.printf("SWC TX -> KeyCode: 0x%02X, KeyStatus: %d\n", keyCode, keyStatus);
+  UartPort.write(frame, sizeof(frame));
+
+  // If the command was a press (status 1 or 2), add a short delay.
+  if (keyStatus > 0) {
+    delay(KEYPRESS_DELAY_MS);
+  }
+}
+
+/**
+ * @brief Translates a CAN bus frame into a Toyota UART command.
+ * @param frame The incoming CAN frame with steering wheel data.
+ */
+void translateCanToUart(const CanFrame& frame) {
+  if (frame.data_length_code != 8) {
+    return;
+  }
+
+  // Check for the RELEASE command (header 0x80)
+  if (frame.data[0] == 0x80) {
+    if (isButtonPressed) {
+      sendToyotaUartMessage(0x00, 0);
+      isButtonPressed = false;
+    }
+    return;
+  }
+
+  // Check for a PRESS command (header 0x89)
+  if (frame.data[0] == 0x89) {
+    uint8_t buttonGroup = frame.data[1];
+    uint8_t buttonCode  = frame.data[2];
+
+    // --- Special Handling for MUTE button ---
+    if (buttonGroup == 0x00 && buttonCode == 0x05) {
+      // Send the MUTE command (SRC Long Press)
+      sendToyotaUartMessage(0x07, 2);
+      // Wait for one second
+      delay(1000);
+      // Automatically send the release command
+      sendToyotaUartMessage(0x00, 0);
+      // This button's entire cycle is handled, so exit.
+      return;
+    }
+    
+    uint8_t uartKeyCode = 0x00;
+    uint8_t uartKeyStatus = 0;
+    bool isValidButton = true;
+
+    // Direct Mapping Logic for all other buttons
+    switch (buttonGroup) {
+      case 0x00: // Left-side CAN buttons
+        switch (buttonCode) {
+          case 0x03: uartKeyCode = 0x01; uartKeyStatus = 1; break; // VOL+ Short
+          case 0x43: uartKeyCode = 0x01; uartKeyStatus = 2; break; // VOL+ Long
+          case 0x04: uartKeyCode = 0x02; uartKeyStatus = 1; break; // VOL- Short
+          case 0x44: uartKeyCode = 0x02; uartKeyStatus = 2; break; // VOL- Long
+          case 0x02: uartKeyCode = 0x07; uartKeyStatus = 1; break; // SOURCE Short
+          // case 0x05: is now handled above
+          case 0x01: uartKeyCode = 0x88; uartKeyStatus = 1; break; // TEL
+          case 0x06: uartKeyCode = 0x08; uartKeyStatus = 1; break; // VOICE
+          case 0x00: uartKeyCode = 0x16; uartKeyStatus = 1; break; // OK
+          default: isValidButton = false; break;
+        }
+        break;
+      case 0x01: // Right-side CAN buttons
+        switch (buttonCode) {
+          case 0x01: uartKeyCode = 0x85; uartKeyStatus = 1; break; // NEXT+ Short
+          case 0x02: uartKeyCode = 0x85; uartKeyStatus = 2; break; // NEXT+ Long
+          case 0x41: uartKeyCode = 0x86; uartKeyStatus = 1; break; // PREV- Short
+          case 0x42: uartKeyCode = 0x86; uartKeyStatus = 2; break; // PREV- Long
+          default: isValidButton = false; break;
+        }
+        break;
+      default: 
+        isValidButton = false; 
+        break;
+    }
+
+    if (isValidButton) {
+      sendToyotaUartMessage(uartKeyCode, uartKeyStatus);
+      isButtonPressed = true;
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("SWC CAN to UART Translator Initialized.");
+
+  UartPort.begin(UART_BAUD_RATE, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
+  
+  ESP32Can.setPins(CAN_TX_PIN, CAN_RX_PIN);
+  ESP32Can.setSpeed(ESP32Can.convertSpeed(CAN_BAUD_RATE));
+  if (!ESP32Can.begin()) {
+    Serial.println("Failed to start CAN bus. Halting.");
+    while (1);
+  }
+  Serial.println("CAN bus running. Listening for steering wheel controls...");
+}
+
+void loop() {
+  CanFrame rxFrame;
+  
+  if (ESP32Can.readFrame(rxFrame)) {
+    if (rxFrame.identifier == CAN_ID_STEERING_WHEEL) {
+      translateCanToUart(rxFrame);
+    }
+  }
+}
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+
+You can also use ESP32 Mini, saves space and really it could be all connected with the jumper wires and secured. If so, remember to change PIN assignments in the sketches.
+
+The code does not have additional screen code (there is a header for 1.8 TFT screen on the schematic), neither there is a code for DPF soot and regeneration. It will be done in the second part of the project.
+
+If you don't change anything in the SWC sketch, in DUDU go to Vehicle > SWC Learning > Mode Button and assign BT Phone as 1st app, rest Not assigned - TEL button on the wheel will bring BT Phone app full screen, second press will close it,.
+
+
+There are a few other things to be done - front and rear radar. Protocol is now known to me. I am waiting for 12 Euros (x2) radars for front and rear. I have already cracked the radar communication and it can be translated to DUDU as well. So for 20 Euros you can have integrated front and rear radar into dudu.
+
+Also, DUDU sends over canbus UART title and artist when changing songs, so it will also be incorporated into the protocol later.
+
+
+Steering wheel Canbus Laguna III: 0x58F the frames: -0x89 0x00 0x03 0xA3 0xA3 0xA3 0xA3 0xA3 : vol + short press -0x89 0x00 0x43 0xA3 0xA3 0xA3 0xA3 0xA3 : vol + long press -0x89 0x00 0x04 0xA3 0xA3 0xA3 0xA3 0xA3 : vol- short press -0x89 0x00 0x44 0xA3 0xA3 0xA3 0xA3 0xA3 : vol- long press -0x89 0x00 0x05 0xA3 0xA3 0xA3 0xA3 0xA3 : mute -0x89 0x01 0x01 0xA3 0xA3 0xA3 0xA3 0xA3 : wheel down -0x89 0x01 0x41 0xA3 0xA3 0xA3 0xA3 0xA3 : wheel up -0x89 0x01 0x00 0xA3 0xA3 0xA3 0xA3 0xA3 : wheel press -0x89 0x00 0x07 0xA3 0xA3 0xA3 0xA3 0xA3 : left rear button -0x89 0x00 0x08 0xA3 0xA3 0xA3 0xA3 0xA3 : right rear button
+
+I have also checked Renault VISIO and multimedia canbus seems to be present on 12/13 pins for every car trim, also for these with only amber display. Probably the can IDs are the same, either these one I gave or these ones from Laguna above (the other version of the steering stalk). This is also applicable to Megane III.
+
+
+===== POST id=18334 number=48 time=2025-09-07T22:49:03+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/47] Great job, I'll do the tests and get back to you.
+
+
+===== POST id=18335 number=49 time=2025-09-07T23:01:00+00:00
+mesyounes [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/48] I forgot to check which one is H and L on 12/13 pin of multimedia CAN - will do it tomorrow, too late now. Also, as far as I dug out - amber small screens - multimedia canbus may run on 125kbps. Have no means to test it
+ 
+
+===== POST id=18473 number=50 time=2025-09-09T12:45:29+00:00
+Small update. Was left with the cavity after 1DIN radio.
+
+So decided to do something with it. As my car is diesel, DPF regeneration is important not to interrupt it. Modified sketch to include obdII commands to poll soot and regeneration status (yes @DUDU-Meng [https://forum.dudu-auto.com/u/DUDU-Meng], since 2008/2015,+, obd protocol goes only over canbus, so same pins and processor easily can switch between protocols in a millisecond), and threw a small LCD screen. As Dudu sends metadata from played file over canbus uart, why not then. So display shows soot level (yes, high now, need to go for a drive), flashes DPF in red when regeneration is active.
+
+I added a few buttons for resistive controls connected to KEY1 in Dudu, they are mapped to various commands, red and green are phone answer /end. It's in addition to the SWC at steering wheel over canbus.
+
+I added the volume knob on rotary encoder (nicer knob, larger I'll print later), sends volume up /down and play / pause over canbus. 
+
+Screen dimms when headlights are on (command over canbus). [IMG https://forum.dudu-auto.com/assets/files/2025-09-09/1757421915-475196-20250909-133016-copy-1544x1500.jpg]
+
+
+Ah yes, need to wash that dash...
+
+Sketches to follow later.
+ 
+
+===== POST id=22799 number=51 time=2025-11-18T19:16:29+00:00
+Hello. Your work is excellent and could be improved... This system could be used to implement a CAN-BUS blind spot warning system. The key is mastering the CAN-BUS.
+
+
+I have a Megane 2 Phase 2. As you mentioned, the CAN messages for headlights, fog lights, and headlights are the same as those on the Clio 3, but I can't see any messages in the CAN bus on the OBD regarding door locking, unlocking, or door lock status. I can see the messages through Savvycan with Gvret FW on ESP32, but there are no bytes or bit changes related to the door locks. I have a feeling I might be able to see these messages on the CAN2 bus, but I'm not sure.
+
+
+Any comments or ideas would be appreciated.
+
+
+===== POST id=22806 number=52 time=2025-11-19T01:27:25+00:00
+frkgnn [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/51] all the information is available on main Canbus, including the door opening on clio III and newer. Unfortunately I have no details of the megane II ph2 canbus (it's older than canbus data I provided) and you'd need to check yourself and sniff packets to check what and if door information is available.
+
+I can't figure out how the system could be "improved" by adding blind spot monitoring if neither of the cars, clio nor megane, have this information available on canbus, simply because they don't have any blind spot monitoring system.
+
+PS, since the sketch I implemented a few other things, moved to esp-idf platform and incorporated ACK / NACK responses, so it's fully compatible with raise protocol. I'll post the code later this week.
+ 
+
+===== POST id=22844 number=53 time=2025-11-19T12:06:02+00:00
+Thank you very much for your response. Do you know the ID and frame related to the door lock status or door locks in your vehicle (Clio 3)?. If you know, what would you share?
+
+
+===== POST id=22851 number=54 time=2025-11-19T15:50:07+00:00
+frkgnn [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/53] I've already shared it here in this thread:
+
+https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/45 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/45]
+
+
+===== POST id=26784 number=55 time=2026-01-23T15:21:46+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/1] Hi, I just bought a 9-inch Android for my Clio 3 with HiWorld CANBUS. Everything works, even the steering wheel controls, but the temperature isn't shown on the top bar. Can you help me? Thanks.
+
+
+===== POST id=27094 number=56 time=2026-01-28T15:33:23+00:00
+dariors84 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/55] I don't have docs for hiworld protocol, so unfortunately cannot help you.
+ 
+
+===== POST id=27101 number=58 time=2026-01-28T18:02:33+00:00
+but what brand of CANbus do you use? I haven't touched the operating system of the Android tablet. Do I need to install a system or a launcher?
+
+
+===== POST id=27102 number=59 time=2026-01-28T18:18:00+00:00
+dariors84 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/58] if it was for me, I don't fully understand what you're asking for?
+ 
+
+===== POST id=27103 number=60 time=2026-01-28T18:19:33+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/59] if it was for me, I don't fully understand what you're asking for?
+
+
+
+For anyone who can help me...have you installed an Android tablet with a CANbus on the Clio?
+
+
+===== POST id=27110 number=61 time=2026-01-28T20:45:20+00:00
+dariors84 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/60] I installed Dudu headunit with custom canbus in clio iii.
+
+If you want a tablet, as far as I know there aren't any ready apps to interpret canbus into nice screens.
+
+I used to have a nexus tablet previously connected to obd and showing data from torque app. But it's another approach.
+ 
+

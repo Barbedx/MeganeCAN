@@ -1,0 +1,329 @@
+===== POST id=5126 number=1 time=2025-01-06T20:29:34+00:00
+Per: https://forum.dudu-auto.com/d/476-important-notice-vehicle-information-and-upcoming-plans/60 [https://forum.dudu-auto.com/d/476-important-notice-vehicle-information-and-upcoming-plans/60], I have a DUDU7 running DUDUAUTO 3.5 with a OD-OLO-02 canbus decoder in a Volvo XC90 MY2008 and am only able to detect reverse, use next + previous, volume up/down on my SWC. No other signals or keys are shown/understood by my DUDU7.
+  
+
+I have been reading up on how the CANbus decoder interfaces with the head unit (great summarizing post here: https://xdaforums.com/t/canbox-can-decoder-reverse-engineering.4057759/post-89765171 [https://xdaforums.com/t/canbox-can-decoder-reverse-engineering.4057759/post-89765171] for those curious).
+ 
+
+My understanding is that the reason for limited vehicle integration support is either:
+
+
+1) only a subset of the OD-OLO-02 UART byte sequence mappings are implemented in DUDUAUTO (requires DUDUAUTO developers to implement wider support for the OD-OLO-02 canbus decoder UART byte sequences)
+
+
+2) the firmware currently running in the CANbus decoder simply does not relay UART byte sequences to the head unit (requires new firmware on the CANbus decoder).
+
+
+I'm interested in getting support for as many signals as possible without having to wait for anyone else to address above by writing my own firmware that maps the CAN signals on my vehicle to UART byte sequences that are currently supported by the head unit/DUDUAUTO.
+ 
+
+My question to DUDUAUTO developers is:
+ 
+
+1) Which CANbus decoder protocol (Eg Raise/VW/MPQ, HiWorld/Volvo/XC90 etc) is currently best supported in DUDUAUTO (has the most UART byte sequences mapped to car state signals?).
+  
+
+2) Could you share the target UART byte sequences to car state / keys for that protocol so I can implement the CAN signal > UART byte signal mapping in my firmware? I am primarily interested in hang-up call, pick-up call, back, enter, up, down, left, right, and rear parking sensor distances.
+
+
+Thanks in advance!
+
+
+===== POST id=5140 number=2 time=2025-01-07T14:55:55+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/1] 
+
+Love this. Same situation for us Nissan owners. Very limited integration and would love to learn what you are doing with Volvo so we can try for Nissan. From what I can tell Dudu is never going to make this work (or at least not focus on it for a long time) which sucks
+ 
+
+===== POST id=5162 number=3 time=2025-01-08T06:28:43+00:00
+https://wiki.dudu-auto.com/en/%E5%85%B6%E4%BB%96/%E5%8D%8F%E8%AE%AE%E6%8A%93%E5%8F%96 [https://wiki.dudu-auto.com/en/%E5%85%B6%E4%BB%96/%E5%8D%8F%E8%AE%AE%E6%8A%93%E5%8F%96]
+
+Please provide the information in the description and print the CANBUS data
+
+
+===== POST id=5168 number=4 time=2025-01-08T07:19:56+00:00
+CAN-bus decoder: OD-OLO-02, HW: AV1, SW: V6, 241109:
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736319604-396748-canbox.png]
+
+
+Here is what I am running on my head unit:
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736319622-850377-dudu.png]
+
+
+Below are recordings of the SWC buttons that produce a UART signal, but do not seem mapped to actions (this you can probably fix):
+
+
+Hang up (Hex: 2E 20 02 0A 02 D1):
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736320426-30115-image.png]
+
+
+
+Pick up (Hex: 2E 20 02 09 02 D2):
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736320362-191569-image.png]
+
+
+
+Steering wheel angle is not correctly scaled (extreme angles hardly change the trajectory curvature). Extreme angles produce below:
+ 
+
+Max right: 
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736320746-568727-image.png]
+
+
+Max left:
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736320789-621162-image.png]
+
+
+For reference, this is what the reverse trajectory lines look like with the wheels in extreme left (ignore the other overlay) - the trajectory lines are hardly affected.
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-01-08/1736325005-701996-image.png]
+
+
+
+SWC buttons enter, back, up, left, right, down do not produce any output from the CANbus decoder (No UART byte sequence appears). Parking sensor do not output any UART byte sequence either. I dont think you can fix this (requires firmware update of the CANbox), so please answer my original question:
+ 
+
+1) Which CANbus decoder protocol (Eg Raise/VW/MPQ, HiWorld/Volvo/XC90 etc) is currently best supported in DUDUAUTO (has the most UART byte sequences mapped to car state signals?).
+
+
+2) Could you share the target UART byte sequences to car state / keys for that protocol so I can implement the CAN signal > UART byte signal mapping in my firmware? I am primarily interested in hang-up call, pick-up call, back, enter, up, down, left, right, and rear parking sensor distances.
+
+
+
+
+
+
+
+
+
+===== POST id=5206 number=5 time=2025-01-09T01:53:30+00:00
+
+
+===== POST id=5449 number=6 time=2025-01-15T16:58:32+00:00
+@Tswire [https://forum.dudu-auto.com/u/Tswire] FYI I have bought an extra canbus decoder and have flashed with this firmware [https://github.com/erik-rosen/canbox-xc90-my2008] and will be testing this weekend!
+
+
+===== POST id=5453 number=7 time=2025-01-16T02:18:11+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/6]
+ 
+
+Nice work!!  Still trying to wrap my head around this though. So you are able to grab UART type signals from the original canbus from the car and then created your own canbus firmware that gets uploaded to the little can box?  It will then be up to Dudu to map those in their firmware. So until they update the Dudu firmware we might be left with what we have anyway???
+  
+
+===== POST id=5552 number=8 time=2025-01-17T12:54:01+00:00
+Tswire [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/7]
+ 
+
+Almost:
+
+
+I am leaning on the work done by others that have mapped out a few different UART protocols. I will use the Raise VW(PQ) protocol which allegedly (hopefully) has good support from DUDUAUTO / the head unit.
+ 
+
+I have used a canbus sniffer (an Arduino due) to identify the messages that my car uses and have mapped them here such that they will relay the relevant UART sequences to the head unit: https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/cars/xc90_2008my.c [https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/cars/xc90_2008my.c]
+ 
+
+I have flashed the little canbus decoder box (OD-OLO-02) with this new firmware.
+
+
+If the Raise VW (PQ) protocol is indeed well supported with my head unit, then I wont have to wait for anyone else to do work 🙂
+
+
+===== POST id=5558 number=9 time=2025-01-17T19:12:40+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/8]
+ 
+
+I think we can really help each other out here
+
+
+I have a 2007 XC90 (facelift) and have been using a modded canbus box for a while but trying to get even more out of it but my knowledge is limited, you seem clued up though so maybe you might know more and we could get something better between us? I would very much like for you to reach out directly to me either on here or on github
+
+
+Firstly creating a new 2008MY for the canbus box is not the right way to go as 2007MY and 2008MY are the same, in fact all facelift XC90 from 2006-2014 all use same canbus commands so just updating the 2007MY is enough, only earlier prefacelift use different canbus address'
+
+
+So got some reading for you, have a look at these threads:
+
+https://github.com/smartgauges/canbox/issues/1 [https://github.com/smartgauges/canbox/issues/1]
+
+https://github.com/smartgauges/canbox/issues/11 [https://github.com/smartgauges/canbox/issues/11]
+
+https://github.com/smartgauges/canbox/issues/10 [https://github.com/smartgauges/canbox/issues/10]
+
+
+jesusvallejo has made some real progress and got a lot of things working that originally did not however some things are not perfect.
+
+
+Also quickly would like to point out that my XC90 has been upgraded with LED daytime running lights and auto headlight switch so how my headlights function will vary from you so don't worry as much about this, if I could get mine fixed that would be great but I'm not expecting it and I just change the Dudu between day/night manually
+
+
+So far what's working:
+
+More buttons/control however these are limited - read https://github.com/smartgauges/canbox/issues/10 [https://github.com/smartgauges/canbox/issues/10]
+
+Open door notifications
+
+Parking sensors
+
+Steering geometry
+
+Lights - read https://github.com/smartgauges/canbox/issues/11 [https://github.com/smartgauges/canbox/issues/11]
+
+A/C Very limited and a bit buggy - Unless jesusvallejo or someone else can help I think this will never work properly
+
+Probably more I forgot
+
+
+Hope to hear from you soon...
+
+
+===== POST id=5559 number=10 time=2025-01-17T19:19:23+00:00
+dudu-lai [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/3]
+ 
+
+To Dudu developers
+
+
+It is possible for us to get all canbus buttons to send data to Dudu unit, if Dudu unit had option to remap all canbus buttons we could easily have all buttons do anything we want...
+
+
+Other firmware's have options to remap canbus buttons...
+ 
+
+Redmod for example allows you to remap all canbus buttons: https://firmware-an21.wixsite.com/redmod [https://firmware-an21.wixsite.com/redmod]
+
+
+===== POST id=5569 number=11 time=2025-01-18T02:08:10+00:00
+liamstears [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/10] Not to distract from the above topic, I currently have a kia sportage 2012 with no canbus wiress to from the car to the back of the OEM headunit. I am looking at engineering this by tapping to the CAN H and CAN L from the BCM (body control unit) of the car. Is this the right approach? What suggestions or wiring will you add please?
+ 
+
+===== POST id=5600 number=12 time=2025-01-18T16:19:59+00:00
+liamstears [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/9] Firstly creating a new 2008MY for the canbus box is not the right way to go as 2007MY and 2008MY are the same, in fact all facelift XC90 from 2006-2014 all use same canbus commands so just updating the 2007MY is enough, only earlier prefacelift use different canbus address'
+
+
+
+I dont think this is true: From sniffing the canbus and testing the SWC buttons on my 2008MY, the relevant bits between pickup and hangup are swapped, and left and right are swapped on the rti-nav buttons. Have only checked the SWC and parking sensor signals though.
+
+
+Will have a read through on the issues you linked.
+
+
+===== POST id=5676 number=13 time=2025-01-20T10:00:53+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/12]
+ 
+
+It's literally just because some stuff has been mapped wrong in the original 2007 file, it's not because they are different as far as I'm aware, next/previous buttons are also the wrong way I believe
+ 
+
+===== POST id=5692 number=14 time=2025-01-20T18:53:26+00:00
+Installed the CANbus decoder with the new firmware and set the protocol to Raise / VW / PQ / HIAMP in the head unit in my car today. Pickup and hangup now do something, back and enter too. Parking sensors also have visual indications in the head unit. I need to implement appropriate button mappings for the other buttons (seems like the PQ might not have any nav buttons that correspond to left or right) as you discovered here @liamstears [https://forum.dudu-auto.com/u/liamstears] https://github.com/smartgauges/canbox/issues/10 [https://github.com/smartgauges/canbox/issues/10]).
+
+
+Would love some input from the DUDUAUTO devs (@dudu-lai [https://forum.dudu-auto.com/u/dudu-lai]?) on which UART protocol that has the broadest support and it's corresponding messages/buttons to byte sequence mappings per my original post.
+  
+
+My SWC has the following buttons: 
+
+Next, Previous, Volume up, Volume down, Pick up, Hang up, Enter, Back, Up, Down, Left, Right.
+
+
+If there is a protocol that covers all of those, I would be very happy 🙂. Per @liamstears [https://forum.dudu-auto.com/u/liamstears], Raise/Toyota/* seems like it has most of what I am looking for: https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/RZC_ToyotaSeriesProtocol.java [https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/RZC_ToyotaSeriesProtocol.java] but could you please confirm?
+
+
+===== POST id=5772 number=15 time=2025-01-23T00:46:09+00:00
+Hopefully helpful for the next guy: I tested implementing the Raise/Toyota/* protocol to see if it would unlock more things I could do with my steering wheel buttons (enter/back/up/down/left/right).
+
+
+While the Raise/Toyota/All/* protocol has support for more buttons, what these buttons do in the head unit is pretty duplicative:
+
+
+Essentially, all of the different variations of left/right/up/down in the Raise/Toyota/* protocol just map to switching to the next or previous track on the head unit. (Same as MENU_UP/MENU_DOWN in the Raise/VW/PQ protocol, which also results in changing to next or previous track) https://github.com/smartgauges/canbox/issues/10#issuecomment-2607626000 [https://github.com/smartgauges/canbox/issues/10#issuecomment-2607626000]
+ 
+
+ENTER will toggle playing a track and BACK will shut down the current app in focus or sleep the head unit.
+  
+
+Would be cool if these commands would actually allow users to navigate menus in the head unit, but seems that is not what they do right now.
+
+
+
+===== POST id=5851 number=16 time=2025-01-26T18:24:51+00:00
+For whoever has a Volvo XC90 MY2008 and an OD-OLO-02 CANbox, an ST-Link v2 programmer [https://www.amazon.se/AZDelivery-V2-Minidebugger-Programmeringsemulator-Aluminiumh%C3%B6lje/dp/B086TWZNMM?source=ps-sl-shoppingads-lpcontext&ref_=fplfs&smid=A1X7QLRQH87QA3&th=1] and who isn't afraid to do a bit of soldering, you can make use of this firmware: https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/volvo_od2.bin [https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/volvo_od2.bin]. Instructions to flash here: https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/volvoxc90.md [https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/volvoxc90.md] (courtesy of Jesus Valleo).
+ 
+
+After installing, set the CANbox to be Raise/VW/PQ/HiAMP on your head unit.
+
+
+What works (that doesn't on the unmodified OD-OLO-02 canbox):
+
+- All SWC buttons do something (Pick up/Hang-up opens the phone app or picks up and hangs up the current call, enter opens the voice assistant, back/left/right buttons swaps between open apps, up toggles play, down mutes)
+
+- Rear parking distance sensors and steering wheel lines work
+
+- Night/day mode of HU is consistent with that of the stereo and DIM
+
+- Fuel level
+
+- Odometer
+
+- Door status
+
+
+Some TODO's that requires CANbus message reverse engineering:
+ 
+- Seatbelt status
+
+- Wiper fluid level
+
+- Parking brake status
+
+- Exterior temp 
+
+- CCM integration
+
+
+
+===== POST id=5869 number=17 time=2025-01-27T11:05:28+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/16]
+ 
+
+This is really great news! I look forward to trying it, I also did email you directly using your email address from GitHub, I really would like to talk to you directly...
+
+
+===== POST id=5911 number=18 time=2025-01-28T16:32:48+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/16]
+ 
+
+Engine RPM, speed, seatbelt warning and parking brake also works now 🙂
+
+
+===== POST id=5986 number=19 time=2025-01-30T22:58:59+00:00
+For those looking to do something similar for a different car, I created this pretty nifty Arduino Due sketch that was very useful to reverse engineer the CAN messages of my car:
+ 
+
+Sketch: https://github.com/erik-rosen/can_sniffer_tools/blob/main/change_monitor.ino [https://github.com/erik-rosen/can_sniffer_tools/blob/main/change_monitor.ino]
+
+Readme: https://github.com/erik-rosen/can_sniffer_tools/blob/main/README.md?plain=1 [https://github.com/erik-rosen/can_sniffer_tools/blob/main/README.md?plain=1]
+
+
+I use it with an Arduino Due [https://https//store.arduino.cc/en-se/products/arduino-due?utm_source=google&utm_medium=cpc&utm_campaign=EU-Brand+P&gad_source=1&gclid=Cj0KCQiA4-y8BhC3ARIsAHmjC_HmJZ6tB-K7SE8gmHNP5dk-y6E59xTPxS7uFD6K759lmBpLM7RkPJgaAiVgEALw_wcB], a CAN transceiver [https://https//www.amazon.se/-/en/Board-Connecting-CAN-Transceiver-SN65HVD230/dp/B00KM6XMXO/ref=sr_1_4?crid=2256S9Y9JGNM0&dib=eyJ2IjoiMSJ9.YJbkY2Y3cqJ7DXjxKygZkIGNT6NcS8a77gAvDB-0AWmDGsILg29G1pWpqnxbUEe94qq-LoIsw4GLrDLHJ89_-gNYOqGz8b_az4XX-H_nuAmD98ZdK8liKU90gCl4WSW95QQJhiVzW6zKEje5axlVX9i0tcwSgvUgoIX7EgBc9Tkiz5k8xxzTMBGTM1sM60Fqnvvl_7XNgUKNWKlYfnh6rBoIjJn3CCXVDhGdHXj7LP-EKwEciHj8_SVkKHXTUDJiP4Dk-bOlbul54juzBjN9p_z2Zr25ynzxC0FaP_l3Pd4faShm9rSkpa9FQ5Wbm7aoOzqUhp61H3bnSNPpJHa1R02LPWGd5ffZbihzyDJxLpbZ1jR9tC3YIxsGrhEGKUy4H4YCostk95n3TYtOaOVDfL-eHmmuhN-x0UPrOCM8QZ1FoPM1-UfgH4vTCnqVDWwy.jlUDqFBLm1BUk_JAxuB2JTGhM8C5HSshJHgnoZWlSow&dib_tag=se&keywords=waveshare%2Bcan&qid=1738277664&sprefix=waveshare%2Bcan%2Caps%2C113&sr=8-4&th=1] and an ODB2 connector [https://www.amazon.se/dp/B07WSMBSL3?ref=ppx_yo2ov_dt_b_fed_asin_title].
+
+
+The UART protocols can be found here (or rather reverse engineered from the code in this repo): https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/ [https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/]
+
+
+A bit disappointed in the lack of guidance from the DUDU devs here, but hopefully this will be useful to the next guy!
+
+
+===== POST id=6048 number=20 time=2025-02-02T13:48:58+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/19] 
+
+Wow this is cool. I am willing to learn and want to get, at the very least, speed from my Nissan Qashqai. There is no digital speedometer in the North American version of these cars and it’s my kids car. The GPS speed is so slow to update and not useful. I don’t even know where to start but would like to talk to you edog. How can I contact you?
+
+

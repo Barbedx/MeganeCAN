@@ -1,0 +1,376 @@
+
+  
+
+  
+    
+      
+        
+          Les secrets du bus CAN de la Renault Clio III [https://x0r.fr/blog/39]
+        
+
+        
+          
+            
+              Auteur :
+               x0r
+            
+
+            
+              Publié le
+               28 août 2014 à 18:57
+            
+
+            
+              Nombre de commentaires :
+              
+                
+                87
+               [https://x0r.fr/blog/39#comments]
+            
+          
+
+          
+            
+              Mots-clefs :
+              
+              renault
+              clio
+              obd2
+              elm327
+              diagnostic
+              can
+              bus
+            
+          
+
+        
+
+      
+
+    
+
+  
+
+  
+    
+      
+        J'ai déjà parlé un peu des dongles OBD2 [/blog/27] et des quelques expériences [/blog/27]
+que j'ai faites avec ce dongle sur ma voiture.
+
+Cependant, je me suis assez rapidement rendu compte des limitations du dongle
+OBD2.  Par exemple, la liste des paramètres que l'on peut récupérer est assez
+limitée.  J'ai par exemple pu constater que je ne dispose pas des indications
+du MAF (flux de mélange air-essence à l'admission) sur mon véhicule.
+Finalement, mis à part la vitesse, le compte-tours et la température du
+moteur, il n'y a pas grand-chose avec quoi travailler si on veut fabriquer une
+planche de bord alternative, par exemple.
+
+La norme OBD2 est conçue pour fonctionner quelle que soit la couche physique
+sous-jacente, de la même manière que le protocole HTTP reste le même, que l'on
+soit sur un réseau Ethernet, ATM ou MPLS.  Dans le cas de ma Clio III, il y a
+en réalité un véritable réseau informatique avec un trafic assez conséquent
+(entre 10 et 100 trames par seconde) avec parfois des contraintes temps-réel.
+Ce réseau (ou bus) s'appelle CAN (Controller Area Network [http://fr.wikipedia.org/wiki/Controller_Area_Network]) et est de plus
+en plus répandu dans les véhicules en circulation.  Sur la Clio, il s'agit de
+la variante avec des adresses de 11 bits.  Le débit est de 500 kbps, même si
+certaines trames semblent être à 250 kbps.
+
+La puce ELM327 de mon dongle possédant une fonction d'écoute, je me suis amusé
+à regarder ce qui passait sur le bus.  Et c'est là que je me suis rendu compte
+de l'énorme quantité de données qui circule sur le bus.  Lorsque le moteur
+tourne, j'irais même jusqu'à estimer le taux d'occupation du lien à au moins
+20%.  Devant cette découverte, je me suis senti obligé de me lancer dans une
+analyse et voir à quoi correspondent toutes ces trames.
+
+Constatant que je ne suis pas la seule personne [http://www.forum-auto.com/marques/renault/sujet41105-35.htm] à être aussi curieuse
+(et c'est d'ailleurs ce topic qui a titillé ma curiosité initiale), je
+publierai donc les résultats intermédiaires de mes recherches, dans l'espoir
+qu'elles pourront être utiles à certaines personnes.  Bien entendu, si vous
+disposez de renseignements complémentaires, j'en serai toute ouïe.
+
+Je commencerai donc par exposer la méthodologie et les outils de ce travail de
+rétroingénierie, pour ensuite dresser la liste des adresses CAN que j'ai vues
+passer sur le bus, pour enfin en déduire le format de chacune des trames CAN.
+Le code source de mes outils est bien entendu public.
+
+Méthodologie
+
+La méthodologie est relativement simple.  Il m'a d'abord fallu régler de façon
+permanente le dongle pour qu'il communique à 230 400 bauds avec l'hôte.
+Cette mesure est nécessaire afin d'éviter les erreurs "BUFFER FULL".
+
+J'ai ensuite codé un outil qui envoie automatiquement toutes les commandes
+nécessaires (dont ATH1, ATCAF0 et ATMA) au dongle, et qui écrit toutes
+les trames reçues sur la sortie standard, sauf celles qui ont un contenu
+entièrement identique.  Cela permet d'analyser plus facilement les trames qui
+changent de contenu en fonction des actions que je fais.
+
+J'ai ensuite écouté pas mal de trafic réseau afin de distinguer les adresses
+CAN qui communiquent même contact coupé, celles qui communiquent avec la clé
+en position "accessoire" et celles qui communiquent avec la clé en position
+"marche".
+
+L'étape suivante consistait à appuyer sur tous les boutons, actionner tous les
+leviers et toucher à tous les réglages, afin de voir quels étaient ceux qui
+modifiaient des contenus de trames CAN.
+
+Adresses CAN obtenues
+
+Les tableaux suivants résument les différentes adresses CAN que je vois
+passer, la fréquence (très approximative) de rafraîchissement, la vitesse de
+ligne utilisée et un résumé succinct de leur contenu.
+
+Adresse | Débit | Fréquence | Description succincte | 
+
+0x215 | 500 kbps | 50 s-1 | ? | 
+
+0x35d | 500 kbps | 40 s-1 | ? | 
+
+0x60d | 500 kbps | 40 s-1 | État d'interrupteurs et de capteurs divers | 
+
+0x625 | 500 kbps | 10 s-1 | ? | 
+
+0x645 | 500 kbps | 10 s-1 | Rétroéclairage tableau de bord | 
+
+0x6e4 | 500 kbps | ? s-1 | ? | 
+
+0x715 | 500 kbps | 3 s | Kilométrage total et autres | 
+
+Adresses CAN présentes à l'arrêt
+
+Adresse | Débit | Fréquence | Description succincte | 
+
+0x27f | 500 kbps | 50 s-1 | ? | 
+
+0x284 | 500 kbps | 50 s-1 | Vitesse angulaire des roues | 
+
+0x285 | 500 kbps | 50 s-1 | Vitesse angulaire des roues | 
+
+0x2a0 | 500 kbps | 50 s-1 | ? | 
+
+0x354 | 500 kbps | 25 s-1 | Vitesse de la voiture, distance parcourue | 
+
+0x511 | 500 kbps | 10 s-1 | ? | 
+
+0x551 | 500 kbps | 10 s-1 | Température moteur, consommation | 
+
+0x5c5 | 500 kbps | 10 s-1 | Kilométrage; état frein à main | 
+
+0x5fd | 500 kbps | 50 s-1 | Kilométrage; âge du véhicule | 
+
+Adresses CAN présentes en position "accessoire"
+
+Adresse | Débit | Fréquence | Description succincte | 
+
+0x0c2 | 500 kbps | 100 s-1 | Position et vitesse angulaires du volant | 
+
+0x161 | 500 kbps | ? | ? | 
+
+0x181 | 500 kbps | 100 s-1 | État du moteur et des pédales | 
+
+0x1f9 | 500 kbps | 100 s-1 | Régime moteur | 
+
+0x500 | 500 kbps | 10 s-1 | ? | 
+
+0x5e4 | 500 kbps | 100 s-1 | ? | 
+
+0x651 | 500 kbps | 10 s-1 | État ceinture conducteur et airbag passager | 
+
+Adresses CAN présentes en position "marche"
+
+Il faut néanmoins noter les choses suivantes :
+
+- les données sont cumulatives; c'est-à-dire qu'en marche, on verra passer
+l'ensemble des vingt-trois adresses CAN différentes et pas seulement
+celles qui sont listées dans le tableau correspondant ;
+
+- la position "marche" correspond à la position de la clé (celle où toutes
+les diodes du tableau de bord s'allument pendant quelques secondes), et non
+pas à l'état du moteur (qui peut être arrêté).
+
+J'ai relevé que certaines trames faisaient l'objet d'un contrôle d'intégrité à
+l'aide d'un checksum en fin de message.  Pour calculer le checksum, faire la somme
+sur 8 bits de tous les autres octets du message et prendre le complément à 1.
+
+Dissection
+
+J'ai remarqué une première chose, et c'est que tout n'est pas forcément relié
+au bus CAN.  Par exemple, le réglage électrique des rétroviseurs ou le
+réglage de l'heure ne provoquent pas de trafic ou ne modifie pas de trames.
+On peut donc conjecturer que Renault a adopté un « principe de parcimonie » :
+si un paramètre n'intéresse pas un autre calculateur ou système dans la
+voiture, celui-ci ne sera pas diffusé sur le bus CAN.  Le câblage coûte certes
+cher, mais les transceivers CAN aussi.
+
+Voici pour le moment les informations que j'ai pu déduire de mes
+observations.
+
+Plage 0x000-0x1ff
+
+0x0c2 -> 8108 7FFF 5B 9D
+         └─┬┘ └─┬┘    ─┬
+           │    │      │
+           │    │      └─── Checksum
+           │    └────────── Vitesse de rotation du volant (1)
+           └─────────────── Angle du volant (2)
+
+(1): soustraire 0x8000 (unité exacte inconnue)
+(2): soustraire 0x8000, résultat en incrément de 0,1°
+
+0x161 -> 30 30 65 00 10
+         ─┬
+          │
+          └──────────────── Couple moteur estimé volonté conducteur (1)
+
+(1): multiplier par 2 puis soustraire 100, résultat en Nm
+
+0x181 -> 4174 4C 52 4D 20 3A 00
+         └─┬┘    ─┬    ─┬
+           │      │     │
+           │      │     └─ Position pédales embrayage/frein (1)
+           │      └─────── Position pédale accélérateur (2)
+           └────────────── Régime moteur (3)
+
+(1): bit 3 = pédale d'embrayage enfoncée
+     bit 0 = pédale de frein enfoncée
+(2): varie entre 0x10 (relâché) et 0xe0 (en butée)
+(3): diviser par 8 pour la valeur réelle
+
+0x1F9 ─> 22 00 3BA1 CA FF
+               └─┬┘
+                 │
+                 └──────── Régime moteur (1)
+
+(1): diviser par 8 pour la valeur réelle
+
+Plage 0x200-0x2ff
+
+0x215 ─> 42 40 1C 03 0F 0F
+            ─┬
+             │
+             └──────────── Position marche arrière (1)
+
+(1): bit 6 = marche arrière enclenchée
+
+Plage 0x300-0x3ff
+
+0x354 ─> 1815 3312 00 00 04 00
+         └─┬┘ └─┬┘       ─┬
+           │    │         │
+           │    │         └─ État frein (1)
+           │    └───────── Distance depuis démarrage (2)
+           └────────────── Vitesse (3)
+
+(1): bit 4 = pédale de frein enfoncée
+(2): multiplier par 0,1 m
+(3): multiplier par 0,01 km/h
+
+Plage 0x500-0x5ff
+
+0x551 ─> 7B 26 6A 00 FF 72 00
+         ─┬ ─┬
+          │  │
+          │  └──────────── Carburant utilisé (1)
+          └─────────────── Température du moteur (2)
+
+(1): mesuré depuis le dernier démarrage, avec 12 500 unités = 1 L
+(2): soustraire 40 pour obtenir la valeur en °C
+
+0x5C5 ─> 40 0 0C633 06 B0 00 13
+         ─┬   └─┬─┘
+          │     │
+          │     └───────── Kilométrage 
+          └─────────────── État frein à main (1)
+
+(1): bit 3 = frein à main enclenché
+
+0x5FD ─> 0C633 235618 0 00 20
+         └─┬─┘ └──┬─┘
+           │      │
+           │      └─────── Âge du véhicule (en min)
+           └────────────── Kilométrage
+
+Plage 0x600-0x6ff
+
+0x60D ─> 003618 00 41 7C 02 00
+         └──┬─┘    ─┬ ─┬ ─┬ ─┬
+            │       │  │  │  │
+            │       │  │  │  └─ Inputs (1)
+            │       │  │  └──── État marche arrière (2)
+            │       │  └─────── Température moteur (3)
+            │       └────────── Température extérieure (3)
+            └────────────────── État capteurs divers (4)
+
+(1): bit 0 = appui sur bouton "haut" du comodo droit
+     bit 1 = appui sur bouton "bas" du comodo droit
+(2): bit 4 = marche arrière engagée
+(3): mesuré en °C (soustraire 40)
+(4): bit 23 = coffre ouvert
+     bit 22 = porte arrière droite ouverte
+     bit 21 = porte arrière gauche ouverte
+     bit 20 = porte avant droite ouverte
+     bit 19 = porte avant gauche ouverte
+     bit 18 = (FP) feux de position allumés
+     bit 17 = (FC) feux de croisement allumés
+     bit 14 = (CD) clignotant droit allumé
+     bit 13 = (CG) clignotant gauche allumé
+     bit 11 = (FR-AL) feux de route allumés (ou appel de phare)
+     bit 10 = clé en position marche
+     bit 9  = clé en position accessoire
+     bit 8  = (PA) feux de brouillard avant allumés
+     bit 5  = condamnation des portes enclenchée
+     bit 4  = condamnation du coffre enclenchée
+     bit 2  = (FBA) feu de brouillard arrière allumé
+
+0x645 ─> 00 FF FF 0900
+            ─┬    └─┬┘
+             │      │
+             │      └────────── Vitesse (× 0,01 km/h)
+             └───────────────── Intensité rétroéclairage instruments (1)
+
+(1): Varie entre 0x00 (minimum) à 0xfe (maximum), ou 0xff (éteint)
+
+0x651 ─> 04 F0
+         ─┬ ─┬
+          │  │
+          │  └───────────────── État ceinture (1)
+          └──────────────────── État airbag (2)
+
+(1): bit 0 = ceinture conducteur non attachée
+(2): bit 2 = 0 si clé en accessoire, 1 si marche
+     bit 1 = airbag passager désactivé
+
+Plage 0x700-0x7ff
+
+0x715 ─> 0 0C633 18 1E 3A 99 42
+           └─┬─┘
+             │
+             └───────────────── Kilométrage
+
+Conclusion
+
+À ma grande déception, les informations que l'on obtient sont assez
+superficielles, à l'image de ma méthodologie qui se contente, in fine,
+de comparer des actions et des réponses à des entrées précises.  Je peux néanmoins 
+être satisfait du fait d'avoir trouvé la plupart des éléments que je pourrais
+afficher sur un HUD maison, comme la vitesse et le compte-tours.
+
+On peut ensuite ranger le reste des valeurs non décodées en deux catégories :
+d'une part, celles qui dépendent d'options dont ma voiture n'est pas équipée
+(par exemple les radars de recul qui donneraient des valeurs de télémétrie,
+etc.) ; d'autre part, celles qui dépendent de situations que je ne peux que
+difficilement reproduire à moins d'être sur un circuit fermé (déclenchement des
+systèmes de sécurité comme l'ABS ou les prétentionneurs, par exemple).
+
+Je pourrais peut-être obtenir des informations intéressantes en injectant des
+fausses trames à l'aide de mon dongle.  La peur de bricker accidentellement ma
+voiture ou de déclencher des dispositifs pyrotechniques comme les airbags me
+retient cependant de le faire.  Je laisserai l'initiative à une personne plus
+intrépide que moi.
+
+      
+
+    
+
+  
+

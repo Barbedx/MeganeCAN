@@ -1,0 +1,193 @@
+===== POST id=16329 number=61 time=2025-08-09T21:22:03+00:00
+https://drive.google.com/file/d/1dSJY13rKw9sS4xLhNyVk89jmh0nHpHtw/view?usp=drivesdk [https://drive.google.com/file/d/1dSJY13rKw9sS4xLhNyVk89jmh0nHpHtw/view?usp=drivesdk]
+
+
+ClioIII with custom canbus emulating Raise Toyota Rav4.
+
+Lights are as per previous post, odometer is on separate 0x7d address with 12 byte payload, sent separately. RPM, speed and outside temp to follow once fully decoded.
+ 
+
+===== POST id=18152 number=62 time=2025-09-05T03:06:16+00:00
+@edog [https://forum.dudu-auto.com/u/edog] as promised, pretty much full protocol, communication HU > car to follow shortly. Speed, RPM, hybrid power, temperature, range, lights, steering angle, tpms, doors, mileage, trips etc. 
+
+https://drive.google.com/file/d/1iFL_Nui0X3n9P1Bsn-8NDJzWbIL6fmh6/view?usp=drivesdk [https://drive.google.com/file/d/1iFL_Nui0X3n9P1Bsn-8NDJzWbIL6fmh6/view?usp=drivesdk]
+
+https://drive.google.com/file/d/1iFQtRCPRPOZsFAjxb1eWVp3IcNeYncvQ/view?usp=drivesdk [https://drive.google.com/file/d/1iFQtRCPRPOZsFAjxb1eWVp3IcNeYncvQ/view?usp=drivesdk]
+
+
+===== POST id=18404 number=63 time=2025-09-08T17:40:53+00:00
+Nice to see! Have you incorporated this in a code repo somewhere for the next guy? 🙂
+
+
+===== POST id=18407 number=64 time=2025-09-08T18:28:47+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/63] Not yet. Once finished, it will pop up on git.
+
+
+===== POST id=24096 number=65 time=2025-12-05T20:27:41+00:00
+@Mikescotland [https://forum.dudu-auto.com/u/Mikescotland] not sure if this would be of any use, but I'm currently looking at designing/making a open source CANbus decoder, based on a RP2040, and designed for easy reprogramming via USB.
+
+
+Would such a thing be of use to your situation?
+
+
+===== POST id=26190 number=66 time=2026-01-11T12:47:23+00:00
+Hi,
+
+For now, I’m running my functions on RZC Volkswagen MQB. These things can be configured directly via DUDUUI, so they integrate nicely into the system.
+
+
+It would be great if DUDUOS introduced a universal protocoll or let us add custom protocolls, so modders could create custom firmware for different vehicles. That would be a real upgrade, because vehicle data would then actually work properly. Maybe someone has looked deeper in this structure and may modded something?
+
+
+alextrical [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/65]  Yes it ẃould, also if the canbus decoder recieve uart from unit where you can controll things in the car from. but only if Dudu will Provide all possible Functions and or make an Custom Protokoll for it.
+ 
+
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/63] Did you find out which Protokoll has the most Functions yet?
+
+
+
+
+===== POST id=26207 number=67 time=2026-01-11T22:01:43+00:00
+Xaver [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/66]
+ 
+
+Not definitively since there is no source of truth that documents them (no one from DUDU has shared anything at least). @Mikescotland [https://forum.dudu-auto.com/u/Mikescotland]'s documentation for Raise/Toyota/Rav above is the most complete and accessible to my knowledge. FWIW, I used this repo [https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/] to reverse engineer parts of it when I got started with this.
+
+
+===== POST id=26211 number=68 time=2026-01-11T22:55:24+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/8]  Can you explain to me how the process of sniffing the CAN bus and uploading the software to the CANBUS works?
+
+
+
+===== POST id=26256 number=69 time=2026-01-12T20:59:46+00:00
+DNV [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/68]
+ 
+
+To sniff CAN bus traffic and upload custom firmware to your CANBUS decoder (e.g., OD-OLO-02 or other CANbox), the high-level steps are:
+
+
+- Capture raw CAN traffic: Use a CAN interface + sniffer (e.g., Arduino Due with a CAN transceiver such as MCP2515, see my post above) to read messages from the canbus on your car. Log IDs and data fields while exercising controls you care about (SWC buttons, parking sensors, etc.). You can use my arduino sketch I linked for that. This gives you the raw CAN frames that represent real car signals.
+ 
+
+
+- Map signals to UART sequences: Analyze those CAN frames and decide which bits/bytes correspond to the functions you want (e.g., pick-up, hang-up, back, enter, speed, sensors). Translate those into the UART protocol that the head unit expects. You can reference existing protocols like Raise/VW/PQ or Raise/Toyota/Rav as a template.
+
+
+
+- Write/modify firmware: Take open firmware sources for an STM32-based decoder (e.g., the canbox-xc90-my2008 project on GitHub). Integrate your CAN ID handlers and UART output mapping so that when a particular CAN frame arrives, the firmware emits the corresponding UART byte sequence.
+
+
+
+- Flash the CANBUS decoder: Open the decoder box, identify the MCU (often STM32). Connect a programmer (like ST-Link V2) to SWD pins (SWDIO, SWCLK, 3.3 V, GND). Use the programmer to upload your compiled firmware binary to the decoder.  ￼
+
+
+
+- Configure the head unit: In Settings → Vehicle → CANBUS, set the protocol to the one your firmware is emulating (for example Raise/VW/PQ). Test and iterate — adjust your firmware if the head unit doesn’t react as expected.
+
+
+
+In short: you first sniff and understand CAN messages, then map them to the HU’s UART protocol, and finally flash that logic into the decoder hardware (CANbox) so that the head unit gets meaningful UART signals. The specific sequence values depend on the UART protocol you choose to emulate.  ￼
+
+
+
+===== POST id=26305 number=70 time=2026-01-13T19:52:40+00:00
+Mikescotland [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/62] 
+
+Really nice work !!
+
+
+===== POST id=26322 number=71 time=2026-01-14T07:09:33+00:00
+How can mapping IDs with dudu6?
+ 
+
+===== POST id=26323 number=72 time=2026-01-14T07:54:25+00:00
+Michalisgk [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/71] my guess is that the UART protocols are the same across DUDU7 and 6
+
+
+===== POST id=26334 number=73 time=2026-01-14T19:07:35+00:00
+I want to map IDs.
+
+
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/72]
+ 
+
+===== POST id=26335 number=74 time=2026-01-14T19:09:24+00:00
+Does anyone know how I can do mapping ids?
+
+
+===== POST id=26362 number=75 time=2026-01-15T08:35:37+00:00
+Michalisgk [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/74]
+ 
+
+I assume you mean how do you map CAN ID messages and payloads to the signals they represent?
+
+
+You can either have a DBC file from the OEM that explains what message ID + payload bits mean what on the canbus of your car. The DBC files are rarely made public though.
+ 
+
+Your other option is to reverse engineer the CAN messages of your car using this: https://github.com/erik-rosen/can_sniffer_tools [https://github.com/erik-rosen/can_sniffer_tools] with and Arduino Due with a CAN transceiver and and ODB connector.
+
+
+===== POST id=27199 number=76 time=2026-01-29T23:03:59+00:00
+alextrical [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/65] sorry for late reply, I've been knocked out by surgery for over a month.
+
+Decided on esp32 because they are cheaper, have tons of them and I know how to program them.
+
+Possibly for other users open source would be beneficial.
+
+My guide is incomplete and in fikowwing weeks I'll be adding a few things I discovered which aren't yet in the protocol.
+
+Some of the IDs are a mess and looks like they have been just tried by Raise (infamous parking brake / gear selection for instance which I found on... Around 128 bits in one address).
+
+I've met online a person with full protocol from last year, and obviously, that person doesn't want to share anything, welcome to online community...).
+ 
+
+===== POST id=27200 number=77 time=2026-01-29T23:06:33+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/72] as far as I discovered they are same across all FYT (and other android headunits). Some new functions are on new addresses like 0x7d which are ignored by previous versions of the canbus app. And some, like Dudu make use of the extra data to show them in UI (like indicators or lights).
+ 
+
+===== POST id=27202 number=78 time=2026-01-29T23:16:59+00:00
+Xaver [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/66] most protocol rich is Toyota Raise, hence I've bet on this one for my work (with one exception, there is no MUTE button lol in Toyota). I've tried VW protocols but there are behind Toyota in functions. 
+
+There aren't many documents as the works are "confidential" and manufacturers won't share it. 
+
+Canbus app is so obscurely written and relies on purpose on another apps, it's impossible to reverse engineer it.
+
+
+
+===== POST id=31833 number=79 time=2026-04-22T04:25:11+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/69]
+ 
+
+OK, good job, thanks. 
+
+Lest assume CAN network sniffing is done.
+
+Now my question is how map signals to UART sequences is done in CANBUS?
+
+For exampele, Toyota "Steering Angle Sensor" CAN data is:
+
+
+Mode: 21 PID: 06 Header: 7B0
+
+
+How it is translated to UART sequence 2E 29 02 xx xx xx ?
+
+
+Is there lookup table in source code "MctCoreServices" for Raise CANBUS FW source code?
+
+
+Thanks
+
+
+
+===== POST id=35035 number=80 time=2026-06-24T18:23:21+00:00
+cmpt [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/79]
+ 
+
+It is not well documented anywhere - here is where the UART sequence is set for the steering wheel in my FW: https://github.com/erik-rosen/canbox-xc90-my2008/blob/207c41ec4721428f65a811614d50a53496219b47/canbox.c#L166 [https://github.com/erik-rosen/canbox-xc90-my2008/blob/207c41ec4721428f65a811614d50a53496219b47/canbox.c#L166]
+
+
+Best source for reverse engineering is this: https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/RZC_VolkswagenSeriesProtocol.java [https://github.com/darkspr1te/Work/blob/master/MctCoreServices/src/com/mct/carmodels/RZC_VolkswagenSeriesProtocol.java]
+
+

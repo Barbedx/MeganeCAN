@@ -1,0 +1,340 @@
+===== POST id=13607 number=21 time=2025-06-28T11:46:50+00:00
+picasso1850 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/20] it's electronics and microprocesors, it's what I do.
+
+Debugging someone else's errors on a proprietary, undocumented system I have no idea how it works, with no real manual, considering I paid quite amount of money for, is completely different.
+ 
+
+===== POST id=13608 number=22 time=2025-06-28T12:03:12+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/21] still waiting for you to return it and post those unsavoring videos.  :p
+ 
+
+===== POST id=13609 number=23 time=2025-06-28T12:16:34+00:00
+picasso1850 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/22] I'm still thinking about it. Have one more day before a month long trip. Phone calls are the biggest problem now.
+
+I have no experience with 3.5 OS but 3.6 definitely wouldn't be taken by reviews so favourably as 3.5.
+ 
+
+===== POST id=13610 number=24 time=2025-06-28T12:29:56+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/23] there is zero chance you get rid of it....zero.   lol
+
+
+===== POST id=13613 number=25 time=2025-06-28T13:24:50+00:00
+picasso1850 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/24] if I only had all documentation.
+ 
+
+===== POST id=13616 number=26 time=2025-06-28T14:57:24+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/25] I agree with you that detailed documentation is lacking.
+  
+
+But I disagree that technical support or OS upgrades or bug fixes is lacking, or that this isn't the best product on the market relative to the rest of the comparable units.  And we can't compare features or functions of a kenwood or sony unit to this product.  Its not apples to apples.
+
+
+I think my posts on this forum are balanced with respect when warranted and trolling when warranted.  When folks post 'nothing works' or 'there's no support' or 'my dudu stinks' - I'm just trolling their troll.  I own it 🙂
+ 
+
+===== POST id=13618 number=27 time=2025-06-28T16:15:34+00:00
+picasso1850 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/26] I think I will keep it, with custom canbox is getting there.
+
+So far the worst part of it is the phone application. Not synchronising, missing recents, god knows how to add favourites and in the UK operators follow strange incoming caller ID with 0xxx for calls and +44xxx for texts, WhatsApp gives 44xxx and I've got all contacts as +44xx which renders recognition useless. I wish there was another alternative to that app.
+ 
+
+===== POST id=16045 number=28 time=2025-08-05T12:05:43+00:00
+Thanks all for your investigations 👏
+
+
+@dudu-lai [https://forum.dudu-auto.com/u/dudu-lai] so could it implemented someway in the future ? Or through a OBD2 dongle communicating with the host ?
+ 
+
+===== POST id=16048 number=29 time=2025-08-05T13:14:20+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/28] not thought obd2 dongle. I have built an esp32 canbus decoder, programmed to clio III can messages and mapped relevant commands to Dudu unit.
+
+Cost of the hardware is around 10 USD. I'm happy to provide all documentation if anyone wants. This also works in Nissans from around 2011 (they used same ECUs as Renault).
+
+I doubt any manufacturer would create canbox for clios (or meganes from this period) as we have two canbuses in the car and their priority is SWC buttons not engine data.
+ 
+
+===== POST id=16052 number=30 time=2025-08-05T14:38:38+00:00
+I'll be happy to look at the code as a software développer 😊
+
+
+===== POST id=16063 number=31 time=2025-08-05T18:25:49+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/30] I'll post it here once I'm back at home. I've got more canbus messages decoded, however they can't be passed to HU for now, as they are very secretive of uart messages unit accepts.
+
+So far working:
+
+- steering wheel angles
+
+- handbrake on / off
+
+- doors open / close
+
+- RPM
+
+- outside temperature
+
+- odometer
+
+
+
+Possible but not implemented as duplicate of my obdII elm dongle:
+
+- coolant temperature
+
+- battery voltage
+
+- speed
+
+
+Decoded but unknown headunit uart commands:
+
+- lights - all of them Inc fog lights
+
+- indicators
+
+
+Not possible in clio III:
+
+- fuel remaining (requires command to ecu and puts the whole ecu in diagnostic mode, there must be direct canbus connection between instrument panel and ecu, as the ecu is reporting remaining fuel in liters over canbus to instrument panel)
+
+
+Cannot test air conditioning as my car has manual one (on/off) and aircon ecu is not present.
+ 
+
+===== POST id=16121 number=32 time=2025-08-06T11:39:08+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/30]
+ 
+
+#include <ESP32-TWAI-CAN.hpp>
+#include <HardwareSerial.h>
+#include <cmath>
+
+// =========================================================================
+// Configuration
+// =========================================================================
+#define CAN_TX 5
+#define CAN_RX 4
+const int CAN_ID_STATUS_DOORS_TEMP = 0x60D;
+const int CAN_ID_ODOMETER = 0x5FD;
+const int CAN_ID_RPM = 0x181;
+const int CAN_ID_STEERING = 0x0C2;
+const int CAN_ID_PARKING_BRAKE = 0x5C5;
+const int CAN_BAUD_RATE = 500000;
+
+// --- Steering Angle Calibration ---
+const int STEERING_RAW_LEFT = 107;
+const int STEERING_RAW_RIGHT = 148;
+const int STEERING_MAPPED_LEFT = -540;
+const int STEERING_MAPPED_RIGHT = 540;
+
+const int UART_TX_PIN = 17;
+const long UART_BAUD_RATE = 38400;
+HardwareSerial UartPort(1);
+
+const uint8_t CMD_STATUS = 0x41;
+const uint8_t CMD_STEERING_WHEEL = 0x26;
+const uint8_t SUB_CMD_DOOR_INFO = 0x01;
+const uint8_t SUB_CMD_VEHICLE_INFO = 0x02;
+
+const long VEHICLE_INFO_SEND_INTERVAL_MS = 500;
+const long STEERING_SEND_INTERVAL_MS = 200;
+const long STATUS_SEND_INTERVAL_MS = 250; 
+
+// --- Bitmasks for the status byte ---
+const uint8_t MASK_PARKING_BRAKE_ON = 0x20;
+
+// =========================================================================
+// Global Variables
+// =========================================================================
+CanFrame rxFrame;
+
+int outsideTemperature = 15;
+uint32_t odometerValue = 0;
+uint16_t engineRpm = 0;
+int16_t steeringAngleMapped = 0;
+uint8_t currentDoorStateMask = 0;
+bool isParkingBrakeOn = false;
+
+unsigned long lastVehicleInfoSendTime = 0;
+unsigned long lastSteeringSendTime = 0;
+unsigned long lastStatusSendTime = 0;
+
+// =========================================================================
+// Helper Functions
+// =========================================================================
+void sendCanboxMessage(uint8_t cmd, uint8_t* data, uint8_t len) {
+    uint8_t sum = cmd + len;
+    for (int i = 0; i < len; i++) { sum += data[i]; }
+    uint8_t checksum = sum ^ 0xFF;
+
+    uint8_t finalFrame[len + 4];
+    finalFrame[0] = 0x2E;
+    finalFrame[1] = cmd;
+    finalFrame[2] = len;
+    memcpy(&finalFrame[3], data, len);
+    finalFrame[3 + len] = checksum;
+    
+    UartPort.write(finalFrame, sizeof(finalFrame));
+}
+
+void sendStatusByteCommand(uint8_t doorStateMask) {
+    uint8_t finalStateMask = doorStateMask;
+    if (isParkingBrakeOn) {
+      finalStateMask |= MASK_PARKING_BRAKE_ON;
+    }
+    uint8_t dataPayload[] = {SUB_CMD_DOOR_INFO, finalStateMask};
+    sendCanboxMessage(CMD_STATUS, dataPayload, sizeof(dataPayload));
+}
+
+void sendVehicleInfoCommand() {
+    uint16_t temp_encoded = outsideTemperature * 10;
+    uint8_t dataPayload[13] = {
+        SUB_CMD_VEHICLE_INFO,
+        (uint8_t)(engineRpm >> 8), (uint8_t)(engineRpm),
+        0, 0, 0, 0,
+        (uint8_t)(temp_encoded >> 8), (uint8_t)(temp_encoded),
+        (uint8_t)(odometerValue >> 16), (uint8_t)(odometerValue >> 8), (uint8_t)(odometerValue),
+        0
+    };
+    sendCanboxMessage(CMD_STATUS, dataPayload, sizeof(dataPayload));
+}
+
+void sendSteeringAngleCommand() {
+    uint8_t dataPayload[2] = {(uint8_t)(steeringAngleMapped), (uint8_t)(steeringAngleMapped >> 8)};
+    sendCanboxMessage(CMD_STEERING_WHEEL, dataPayload, sizeof(dataPayload));
+}
+
+// =========================================================================
+// SETUP
+// =========================================================================
+void setup() {
+  // Serial.begin(115200); // Debugging disabled
+  UartPort.begin(UART_BAUD_RATE, SERIAL_8N1, -1, UART_TX_PIN);
+  ESP32Can.setPins(CAN_TX, CAN_RX);
+  ESP32Can.setSpeed(ESP32Can.convertSpeed(CAN_BAUD_RATE));
+  ESP32Can.begin();
+}
+
+// =========================================================================
+// LOOP
+// =========================================================================
+void loop() {
+  if (ESP32Can.readFrame(rxFrame)) {
+    switch (rxFrame.identifier) {
+      
+      case CAN_ID_STATUS_DOORS_TEMP:
+        if (rxFrame.data_length_code >= 5) {
+          outsideTemperature = round((float)rxFrame.data[4] - 40.0);
+          uint8_t byteA = rxFrame.data[0];
+          uint8_t newDoorStateMask = 0;
+          if (byteA & (1 << 4)) newDoorStateMask |= 0b00000001; // Driver (A.5)
+          if (byteA & (1 << 3)) newDoorStateMask |= 0b00000010; // Passenger (A.4)
+          currentDoorStateMask = newDoorStateMask;
+        }
+        break;
+
+      case CAN_ID_ODOMETER:
+        if (rxFrame.data_length_code >= 3) {
+          uint32_t rawOdo = ((uint32_t)rxFrame.data[0] << 16) | ((uint32_t)rxFrame.data[1] << 8) | rxFrame.data[2];
+          odometerValue = rawOdo / 16;
+        }
+        break;
+
+      case CAN_ID_RPM:
+        if (rxFrame.data_length_code >= 2) {
+          uint16_t rawRpm = ((uint16_t)rxFrame.data[0] << 8) | rxFrame.data[1];
+          // CORRECTED: RPM value is divided by 8 to get the real value
+          engineRpm = rawRpm / 8;
+        }
+        break;
+
+      case CAN_ID_STEERING:
+        if (rxFrame.data_length_code >= 1) {
+          int rawAngle = rxFrame.data[0];
+          steeringAngleMapped = map(rawAngle, STEERING_RAW_LEFT, STEERING_RAW_RIGHT, STEERING_MAPPED_LEFT, STEERING_MAPPED_RIGHT);
+        }
+        break;
+      
+      case CAN_ID_PARKING_BRAKE:
+        if (rxFrame.data_length_code >= 1) {
+          isParkingBrakeOn = (rxFrame.data[0] & (1 << 2)) == 0;
+        }
+        break;
+    }
+  }
+
+  // --- Handle Timed Sends ---
+  unsigned long currentTime = millis();
+  
+  if (currentTime - lastVehicleInfoSendTime >= VEHICLE_INFO_SEND_INTERVAL_MS) {
+    lastVehicleInfoSendTime = currentTime;
+    sendVehicleInfoCommand();
+  }
+
+  if (currentTime - lastSteeringSendTime >= STEERING_SEND_INTERVAL_MS) {
+    lastSteeringSendTime = currentTime;
+    sendSteeringAngleCommand();
+  }
+  
+  if (currentTime - lastStatusSendTime >= STATUS_SEND_INTERVAL_MS) {
+    lastStatusSendTime = currentTime;
+    sendStatusByteCommand(currentDoorStateMask);
+  }
+}
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+
+===== POST id=16330 number=33 time=2025-08-09T21:23:11+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/30] Decided to rework everything and use Toyota RAV4 protocol.
+
+Take a look:
+
+https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/61 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/61]
+
+
+===== POST id=16523 number=34 time=2025-08-12T15:54:52+00:00
+Looks nice ! So what do I need to replicate on my side ? I imagine that i have to swap canbox but does steering wheel button would still work ? Any way bravo for what you've accomplished so far 👏
+
+
+===== POST id=16580 number=35 time=2025-08-14T02:16:17+00:00
+Matthieu614 [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/34] I abandoned the VW protocol and with help of @MihaiFlorin [https://forum.dudu-auto.com/u/MihaiFlorin] who provided patiently logs pretty much reverse engineered new Toyota canbox protocol. Why? Because VW has just a few data while Toyota also shows nice icons for lights etc on the status bar and by emulating it, Dudu thinks I've got Toyota, but in fact it's a Clio.
+
+For a few days I left SWC now alone, as I said before clio III, megane II (possibly Megane III) and Nissan Juke from around 2011 (possibly also all Nissans from that time like Micra etc) have two canbus lines, engine / body main and multimedia.
+
+So, the engine / body part is actually finished and I'll update this post later (working all doors, all lights, steering angle, parking brake, RPM, speed, outside temperature and probably remaining range). Seatbelt status is broken in latest Raise Toyota protocol and shows all the time ON, so not implemented so far. Not available in clio III (but protocol decoded): gears, EV battery left, trip mileage A and B and TPMS.
+
+Now, for the SWC I need to build another decoder connected to multimedia can and feed translated UART messages to the main canbox to be passed alongside with main UART payloads.
+
+All hardware cost is less than 15EUR and SWC is easier as we know Toyota SWC commands to HU so no real reverse engineering needed.
+
+
+
+===== POST id=17933 number=36 time=2025-09-02T16:39:32+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/35]  I have a renault clio IV and i have been try to replicate your process but its doing my head in can you please share with me what ESP device you used and the code please.
+
+
+===== POST id=17952 number=37 time=2025-09-02T20:41:53+00:00
+Cris [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/36] no worries. I'll do it tomorrow, as away from home now.
+
+I'm not sure if the Canbus messages are the same in clio iii and iv though.
+ 
+
+===== POST id=18151 number=38 time=2025-09-05T03:03:10+00:00
+As promised protocol
+
+https://drive.google.com/file/d/1iFL_Nui0X3n9P1Bsn-8NDJzWbIL6fmh6/view?usp=drivesdk [https://drive.google.com/file/d/1iFL_Nui0X3n9P1Bsn-8NDJzWbIL6fmh6/view?usp=drivesdk]
+
+https://drive.google.com/file/d/1iFQtRCPRPOZsFAjxb1eWVp3IcNeYncvQ/view?usp=drivesdk [https://drive.google.com/file/d/1iFQtRCPRPOZsFAjxb1eWVp3IcNeYncvQ/view?usp=drivesdk]
+
+
+===== POST id=18207 number=39 time=2025-09-05T13:38:50+00:00
+Mikescotland [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/31] 
+
+Hello, thank you for your excellent work. I would like to know if it is possible to get the code with coolant temperature, battery voltage, speed, and the 5 doors, and which CAN bus are you connected to? SWC work ? Thank you.
+
+
+===== POST id=18208 number=40 time=2025-09-05T13:52:59+00:00
+mesyounes [https://forum.dudu-auto.com/d/1421-renault-clio-iii-canbus-researchimprovement/39] what car?
+ 
+

@@ -1,0 +1,247 @@
+===== POST id=6066 number=21 time=2025-02-02T19:54:13+00:00
+Tswire [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/20]
+ 
+
+If you want to reuse what I've built upon, you will need an STM32-based canbox that is flashable (like the OD-OLO-02 [https://www.aliexpress.com/item/1005005287789835.html?spm=a2g0o.productlist.main.2.25fa513fi7PTos&algo_pvid=23ac394d-152f-49b1-8118-a478c7eb833a&algo_exp_id=23ac394d-152f-49b1-8118-a478c7eb833a-1&pdp_npi=4%40dis%21EUR%2121.93%2115.35%21%21%2122.25%2115.57%21%40211b617b17385251507161761e2297%2112000032499505530%21sea%21SE%216228505728%21X&curPageLogUid=ZdnlLawuFRpa&utparam-url=scene%3Asearch%7Cquery_from%3A]). Don't worry about the listed car make since you will be replacing the firmware with your own - all you need to worry about is that the pinout to the canbox matches that of your wire harness. Here (top left) [https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/volvo_od2/hw/sch.jpg] you can see the pinout for the OD-OLO-02.
+
+
+You are going to need to extend the firmware code to support your own car. Here [https://github.com/erik-rosen/canbox-xc90-my2008/blob/main/cars/xc90_2008my.c] is an example for my car (Volvo XC90 MY2008). To do that you are going to need to reverse engineer the CAN messages sent on the CANbus (essentially you need to find which CAN ID and bits correspond to things like speed, SWC button presses etc). You can do that with what I linked here [https://https//forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/19], or you might get lucky and find someone who has done something similar for your car. I found a bunch of IDs from googling around.
+
+
+You will then need to solder connectors to the CANbox PCB and hook it up to a STLINK V2 programmer and flash [https://github.com/jesusvallejo/canbox/blob/main/volvoxc90.md#flash-firmware] the CANbox with the new firmware that you have created.
+ 
+
+Be aware that while it is quite rewarding, the learning curve can be quite steep if you are new to programming and embedded systems.
+ 
+
+===== POST id=6186 number=22 time=2025-02-06T15:11:48+00:00
+This is great topic. Do you know how to recognize if the specific canbox is STM32-based?
+
+
+===== POST id=6234 number=23 time=2025-02-08T18:33:26+00:00
+ciubaka [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/22] You need to open up your CANbox and look at the markings of the MCU chip (most likely the largest one). Put those markings into google and you’ll be able to see if it is an STM32-based chip.
+ 
+
+After that you need to figure out which pins correspond to SWDIO, SWDCLK, V3.3 and GND and if there are existing pads connected to those pins that you can solder connector pins to so you can connect the STlinkV2 and reprogram the MCU. Mine (OD-OLO-02) happened to have some. If yours does not, it will be very difficult to do this.
+
+
+
+
+===== POST id=6237 number=24 time=2025-02-08T20:39:30+00:00
+[IMG https://forum.dudu-auto.com/assets/files/2025-02-08/1739047125-387444-c6d1b43d-9b9e-4f7e-a23b-7c52264c39cd-1-201-a.jpg]
+
+
+Here are the markings on the OD-OLO-02 for reference.
+ 
+
+===== POST id=7625 number=25 time=2025-03-13T14:46:15+00:00
+Hello. I'm new here. I came here looking for a solution to the problem of no sound signal from parking sensors in Volvo XC90 2006 on Android radio. I installed an Android 10.1" radio in my Volvo XC90 2006 with the assigned Can Bus Decoder OD-OLO-02. Identical to the one mentioned in this topic.
+
+After reading the entire topic, I noticed that the parking sensor problem was fixed on this Can Bus Decoder. In addition, someone managed to obtain some interesting information about the car. For example: door status, fuel level, odometer.
+
+In my Volvo, after configuring the Can Bus Box as: [Oudi]-[Volvo]-[XC90]-[04-13], all 4 steering wheel control buttons worked correctly. However, no other functions that this Decoder could and should visualize work.
+
+
+What I care about most is the sound signal from the rear parking sensors when approaching an obstacle.
+
+I am attaching a screenshot of the HEX information that is displayed on the radio after engaging and disengaging reverse gear.
+
+I would like to point out that due to lack of specialist knowledge I cannot interpret this information in any way. 🙁
+
+Can I count on some help and advice here?
+
+I will be happy to answer any additional questions.
+
+
+If it does not violate the rules of this forum I would like to ask for contact from someone who could sell me a corrected and reprogrammed Can Bus Decoder for Vovlo XC90 2006.
+
+
+[IMG https://forum.dudu-auto.com/assets/files/2025-03-13/1741877107-634274-img20250312161716.jpg]
+
+
+
+
+===== POST id=8100 number=26 time=2025-03-23T11:14:50+00:00
+Math13 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/25] Me and some others are still working on getting some last features working on XC90 canbus, it would prob be best to wait a bit longer until we have finished then we can either walk you through how to modify your own canbus or maybe one of us can help in supplying one to you.
+
+
+I do notice you say you have 2006 though, CEM changes in earlier years can affect what will and won't work, do you have the facelift xc90? Do you have a d5 engine? If so is it 163 or 185bhp?
+
+
+===== POST id=8101 number=27 time=2025-03-23T11:31:33+00:00
+liamstears [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/26] 
+
+Thanks for your response. Great to hear you're working on modifications. So I'll wait patiently.
+
+I have a 2006 Volvo XC90 AWD, but before facelift.
+
+The engine is: 2.5T petrol, B5254T2 -> 208k/5000ot, 320Nm/1500-4500ot -- 2521ccm.
+
+
+===== POST id=8102 number=28 time=2025-03-23T11:54:26+00:00
+Math13 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/25] The default firmware on the OD-OLO-02 does not parse and relay reverse sensor CAN messages to the head unit. On the 2007 and 2008 model years, the CAN message format for the parking sensors are from ID: 0x12173BE, Relevant data is in the top five bits in the forth data byte. The module will send the sensor value which is the highest, rather than all four rear parking sensors.
+ 
+
+If your model year encodes the rear park sensor signal the same way as MY2007 and MY2008, then flashing [https://github.com/jesusvallejo/canbox/blob/main/volvoxc90.md#flash-firmware] your canbox with this [https://github.com/erik-rosen/canbox-xc90-my2008/blob/207c41ec4721428f65a811614d50a53496219b47/volvo_od2.bin] firmware should give you the functionality to visualize the rear park sensor distance on your HU (Note that you need to pick CANBOX: Raise/VW/PQ/* on your HU rather than OD-OLO-02).
+ 
+
+If your car does not encode the reverse park sensor signal that way, then you will first need to reverse engineer the structure of the reverse parking sensor messages for your particular MY. This would be a good starting point: https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/19 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/19]
+ 
+
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/19]
+ 
+
+===== POST id=8109 number=29 time=2025-03-23T13:38:15+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/28] 
+
+Thank you for the detailed information and substantive answer.
+
+Unfortunately, I do not have the equipment you are writing about, and I also do not know how to upload this software to the canbox myself.
+
+It also does not have: Arduino Due, a CAN transceiver.  🙁
+
+
+===== POST id=8172 number=30 time=2025-03-24T10:48:22+00:00
+Math13 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/29]
+ 
+
+An Arduino Due and a CAN transceiver is not very expensive, but if you think the learning curve is too steep, you could just have someone flash a CANBOX for you and hope that the CAN message structure is the same as for the 2007 and 2008 model years.
+
+
+===== POST id=8179 number=31 time=2025-03-24T13:29:11+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/30] 
+
+I understand and thank you for your interest. It is very valuable.
+
+I will wait though. Maybe someone from this forum will already have a programmed CANBOX and will agree to sell it.
+
+
+===== POST id=8275 number=32 time=2025-03-26T11:40:08+00:00
+Math13 [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/31] I may be able to help in the near future but I think the canbus messages will be different on your earlier model than we have on 2007+ models but you can still try and cross your fingers...
+
+
+===== POST id=8277 number=33 time=2025-03-26T11:54:32+00:00
+liamstears [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/32]  :-)
+ 
+
+===== POST id=12620 number=34 time=2025-06-15T23:50:55+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/28] 
+
+Old thread but need to ask.
+
+I pretty much understand what is going on in your firmware but cannot figure out the how to define the canbus IDs:
+
+i.e. { 0x2510020, 80, 0, 0, xc90_2008my_ms_wheel_handler }, - i dont know what 80, 0, 0 means here and how to read for instance:
+
+uint8_t angle = msg[6] & 0x3f;
+
+	uint8_t wheel = scale(angle, 0, 0x3f, 0, 100); - what msg[6] means (byte?).
+
+
+In my car for instance I have this:
+
+0x60D ─> 003618 00 41 7C 02 00
+
+where 003618 > bit 22 "trunk open" and bit 23 "rear door open" - they can be either 0 or 1.
+
+
+Any help would be appreciated. Thank you
+
+
+===== POST id=12764 number=35 time=2025-06-17T15:38:53+00:00
+{
+	{ 0x0217ffc, 20, 0, 0, xc90_2008my_ms_lsm0_handler },
+	{ 0x131726c, 25, 0, 0, xc90_2008my_ms_swm_handler },
+	{ 0x12173be, 45, 0, 0, xc90_2008my_ms_rem_handler },
+	{ 0x2510020, 80, 0, 0, xc90_2008my_ms_wheel_handler },
+	{ 0x2803008, 60, 0, 0, xc90_2008my_ms_lsm1_handler }, 
+	{ 0x3200428, 90, 0, 0, xc90_2008my_ms_gear_handler },
+	{ 0x2006428, 120, 0, 0, xc90_2008my_ms_acc_handler },
+	{ 0x4000002, 1000, 0, 0, xc90_2008my_ms_odo_handler }, //Confirmed working
+	{ 0x2803008, 180, 0, 0, xc90_2008my_ms_rpm_handler }, //Confirmed working
+	{ 0x217FFC, 150, 0, 0, xc90_2008my_ms_vel_handler }, //Confirmed working
+	{ 0x381526C, 240, 0, 0, xc90_2008my_ms_fuel_handler }, //Likely correct
+	{ 0x2202262, 270, 0, 0, xc90_2008my_ms_ds_belt_handler }, //Confirmed working
+	{ 0x3A04004, 300, 0, 0, xc90_2008my_ms_park_brake_handler }, //Confirmed working
+...
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+Defines which callback function to call when a can message of the specified ID arrives (e.g. messages with ID 0x0217ffc should be handled by xc90_2008my_ms_lsm0_handler).
+
+
+uint8_t angle = msg[6] & 0x3f; The angle in this case is encoded by the lowest 6 bits of the 7th byte of the CAN message. So this essentially takes the 7th byte in the CAN message and applies a "bitwise AND" operator to it (essentially ignoring the 7 and 6th bits).
+ 
+
+0x3f == 0011 1111 in bits
+
+
+Original msg[6]:    1   0   1   0   1   0   1   0
+Mask 0x3F:          0   0   1   1   1   1   1   1
+Result (angle):     0   0   1   0   1   0   1   0  => 0b00101010 = 42
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+
+In your case you would take the 3rd byte msg[2], and apply a bit wise AND operator to extract whether or not the trunk is open or not:
+
+
+Mask definition:
+
+uint8_t mask_trunk = 1 << 6;  // bit shift operator to produce bitmask 0b01000000 for bit 22
+uint8_t mask_rear_door = 1 << 7;  // bit shift operator to produce bitmask 0b10000000 for bit 23
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+
+Applying the bitmask:
+
+
+bool trunk_open = msg[2] & (1 << 6);
+bool rear_door_open = msg[2] & (1 << 7);
+                    if(window.hljsLoader && !document.currentScript.parentNode.hasAttribute('data-s9e-livepreview-onupdate')) {
+                        window.hljsLoader.highlightBlocks(document.currentScript.parentNode);
+                    }
+                
+
+Hope that helps!
+
+
+===== POST id=12765 number=36 time=2025-06-17T16:39:13+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/35] Thank you very much for the explanation - helps of course.
+
+Regarding definining IDs for handlers - what are the numbers after the ID (i.e. 240, 0, 0 in this case??
+
+{ 0x381526C, 240, 0, 0, xc90_2008my_ms_fuel_handler }.
+
+
+
+
+===== POST id=12770 number=37 time=2025-06-17T18:11:05+00:00
+The second argument/value (240) is the expected period (ticks) for that message ID.
+
+The third argument/value (0) is the initial value for tick (used for timeout detection, managed by code).
+
+The fourth argument/value (0) is the initial value for num (used to remember the last message number seen, for detecting changes).
+
+
+Both tick and num are set to 0 at initialization, and are managed internally to track state/timing.
+
+You do not normally set tick or num to anything but 0 when initializing.
+
+
+===== POST id=12774 number=38 time=2025-06-17T18:30:49+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/37] thank you very much. Is there any instruction for this configuration? It's completely different structure from whatever program / script I have been using so far.
+ 
+
+===== POST id=12775 number=39 time=2025-06-17T18:37:31+00:00
+No, not really (other than what is provided in the readme and thread). I can recommend using something like Cursor, Copilot or Windsurf LLM-based coding assistants to guide you in adapting this code to your car.
+ 
+
+===== POST id=12776 number=40 time=2025-06-17T18:45:14+00:00
+edog [https://forum.dudu-auto.com/d/775-rfi-canbus-decoder-w-best-support-and-its-uart-byte-sequence-mappings/39] will try, thanks. I'm actually thinking arduino might be better to adapt this, at least I know what and how to do it... 😂
+ 
+
