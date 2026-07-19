@@ -587,6 +587,10 @@ MediaInfo-from-link + `DISP_CMD` server + USB serial proxy + LinkTunnel (incl. t
 tunnel, §3.4) + the python tunnel tool. No BLE/WiFi/web. Exit: bench pair GW+DISP does
 media, keys, display steering from GW's web, the release-bundle update flow (§3.4) end to
 end, and a GW flash through DISP's USB.
+*Status 2026-07-20: CODE COMPLETE — src/disp/ (disp_main, DispLink with DISP_CMD server +
+@PROG USB↔link bridge, DispConsole, AncsStub), tools/flash_gw.py. Image 357KB / RAM 10.6%
+(was 1.24MB as the full brain). Known caveat: the Carminat diag menu page assumes an attached
+ELM (none on DISP) — guard before M4. Bench exit criteria await the wired pair.*
 
 **M3 — BLE re-validation:** iPhone AMS/ANCS/CTS + DUDU HID against GW's classic-ESP32 BLE
 (4.2 dual-mode vs C3's BLE5 — NimBLE code identical, bench env proves it builds/runs; verify

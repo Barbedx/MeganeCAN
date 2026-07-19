@@ -8,8 +8,6 @@
 #include "utils/TextUtils.h"
 #include "utils/AffaDebug.h"   // AFFA3_PRINT -> LOGD("AFFA", ...)
 #include "utils/Log.h"
-#include "bluetooth.h"
-#include <NimBLEDevice.h>
 #include <vector>
 #include <Arduino.h>
 #include <queue>
