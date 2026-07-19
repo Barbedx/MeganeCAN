@@ -31,11 +31,15 @@ pio device monitor
 pio run -t upload --upload-port <device-ip>
 ```
 
-Firmware envs: **`esp32dev-mini`** (ESP32-C3 SuperMini — the MM car board, native USB),
-**`esp32dev`** (classic ESP32 WROOM — the bench board, CP210x UART), and **`vehicle-wrover`**
-(bare ESP32-WROVER — the VH board: `src/vh/` + `src/link/` only, radio-less, partitions_vh.csv;
-first flash via USB-UART, afterwards OTA-over-link from MM's `/vh` page). Build/flash a specific
-board and repo path: `pio run -e esp32dev -t upload --upload-port COMx -d <repo>`. MM CAN pins:
+Firmware envs (V2.2 final pair + transitional):
+- **`gw-wrover`** — GW brain image (WROVER): BLE+WiFi/web+routers+vehicle CAN+canbox+link;
+  display is remote (`src/gw/RemoteDisplay` → DISP_CMD/MEDIA_TEXT). partitions_gw.csv.
+- **`disp-c3`** — DISP thin IO Controller (C3): display drivers + multimedia CAN + SWC→KEY_EVT
+  + DISP_CMD server + `@PROG` USB↔link bridge (`tools/flash_gw.py` flashes GW through it).
+- **`esp32dev-mini`** (legacy full C3 image, still the in-car firmware until M4 cutover),
+  **`esp32dev`** (bench WROOM, full image for display-RE), **`vehicle-wrover`** (P1 VH-only
+  image, subsumed by gw-wrover).
+Build/flash: `pio run -e <env> -t upload --upload-port COMx -d <repo>`. Multimedia CAN pins:
 RX=GPIO3, TX=GPIO4. If BLE bonds won't persist on a board, `pio run -e <env> -t erase` first
 (corrupt NVS). `pio test -e native` runs the host suites (incl. `test_link`, `test_vh`,
 `test_media`, `test_keys`).
