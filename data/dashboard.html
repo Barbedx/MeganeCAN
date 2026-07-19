@@ -1,8 +1,3 @@
-#pragma once
-#include <Arduino.h>
-
-// Dashboard UI (extracted verbatim from HttpServerManager.cpp). Served at "/".
-static const char DASHBOARD_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -105,6 +100,7 @@ td,th{padding:3px 6px}
     <select name="mode" id="btModeSelect">
       <option value="ams">AMS (Apple Media Service)</option>
       <option value="keyboard">BLE Keyboard</option>
+      <option value="both">Both (iPhone AMS + head-unit keyboard)</option>
     </select>
     <label class="ck"><input type="checkbox" id="autoTimeCheckbox" name="auto_time" value="1"> Auto-sync time from phone</label>
     <input type="hidden" name="auto_time" value="0">
@@ -204,4 +200,3 @@ loadConfig();loadElmHeaders();
 refreshDashboard();
 setInterval(refreshDashboard,2500);
 </script></body></html>
-)rawliteral";

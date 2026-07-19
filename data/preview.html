@@ -1,14 +1,4 @@
-#pragma once
-
-// End-user / car-test display console. Open http://meganecan.local/preview (home WiFi)
-// or http://192.168.4.1/preview (car AP), fire any screen the Carminat can show, and
-// watch it on the real panel. The decoded box mirrors /api/screen (the ONE firmware
-// decoder) for the screens it understands today (menu + highlight); info-popup and
-// confirm-box are verified by looking at the REAL panel (decoder support is a TODO).
-//
-// On load it sets route=virtual so a desk ESP (no panel) still renders the menu box;
-// in the car press "Restore CAN" (route=both) so the real panel drives + ACKs.
-static const char PREVIEW_PAGE[] = R"HTML(<!doctype html><html><head><meta charset="utf-8">
+<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MeganeCAN — Display console</title>
 <style>
@@ -144,4 +134,4 @@ async function poll(){
  }catch(e){}
 }
 setInterval(poll,600);poll();
-</script></body></html>)HTML";
+</script></body></html>

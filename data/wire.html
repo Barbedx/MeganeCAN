@@ -1,15 +1,4 @@
-#pragma once
-#include <Arduino.h>
-
-// The bus view + protocol-RE page, served at /wire. Opens a WebSocket to /canstream
-// (the WsWireLink stream), renders the live @TX/@RX frames with a SavvyCAN-style ID
-// filter + per-ID table, decodes the AFFA3 screen (same semantics as
-// tools/serial_proxy.py), steers the display over HTTP (/emulate/key), records the
-// stream to a downloadable .canlog (the exact format ReplayCanBus parses), and owns
-// the firmware-side CAN log controls (/api/can/config, /api/can/log, /api/can/clear).
-// Transport (route) + AUX live on /preview. Works from any phone/PC browser on the
-// ESP's network — no laptop tool required.
-static const char WIRE_PAGE[] PROGMEM = R"WIRE(<!doctype html><html><head><meta charset=utf-8>
+<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>MeganeCAN Wire</title><style>
 *{box-sizing:border-box}body{margin:0;font:13px/1.4 system-ui,monospace;background:#11131a;color:#cdd6f4}
@@ -161,4 +150,4 @@ function toggleRec(){rec=!rec;if(rec){recBuf=[];recT0=Date.now();recBuf.push('# 
 setInterval(()=>{if(rec)$('recBtn').textContent='■ Stop ('+(recBuf.length-1)+')'},500);
 function save(){const blob=new Blob([recBuf.join('\n')+'\n'],{type:'text/plain'});const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);a.download='capture.canlog';a.click();}
-</script></body></html>)WIRE";
+</script></body></html>

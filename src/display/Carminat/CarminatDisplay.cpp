@@ -138,15 +138,18 @@ void CarminatDisplay::initializeMenu()
     bool autoTime  = prefs.getBool("auto_time", true);
     prefs.end();
 
-    int btModeIdx   = (btMode == "ams") ? 1 : 0;
+    // Index order must match kBtModes below.
+    int btModeIdx   = (btMode == "ams") ? 1 : (btMode == "both" ? 2 : 0);
     int autoTimeIdx = autoTime ? 1 : 0;
 
     // "BT Mode" — always shown; takes effect on next reboot
     auto &btItem = mainMenu.addItem(
-        MenuItem("BT Mode", Field(std::vector<String>{"Keyboard", "AMS"}, btModeIdx)));
+        MenuItem("BT Mode", Field(std::vector<String>{"Keyboard", "AMS", "Both"}, btModeIdx)));
     btItem.onChange = [](const MenuItem &item)
     {
-        const char *val = (item.fields[0].listIndex == 1) ? "ams" : "keyboard";
+        static const char *kBtModes[] = {"keyboard", "ams", "both"};
+        const int idx = item.fields[0].listIndex;
+        const char *val = (idx >= 0 && idx < 3) ? kBtModes[idx] : "ams";
         Preferences p;
         p.begin("config", false);
         p.putString("bt_mode", val);
@@ -154,8 +157,8 @@ void CarminatDisplay::initializeMenu()
         LOGI("MENU", "BT Mode saved: %s (reboot to apply)", val);
     };
 
-    // "Auto-time" — only in AMS mode; runtime toggle (no reboot needed)
-    if (btMode == "ams")
+    // "Auto-time" — needs the AMS link (CTS rides on it), so any mode but keyboard
+    if (btMode != "keyboard")
     {
         auto &atItem = mainMenu.addItem(
             MenuItem("Auto-time", Field(std::vector<String>{"Off", "On"}, autoTimeIdx)));

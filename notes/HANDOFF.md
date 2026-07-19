@@ -15,6 +15,38 @@ Local `main` == `origin/main`; the `feature/ble-can-bench-fixes` branch is delet
 is now **just `origin` = `Barbedx/MeganeCAN`** (the old `andriipetruk-hue` fork remote was removed).
 Resume work directly on `main` (or a fresh branch off it).
 
+## ▶ TEST FIRST (2026-07-19 — dual BLE link, NOTHING hardware-validated)
+
+The head unit is now an **Android HU instead of the OEM radio**, so the ESP owns funcreg
+(`skip_funcreg=false`) and drives the display itself. This session added a third `bt_mode`,
+**`both`**: BLE HID keyboard to the Android HU *and* the AMS GATT client to the iPhone, on two
+simultaneous links. It compiles for both envs and the native suite passes — **none of it has run on
+hardware.** Treat every claim below as unverified.
+
+**Go/no-go before anything else:** flash with `bt_mode=keyboard` and check the Android HU will pair
+with a **BLE** HID device at all. The ESP32-C3 has no Bluetooth Classic; a HU that only accepts
+Classic HID makes `both` mode pointless and none of the rest is worth debugging.
+
+Then, in order: (1) confirm legacy `ams` mode still works on the iPhone — the AMS path was rewritten
+around a peer table and async pairing; (2) pair the iPhone FIRST, then the HU (classification of an
+unknown peer is ambiguous until each identity address is learned into NVS `ble/ams_addr` +
+`ble/hid_addr`); (3) watch `[heap] maxblk` — the second link + HID tree cost ~6-9KB.
+
+Known gaps, deliberately not closed:
+- `gPeers` is unsynchronised between the BLE host task and the loop task. Critical paths re-fetch the
+  peer by handle after every GATT call, but there is no mutex. The table is static, so the worst case
+  is a write to a reused slot, not a dangling pointer.
+- `Bluetooth::HasBond()` is still global, not per-peer — in `both` with only the HU bonded the UI
+  says "Waiting for phone". Cosmetic.
+- `/api/dashboard` returns nested `ams`/`hid` objects but the dashboard JS still renders only the
+  legacy flat fields.
+- **No advertising fallback.** The HID UUID + appearance ride in the *scan response* (the AMS
+  solicitation must stay in the primary packet or a fresh iPhone never surfaces us). If the HU won't
+  discover a scan-response-only HID service, the fix is to alternate the primary payload on a timer
+  while the corresponding peer is unbonded. This is the most likely field failure.
+- `keyboard` mode changed: device name `MeganeCAN` → `MCD1`, and bonding `false` → `true`. **The HU
+  must be re-paired.**
+
 ## ▶ IN THE CAR NEXT (2026-06-15 — live capture session)
 Heading to the car with the laptop to watch **real-time** what the firmware sends. Goal: eyeball the
 newly reimplemented **`showConfirmBoxWithOffsets`** popup on the real monochrome display, and keep
@@ -104,6 +136,9 @@ dashboard hammering (was wedging at ~24KB/14KB before).
   splits fetch/render: `renderMedia/Notifs/Bt/Wifi/CanSeen(d)` + one `refreshDashboard()` poller.
   `/api/dashboard` returns `{media,notifs,bt,wifi,can}` (verified well-formed). Browser-render not
   yet eyeballed by the user — confirm the cards still populate.
+- A4 ❌ REJECTED (measured) — serving the HTML from LittleFS costs 58KB of `esp_littlefs`+`vfs` to
+  save 43KB of page data: net +14.5KB, worse. Pages now live in `data/*.html`, gzipped into the
+  app image at build time by `gen-pages.py` (33KB → 13KB). See CLAUDE.md "Web UI pages".
 - A3 ⏳ NEXT — stream JSON instead of building `String`; A4 serve dashboard HTML from LittleFS (1MB
   spiffs partition); A5 fixed `char[]` over `String` churn. Also: `/getlasttext`/`/getwelcometext`
   still open the `"display"` NVS namespace (2 residual NOT_FOUND) — fold into a cache too.

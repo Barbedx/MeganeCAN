@@ -63,7 +63,9 @@ namespace DisplayCommands
 
     void Manager::setTextBig(const String &caption, const String &row1, const String &row2)
     {
-        throw std::logic_error("setTextBig not implemented for Affa3NAVDisplay");
+        // Unimplemented stub. This used to `throw std::logic_error`, which nothing
+        // catches — on the target that is an abort and a reboot, not a diagnostic.
+        LOGW("DISP", "setTextBig not implemented for Affa3NAVDisplay — ignoring");
         //  _display.showConfirmBoxWithOffsets(caption.c_str(), row1.c_str(), row2.c_str());
     } // namespace DisplayCommands
 

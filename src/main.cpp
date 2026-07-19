@@ -36,18 +36,18 @@
 #include "console/SerialConsole.h"
 #include "console/WireConsole.h"
 #include <string.h>
-#include "BleMediaKeyboard.h"
+#include "ble/BleHub.h"
+#include "ble/HidRole.h"
 
 AffaDisplayBase *display = nullptr;
 unsigned long lastPingTime = 0;
 
 // BT mode state (read from NVS in initDisplay, used throughout)
-String btMode = "ams";   // "ams" or "keyboard"
+String btMode = "ams";   // "ams" | "keyboard" | "both"
 bool _autoTime = true;   // sync display clock from CTS (AMS mode only)
 bool _timeSyncDone = false; // reset each time BT disconnects
 bool _elmEnabled = false; // ELM327 enabled (read from NVS, configurable via Web UI)
 
-BleMediaKeyboard bleKeyboard;
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
 HttpServerManager *serverManager = nullptr;
@@ -313,15 +313,39 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold)
         default: break;
         }
     }
+    else if (btMode == "both")
+    {
+        // The split that makes running both links worthwhile: transport control goes
+        // straight to the audio source (the iPhone, over AMS) instead of round-tripping
+        // through the head unit's AVRCP, while volume goes to the head unit, which is
+        // what actually drives the amplifier.
+        //
+        // Each side no-ops independently: a disconnected iPhone must not break volume.
+        switch (key)
+        {
+        case AffaCommon::AffaKey::Pause:
+            if (Bluetooth::IsConnected()) AppleMediaService::Toggle();
+            break;
+        case AffaCommon::AffaKey::RollUp:
+            if (Bluetooth::IsConnected()) AppleMediaService::NextTrack();
+            break;
+        case AffaCommon::AffaKey::RollDown:
+            if (Bluetooth::IsConnected()) AppleMediaService::PrevTrack();
+            break;
+        case AffaCommon::AffaKey::VolumeUp:   Hid::press(KEY_MEDIA_VOLUME_UP);   break;
+        case AffaCommon::AffaKey::VolumeDown: Hid::press(KEY_MEDIA_VOLUME_DOWN); break;
+        default: break;
+        }
+    }
     else // keyboard
     {
         switch (key)
         {
-        case AffaCommon::AffaKey::Pause:    bleKeyboard.write(KEY_MEDIA_PLAY_PAUSE);     break;
-        case AffaCommon::AffaKey::RollUp:   bleKeyboard.write(KEY_MEDIA_NEXT_TRACK);     break;
-        case AffaCommon::AffaKey::RollDown: bleKeyboard.write(KEY_MEDIA_PREVIOUS_TRACK); break;
+        case AffaCommon::AffaKey::Pause:    Hid::press(KEY_MEDIA_PLAY_PAUSE);     break;
+        case AffaCommon::AffaKey::RollUp:   Hid::press(KEY_MEDIA_NEXT_TRACK);     break;
+        case AffaCommon::AffaKey::RollDown: Hid::press(KEY_MEDIA_PREVIOUS_TRACK); break;
         case AffaCommon::AffaKey::VolumeUp:
-            if (isHold) bleKeyboard.write(KEY_MEDIA_VOLUME_UP);
+            if (isHold) Hid::press(KEY_MEDIA_VOLUME_UP);
             break;
         default: break;
         }
@@ -353,26 +377,30 @@ void setup()
 
     // On ESP32-C3 (single radio), bring BLE up before WiFi so the radio is free
     // during NimBLE startup.
-    if (btMode == "ams")
     {
-        AppleMediaService::RegisterForNotifications(
-            onDataUpdateCallback,
-            AppleMediaService::NotificationLevel::All);
+        const BleHub::Mode bleMode =
+            btMode == "keyboard" ? BleHub::Mode::Keyboard
+          : btMode == "both"     ? BleHub::Mode::Both
+                                 : BleHub::Mode::Ams;
+
+        if (BleHub::amsActive(bleMode))
+            AppleMediaService::RegisterForNotifications(
+                onDataUpdateCallback,
+                AppleMediaService::NotificationLevel::All);
+
+        // Still on a 16KB task stack: Begin() now also builds the HID service tree,
+        // so it allocates more than before and must not run on setup()'s stack.
+        static BleHub::Mode s_mode = bleMode; // outlives setup(), read by the task
         xTaskCreate([](void*) {
-            Bluetooth::Begin("MCD1");
-            LOGI("BT", "AMS mode started");
+            BleHub::Begin(s_mode, "MCD1");
             vTaskDelete(nullptr);
         }, "bt_begin", 16384, nullptr, 1, nullptr);
-        LOGI("BT", "AMS init launched in background");
-    }
-    else
-    {
-        bleKeyboard.begin("MeganeCAN");
-        LOGI("BT", "Keyboard mode started");
+        LOGI("BT", "BLE init launched in background (mode=%s)", btMode.c_str());
     }
 
     // Networking: join the saved home WiFi (STA + mDNS "meganecan.local" + optional
     // static IP) or fall back to the AP (secrets.h SSID) for config. Owns WiFi mode.
+
     WiFiManager::Begin(ssid, password, "meganecan");
     serverManager->begin();
 
@@ -417,10 +445,10 @@ void loop()
     ElegantOTA.loop();
     g_wsLink.loop();   // flush the batched WireProto stream to WS clients (single task)
 
-    if (btMode == "ams")
-    {
-        Bluetooth::Service();
+    BleHub::Service(); // pumps whichever roles the mode enables
 
+    if (BleHub::amsActive())
+    {
         // Detect BT disconnect and notify display to freeze content.
         static bool _prevBtConnected = false;
         bool _curBtConnected = Bluetooth::IsConnected();

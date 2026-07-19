@@ -1,5 +1,8 @@
 #include "bluetooth.h"
 #include "utils/Log.h"
+#include "ble/BleHub.h"
+#include "ble/BlePeerTable.h"
+#include "ble/HidRole.h"
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
@@ -7,34 +10,44 @@
 #include <time.h>
 #include <sys/time.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "apple_media_service.h"
 #include "apple_notification_service.h"
 #include "current_time_service.h"
 
-// Apple Media Service (hosted by the iPhone; we are its client).
-#define APPLE_MEDIA_SERVICE_UUID "89D3502B-0F36-433A-8EF4-C502AD55F8DC"
-
 namespace Bluetooth
 {
     namespace
     {
-        NimBLEServer *Server = nullptr;
-        NimBLEClient *Client = nullptr; // GATT client bound to the phone-initiated connection
+        NimBLEClient *Client = nullptr; // GATT client bound to the AMS peer
 
         volatile bool Connected = false; // AMS is up
-        volatile bool NeedSetup = false; // phone connected, services not all started yet
         volatile bool Secured   = false; // link encrypted/bonded
         RTC_DATA_ATTR bool TimeSet = false;
 
         // Each Apple service is brought up independently and retried until it
         // appears (iOS exposes AMS/ANCS/CTS with slightly different timing).
         bool AmsUp = false, AncsUp = false, CtsUp = false;
-        uint32_t ConnectMs = 0;                 // when the phone connected
-        const uint32_t SETUP_DEADLINE_MS = 20000; // stop retrying missing services after this
 
-        std::string PeerAddr;
-        const char *StatusText = "Pair from iPhone";
+        // How long we keep probing for AMS *after the link is encrypted*. Measuring
+        // from encryption rather than from connect is deliberate: the unencrypted
+        // stretch is the user walking over and tapping "Pair", which can take tens of
+        // seconds and must not count against the probe budget.
+        const uint32_t SETUP_DEADLINE_MS = 20000;
+
+        // How long we wait for an unclassified peer to encrypt before giving up on
+        // it. In Both mode a peer that never pairs would otherwise hold the single
+        // GATT client hostage while the real phone waits for a slot.
+        const uint32_t SECURE_WAIT_MS = 45000;
+
+        // Re-initiate pairing at most this often, and only this many times.
+        const uint32_t SECURE_RETRY_MS  = 4000;
+        const uint8_t  SECURE_MAX_TRIES = 6;
+        uint32_t lastSecureAttempt = 0;
+
+        char        PeerAddr[18] = {0};
+        const char *StatusText   = "Pair from iPhone";
         uint32_t    lastSetupAttempt = 0;
 
         bool startCTS(NimBLEClient *c)
@@ -53,197 +66,152 @@ namespace Bluetooth
             return true;
         }
 
-        // NimBLE reports a GAP disconnect reason as 0x200 + the HCI error code.
-        // Decode the ones we actually hit so the log reads in plain language.
-        const char *reasonText(int reason)
+        void resetAmsState()
         {
-            switch (reason - 0x200) // strip the BLE_HS_ERR_HCI_BASE
-            {
-                case 0x08: return "supervision timeout (out of range / RF / coexistence)";
-                case 0x13: return "remote user terminated (iPhone deliberately closed it)";
-                case 0x16: return "terminated by local host (normal post-bond drop)";
-                case 0x05: return "authentication failure (bond key mismatch)";
-                case 0x06: return "PIN/key missing (one side lost the bond!)";
-                case 0x3D: return "MIC failure (encryption key mismatch — stale bond!)";
-                case 0x22: return "LMP/LL response timeout";
-                case 0x3B: return "unacceptable connection parameters";
-                default:   return "(see HCI error code)";
-            }
+            Connected = false;
+            Secured   = false;
+            AmsUp = AncsUp = CtsUp = false;
+            Client = nullptr;
+            PeerAddr[0] = 0;
         }
+    } // namespace
 
-        class ServerCallbacks : public NimBLEServerCallbacks
-        {
-            void onConnect(NimBLEServer *s, NimBLEConnInfo &connInfo) override
-            {
-                Log::printf("[BT] Phone connected: %s  (already encrypted=%d, bonds stored=%d)\n",
-                              connInfo.getAddress().toString().c_str(),
-                              connInfo.isEncrypted(), NimBLEDevice::getNumBonds());
-                Client     = s->getClient(connInfo); // client over the inbound connection
-                PeerAddr   = connInfo.getAddress().toString();
-                Secured    = connInfo.isEncrypted();
-                NeedSetup  = true;
-                Connected  = false;
-                AmsUp = AncsUp = CtsUp = false;
-                ConnectMs  = millis();
-                StatusText = "Connecting...";
-
-                // WiFi and BLE share one radio on the ESP32. By default iOS holds
-                // a short connection interval (~15-30ms) and BLE monopolises the
-                // radio, starving the WiFi STA (dashboard becomes unreachable).
-                // Ask the phone for a relaxed link: 30-50ms interval + slave
-                // latency 4 (skip idle events) + 4s supervision timeout. This
-                // frees airtime for WiFi without dropping BLE, and stays within
-                // Apple's BLE connection-parameter rules so iOS accepts it.
-                // Units: interval = 1.25ms, timeout = 10ms.
-                s->updateConnParams(connInfo.getConnHandle(), 24, 40, 4, 400);
-            }
-
-            void onDisconnect(NimBLEServer *s, NimBLEConnInfo &connInfo, int reason) override
-            {
-                Log::printf("[BT] Phone disconnected: %s reason=%d (0x%X = %s)  bonds stored=%d\n",
-                              connInfo.getAddress().toString().c_str(), reason, reason,
-                              reasonText(reason), NimBLEDevice::getNumBonds());
-                Connected  = false;
-                NeedSetup  = false;
-                Secured    = false;
-                AmsUp = AncsUp = CtsUp = false;
-                Client     = nullptr;
-                PeerAddr.clear();
-                StatusText = HasBond() ? "Waiting for phone" : "Pair from iPhone";
-                // advertiseOnDisconnect(true) restarts advertising automatically.
-            }
-
-            void onAuthenticationComplete(NimBLEConnInfo &connInfo) override
-            {
-                Log::printf("[BT] Auth complete: bonded=%d encrypted=%d authenticated=%d  bonds stored=%d\n",
-                              connInfo.isBonded(), connInfo.isEncrypted(), connInfo.isAuthenticated(),
-                              NimBLEDevice::getNumBonds());
-                Secured = connInfo.isEncrypted();
-            }
-        };
-
-        ServerCallbacks serverCb;
-
-        void startAdvertising(const std::string &name)
-        {
-            NimBLEAdvertising *adv = Server->getAdvertising();
-
-            // Everything in the PRIMARY advertising packet — this is the proven
-            // sandbox approach ("CTRL 01"). iOS Settings only shows a peer whose name
-            // is in the primary packet, and it reads the AMS *solicitation* (AD 0x15)
-            // there too. Putting the solicitation in the scan-response instead did NOT
-            // make us visible to a fresh (un-bonded) iPhone. Budget: flags(3) + name AD
-            // + solicitation(18) <= 31, so the name MUST be short (<=8 chars). "MCD1" =>
-            // 3 + (2+4) + 18 = 27. addData() has no length byte → build [0x11][0x15][16 LE].
-            NimBLEAdvertisementData advData;
-            advData.setFlags(0x06); // LE General Discoverable, BR/EDR not supported
-            advData.setName(name);  // Complete Local Name in the primary packet
-
-            NimBLEUUID ams(APPLE_MEDIA_SERVICE_UUID);
-            uint8_t sol[18];
-            sol[0] = 0x11; // length: 1 (type) + 16 (uuid)
-            sol[1] = 0x15; // 128-bit service solicitation
-            memcpy(&sol[2], ams.getValue(), 16);
-            advData.addData(sol, sizeof(sol));
-
-            adv->setAdvertisementData(advData);
-
-            adv->start();
-            Log::printf("[BT] Advertising '%s' (adv=%u bytes, all in primary) — pair from iPhone Settings",
-                        name.c_str(), (unsigned)advData.getPayload().size());
-        }
-    } // anonymous namespace
-
-    void Begin(const std::string &device_name)
+    void OnAmsPeerLost()
     {
-        Log::printf("[BT] Begin() AMS/ANCS peripheral");
-        esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
-        NimBLEDevice::init(device_name);
-        NimBLEDevice::setMTU(247); // larger ATT MTU so ANCS message bodies fit
-
-        // Bonding ON, no MITM, LE Secure Connections -> iOS "Just Works" pairing,
-        // keys persisted in NVS so reconnection is silent.
-        NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
-        NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
-
-        Server = NimBLEDevice::createServer();
-        Server->setCallbacks(&serverCb);
-        Server->advertiseOnDisconnect(true);
-        startAdvertising(device_name);
-
+        resetAmsState();
+        // These cache NimBLERemoteCharacteristic pointers owned by the client we
+        // just lost. NimBLEServer::getClient() calls deleteServices() when it is
+        // rebound to another peer, so leaving them set is a use-after-free, not a
+        // stale-value bug.
+        AppleMediaService::Detach();
+        AppleNotificationService::Detach();
+        CurrentTimeService::StopTimeService();
         StatusText = HasBond() ? "Waiting for phone" : "Pair from iPhone";
-        Log::printf("[BT] Begin finished (bonds stored: %d)\n", NimBLEDevice::getNumBonds());
+        LOGI("BT", "AMS peer lost — caches detached");
     }
 
-    void Service()
+    void ServiceAms()
     {
         // Drive deferred ANCS Control Point writes from this (loop) task.
         if (Connected && Client && Client->isConnected())
             AppleNotificationService::Process();
 
-        // While no phone is connected, keep advertising so a bonded phone can
-        // reconnect — iOS typically drops the link right after the first bond and
-        // only exposes AMS/ANCS on the bonded reconnect.
-        if (!(Client && Client->isConnected()))
-        {
-            static uint32_t lastAdv = 0;
-            if (millis() - lastAdv > 3000)
-            {
-                lastAdv = millis();
-                NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
-                if (adv && !adv->isAdvertising())
-                {
-                    adv->start();
-                    Log::printf("[BT] re-advertising (waiting for phone)");
-                }
-            }
-            return;
-        }
-
-        // Connected: keep retrying service bring-up until everything is up.
-        if (!NeedSetup)
-            return;
-
         if (millis() - lastSetupAttempt < 800)
             return;
         lastSetupAttempt = millis();
 
-        // Secure first, then discover (order matters — NimBLE issue #1033).
-        if (!Secured)
+        // Find a peer worth probing: the known iPhone, or an unclassified newcomer.
+        Ble::PeerTable &peers = BleHub::peers();
+        Ble::Peer *target = peers.byRole(Ble::PeerRole::Ams);
+        if (!target)
+            target = peers.byRole(Ble::PeerRole::Unknown);
+
+        if (!target)
         {
-            Log::printf("[BT] Securing link — accept the pairing prompt on your iPhone...");
-            if (!Client->secureConnection())
-            {
-                Log::printf("[BT] Pairing not complete yet, will retry");
-                return;
-            }
-            Secured = true;
+            if (Connected || Client)
+                OnAmsPeerLost();
+            return;
         }
 
-        // Bring up each service independently and keep retrying the missing ones
-        // (iOS exposes AMS/ANCS/CTS with slightly different timing).
+        // Everything below can block on GATT, during which the host task may drop
+        // this peer and hand its table slot to a different device. Re-fetch by handle
+        // after each blocking step instead of trusting the pointer.
+        const uint16_t h = target->handle;
+
+        if (AmsUp && AncsUp && CtsUp)
+            return; // fully up
+
+        if (!Client)
+        {
+            Client = BleHub::bindAmsClient(*target);
+            if (!Client)
+                return; // not eligible (head unit, or the single client is taken)
+            strncpy(PeerAddr, target->addr, sizeof(PeerAddr) - 1);
+            StatusText = "Connecting...";
+        }
+        if (!Client->isConnected())
+            return;
+
+        // Secure first, then discover (order matters — NimBLE issue #1033).
+        //
+        // ASYNC on purpose. secureConnection(false) does taskWait(BLE_NPL_TIME_FOREVER)
+        // — it blocks the calling task with no timeout until the user taps "Pair".
+        // On the loop task that stalls the display, WiFi, and (in Both mode) the
+        // deferred HID key release, so a held volume key would run away to max.
+        // Async kicks off pairing and returns; encryption is observed via the peer's
+        // `encrypted` flag, which onAuthenticationComplete sets.
+        Secured = target->encrypted;
+        if (!Secured)
+        {
+            if (millis() - target->connectedMs > SECURE_WAIT_MS)
+            {
+                LOGW("BT", "h=%u never encrypted after %us — not the phone",
+                     (unsigned)h, (unsigned)(SECURE_WAIT_MS / 1000));
+                target->role = Ble::PeerRole::NotAms;
+                target->clientBound = false;
+                OnAmsPeerLost();
+                return;
+            }
+            if (target->secureTries < SECURE_MAX_TRIES &&
+                millis() - lastSecureAttempt > SECURE_RETRY_MS)
+            {
+                lastSecureAttempt = millis();
+                target->secureTries++;
+                LOGI("BT", "Initiating pairing (try %u) — accept the prompt on your iPhone",
+                     (unsigned)target->secureTries);
+                Client->secureConnection(/*async=*/true);
+            }
+            return;
+        }
+
+        // Past this point the link is encrypted; the probe budget starts here.
+        const uint32_t securedAt = target->securedMs ? target->securedMs : target->connectedMs;
+        const bool     expired   = millis() - securedAt > SETUP_DEADLINE_MS;
+
+        if (!AmsUp && expired)
+        {
+            LOGI("BT", "h=%u exposed no AMS %us after encrypting — marking not-ams",
+                 (unsigned)h, (unsigned)(SETUP_DEADLINE_MS / 1000));
+            target->role        = Ble::PeerRole::NotAms;
+            target->clientBound = false;
+            OnAmsPeerLost();
+            return;
+        }
+        // AMS up but a straggler never appeared (iOS sometimes never exposes ANCS).
+        // Stop retrying, or we re-run GATT discovery every 800ms forever.
+        if (AmsUp && expired)
+            return;
+
+        // Bring up each service independently and keep retrying the missing ones.
         if (!AmsUp && AppleMediaService::StartMediaService(Client))
         {
-            AmsUp = true;
+            // The peer may have gone during discovery — validate before writing to it.
+            if (!BleHub::peers().byHandle(h))
+            {
+                OnAmsPeerLost();
+                return;
+            }
+            AmsUp     = true;
             Connected = true;
+            BleHub::classifyAsAms(h); // AMS present == this is the phone; remember it
             StatusText = "Connected";
-            Log::printf("[BT] AMS started");
+            LOGI("BT", "AMS started");
+        }
+        if (!BleHub::peers().byHandle(h))
+        {
+            OnAmsPeerLost();
+            return;
         }
         if (AmsUp && !AncsUp && AppleNotificationService::StartNotificationService(Client))
         {
             AncsUp = true;
-            Log::printf("[BT] ANCS started");
+            LOGI("BT", "ANCS started");
         }
         if (AmsUp && !CtsUp && startCTS(Client))
         {
             CtsUp = true;
-            Log::printf("[BT] CTS started");
+            LOGI("BT", "CTS started");
         }
-
-        // Done once everything is up, or give up on stragglers after the deadline.
-        if ((AmsUp && AncsUp && CtsUp) || (millis() - ConnectMs > SETUP_DEADLINE_MS))
-            NeedSetup = false;
     }
 
     bool IsConnected() { return Connected && Client && Client->isConnected(); }
@@ -252,28 +220,49 @@ namespace Bluetooth
 
     void ClearBonds()
     {
-        Log::printf("[BT] Clearing all bonds...");
+        LOGI("BT", "Clearing all bonds (this also drops the head unit's bond)...");
         NimBLEDevice::deleteAllBonds();
         if (Client && Client->isConnected())
             Client->disconnect();
-        Connected  = false;
-        NeedSetup  = false;
-        Secured    = false;
+        // Release the client ownership flag too. Leaving it set made bindAmsClient()
+        // hand back the same client forever while ServiceAms sat in the expired
+        // branch doing nothing — AMS was dead until reboot.
+        for (uint8_t i = 0; i < Ble::PeerTable::kMax; i++)
+            if (Ble::Peer *p = BleHub::peers().at(i))
+                p->clientBound = false;
+        OnAmsPeerLost();
         StatusText = "Pair from iPhone";
-        Log::printf("[BT] Bonds cleared. Also 'Forget this device' on the iPhone, then re-pair.");
+        LOGI("BT", "Bonds cleared. Also 'Forget this device' on the iPhone, then re-pair.");
     }
 
     const char *GetStatusText() { return StatusText; }
 
     String GetStatusJson()
     {
-        String j = "{";
-        j += "\"connected\":";  j += (IsConnected() ? "true" : "false");
-        j += ",\"status\":\"";  j += StatusText; j += "\"";
-        j += ",\"bonded\":";    j += (HasBond() ? "true" : "false");
-        j += ",\"address\":\""; j += (IsConnected() ? PeerAddr.c_str() : ""); j += "\"";
-        j += "}";
-        return j;
-    }
+        const bool amsOn = BleHub::amsActive();
+        const bool hidOn = BleHub::hidActive();
+        const bool hidUp = hidOn && Hid::connected();
 
+        Ble::Peer *hidPeer = BleHub::peers().byRole(Ble::PeerRole::Hid);
+
+        char buf[360];
+        // Legacy top-level keys mirror the AMS link so existing callers (dashboard,
+        // Carminat now-playing) keep working unchanged.
+        snprintf(buf, sizeof(buf),
+                 "{\"mode\":\"%s\""
+                 ",\"connected\":%s,\"status\":\"%s\",\"bonded\":%s,\"address\":\"%s\""
+                 ",\"ams\":{\"active\":%s,\"connected\":%s,\"secured\":%s,\"address\":\"%s\""
+                 ",\"svc\":{\"ams\":%s,\"ancs\":%s,\"cts\":%s}}"
+                 ",\"hid\":{\"active\":%s,\"connected\":%s,\"address\":\"%s\"}}",
+                 BleHub::mode() == BleHub::Mode::Both ? "both"
+                     : (BleHub::mode() == BleHub::Mode::Keyboard ? "keyboard" : "ams"),
+                 IsConnected() ? "true" : "false", StatusText,
+                 HasBond() ? "true" : "false", IsConnected() ? PeerAddr : "",
+                 amsOn ? "true" : "false", IsConnected() ? "true" : "false",
+                 Secured ? "true" : "false", IsConnected() ? PeerAddr : "",
+                 AmsUp ? "true" : "false", AncsUp ? "true" : "false", CtsUp ? "true" : "false",
+                 hidOn ? "true" : "false", hidUp ? "true" : "false",
+                 hidPeer ? hidPeer->addr : "");
+        return String(buf);
+    }
 } // namespace Bluetooth

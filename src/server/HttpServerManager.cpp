@@ -9,12 +9,25 @@
 #include "../utils/CanLog.h"
 #include "../utils/AppConfig.h"
 #include "../wire/WsWireLink.h"
-#include "WirePage.h"
-#include "PreviewPage.h"
-#include "DashboardPage.h"
-#include "DiagPage.h"
-#include "Affa3TestPage.h"
 #include <ElegantOTA.h>
+// Generated at build time by gen-pages.py from data/*.html (gzipped byte arrays).
+#include "GeneratedPages.h"
+
+namespace
+{
+    // Serves a page straight out of flash, pre-compressed. No runtime decompression
+    // and no copy — the array is memory-mapped, so setContent() just points at it.
+    // Every browser sends Accept-Encoding: gzip; command-line clients need --compressed.
+    esp_err_t servePage(PsychicRequest *request, const uint8_t *gz, size_t len)
+    {
+        PsychicResponse response(request);
+        response.setCode(200);
+        response.setContentType("text/html");
+        response.addHeader("Content-Encoding", "gzip");
+        response.setContent(gz, len);
+        return response.send();
+    }
+} // namespace
 
 HttpServerManager::HttpServerManager(IDisplay &display, Preferences &prefs) : _server(),
                                                                               _display(display),
@@ -119,16 +132,16 @@ void HttpServerManager::begin()
 
 void HttpServerManager::setupRoutes()
 {
-    _server.on("/", HTTP_GET, [this](PsychicRequest *request)
-               { return request->reply(200, "text/html", DASHBOARD_PAGE); });
+    _server.on("/", HTTP_GET, [](PsychicRequest *request)
+               { return servePage(request, DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN); });
 
     // Wireless CAN viewer + display steering (WebSocket /canstream client). Open
     // http://<esp-ip>/wire from any phone/PC on the ESP's network.
-    _server.on("/wire", HTTP_GET, [this](PsychicRequest *request)
-               { return request->reply(200, "text/html", WIRE_PAGE); });
+    _server.on("/wire", HTTP_GET, [](PsychicRequest *request)
+               { return servePage(request, WIRE_HTML_GZ, WIRE_HTML_GZ_LEN); });
     // Dead-simple end-user display preview: type text, see the firmware-decoded screen.
-    _server.on("/preview", HTTP_GET, [this](PsychicRequest *request)
-               { return request->reply(200, "text/html", PREVIEW_PAGE); });
+    _server.on("/preview", HTTP_GET, [](PsychicRequest *request)
+               { return servePage(request, PREVIEW_HTML_GZ, PREVIEW_HTML_GZ_LEN); });
 
     _server.on("/static", HTTP_GET, [this](PsychicRequest *request) {
         if (!request->hasParam("text"))
@@ -250,6 +263,11 @@ void HttpServerManager::setupRoutes()
             return request->reply(400, "text/plain", "Missing 'mode' parameter");
         }
         String mode = request->getParam("mode")->value();
+        // This route wrote whatever it was handed straight to NVS. An unknown value
+        // silently fell back to AMS at boot, which looked like the setting being
+        // ignored rather than rejected.
+        if (!AppConfig::isBtMode(mode.c_str()))
+            return request->reply(400, "text/plain", "bad mode (ams|keyboard|both)");
         bool autoTime = request->hasParam("auto_time") &&
                         request->getParam("auto_time")->value() == "1";
         Preferences prefs;
@@ -379,10 +397,8 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "application/json", json.c_str());
     });
 
-    _server.on("/diag", HTTP_GET, [](PsychicRequest *request) {
-        const char *page = DIAG_PAGE;
-        return request->reply(200, "text/html", page);
-    });
+    _server.on("/diag", HTTP_GET, [](PsychicRequest *request)
+               { return servePage(request, DIAG_HTML_GZ, DIAG_HTML_GZ_LEN); });
 
     _server.on("/api/elm/headers", HTTP_POST, [this](PsychicRequest *request) {
         if (!elm) return request->reply(503, "application/json", "{}");
@@ -415,10 +431,8 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "text/plain", msg.c_str());
     });
 
-    _server.on("/affa3test", HTTP_GET, [](PsychicRequest *request) {
-        const char *page = AFFA3TEST_PAGE;
-        return request->reply(200, "text/html", page);
-    });
+    _server.on("/affa3test", HTTP_GET, [](PsychicRequest *request)
+               { return servePage(request, AFFA3TEST_HTML_GZ, AFFA3TEST_HTML_GZ_LEN); });
 
 
     _server.on("/setaux", HTTP_POST, [this](PsychicRequest *request) {
@@ -525,7 +539,7 @@ void HttpServerManager::setupRoutes()
         String bm = request->getParam("btMode")->value();
         if (dt != "carminat" && dt != "updatelist" && dt != "updatelist_menu")
             return request->reply(400, "text/plain", "bad displayType");
-        if (bm != "ams" && bm != "keyboard")
+        if (!AppConfig::isBtMode(bm.c_str()))
             return request->reply(400, "text/plain", "bad btMode");
         _prefs.begin("config", false);
         _prefs.putString("display_type", dt);

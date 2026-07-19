@@ -51,7 +51,27 @@ namespace AppConfig
         return DisplayKind::Unknown;
     }
 
-    BtKind btKind() { return btMode == "keyboard" ? BtKind::Keyboard : BtKind::Ams; }
+    BtKind btKind()
+    {
+        if (btMode == "keyboard") return BtKind::Keyboard;
+        if (btMode == "both")     return BtKind::Both;
+        return BtKind::Ams;
+    }
+
+    const char* btKindStr(BtKind k)
+    {
+        switch (k) {
+            case BtKind::Keyboard: return "keyboard";
+            case BtKind::Both:     return "both";
+            default:               return "ams";
+        }
+    }
+
+    bool isBtMode(const char* s)
+    {
+        if (!s) return false;
+        return !strcmp(s, "ams") || !strcmp(s, "keyboard") || !strcmp(s, "both");
+    }
 
     const char* displayKindStr(DisplayKind k)
     {

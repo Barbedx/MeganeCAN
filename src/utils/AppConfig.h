@@ -13,7 +13,7 @@ namespace AppConfig
     static constexpr uint32_t SCHEMA_VERSION = 1;
 
     extern String displayType; // "carminat" | "updatelist" | "updatelist_menu"
-    extern String btMode;      // "ams" | "keyboard"
+    extern String btMode;      // "ams" | "keyboard" | "both"
     extern bool   autoTime;
     extern bool   elmEnabled;
     extern bool   skipFuncReg;
@@ -25,10 +25,18 @@ namespace AppConfig
 
     // Typed views over the string settings (compile-time-safe; no string typos).
     enum class DisplayKind : uint8_t { Carminat, UpdateListSeg, UpdateListLcd, Unknown };
-    enum class BtKind      : uint8_t { Ams, Keyboard };
+    // Both = iPhone AMS client and head-unit HID server on two simultaneous links.
+    enum class BtKind      : uint8_t { Ams, Keyboard, Both };
     DisplayKind displayKind();
     BtKind      btKind();
     const char* displayKindStr(DisplayKind k);
+    const char* btKindStr(BtKind k);
+    bool        isBtMode(const char* s); // valid NVS value?
+
+    // Which BLE roles the current mode runs. Prefer these over comparing btMode
+    // strings at call sites.
+    inline bool amsActive() { return btKind() != BtKind::Keyboard; }
+    inline bool hidActive() { return btKind() != BtKind::Ams; }
 
     bool isUnconfigured();   // a fleet device that hasn't been set up yet
     void markProvisioned();  // persist provisioned=true after first-run setup

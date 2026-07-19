@@ -8,6 +8,7 @@
 #include "../utils/CanUtils.h"
 #include "../utils/Log.h"        // Log::setLevel (the `vb` alias target)
 #include "../bluetooth.h"
+#include "../utils/AppConfig.h"
 #include "../apple_media_service.h"
 #include "../effects/ScrollEffect.h"
 
@@ -40,28 +41,28 @@ void cmd_disable(SerialCommands *sender) { display->setState(false); }
 void cmd_clearbonds(SerialCommands *sender)
 {
     Serial.println("[BT] Clearing BLE bonds via serial command...");
-    if (btMode == "ams")
+    if (AppConfig::amsActive())
         Bluetooth::ClearBonds();
     else
         Serial.println("[BT] ClearBonds only available in AMS mode");
 }
 void cmd_playpause(SerialCommands *sender)
 {
-    if (btMode == "ams" && Bluetooth::IsConnected())
+    if (AppConfig::amsActive() && Bluetooth::IsConnected())
         AppleMediaService::Toggle();
     else
         Serial.println("[BT] Not connected in AMS mode");
 }
 void cmd_next(SerialCommands *sender)
 {
-    if (btMode == "ams" && Bluetooth::IsConnected())
+    if (AppConfig::amsActive() && Bluetooth::IsConnected())
         AppleMediaService::NextTrack();
     else
         Serial.println("[BT] Not connected in AMS mode");
 }
 void cmd_prev(SerialCommands *sender)
 {
-    if (btMode == "ams" && Bluetooth::IsConnected())
+    if (AppConfig::amsActive() && Bluetooth::IsConnected())
         AppleMediaService::PrevTrack();
     else
         Serial.println("[BT] Not connected in AMS mode");

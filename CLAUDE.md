@@ -138,7 +138,35 @@ BLE+WiFi+HTTP+AMS all live (~62KB free / ~45KB largest contiguous block). Keep i
   NVS churn + `nvs_open NOT_FOUND` spam); config setters `ESP.restart()` so the cache reloads.
 - The dashboard polls **one** `/api/dashboard` (media+notifs+bt+wifi+can) instead of 5 endpoints, to
   hold fewer keep-alive sockets. Open follow-ups (see `notes/HANDOFF.md`): stream JSON, serve the
-  HTML from LittleFS, and silence the `affa3_do_send` debug spam during continuous media renders.
+  silence the `affa3_do_send` debug spam during continuous media renders.
+
+### Web UI pages (`data/*.html` → gzipped into the app image)
+
+The five pages (`dashboard`, `wire`, `preview`, `diag`, `affa3test`) live as plain files in
+`data/`. `gen-pages.py` (a `pre:` extra_script) gzips them at build time into
+`$BUILD_DIR/generated/GeneratedPages.h` as byte arrays; `servePage()` in `HttpServerManager.cpp`
+sends them straight from flash with `Content-Encoding: gzip`. 33KB of HTML → 13KB of flash, no
+runtime decompression, no copy. Edit the `.html` files — never the generated header.
+
+**Serving them from LittleFS was tried and rejected, with numbers.** Moving the pages out of the
+app image saved 43KB in `HttpServerManager.cpp.o`, but pulling in `esp_littlefs` + `vfs` + the
+`LittleFS` wrapper cost **58KB** — nothing else in the firmware uses a filesystem, so the whole
+stack was new weight. Net **+14.5KB, i.e. worse**, plus a second flash artifact and a way to
+brick the UI (app OTA'd without the FS image). Don't redo it unless something else earns the
+filesystem first.
+
+### Flash budget
+
+`partitions_ota.csv` gives each OTA slot 1.375MB, so the "% used" in a build is against that, not
+the 4MB chip. Two measured levers, both already applied:
+- **`-fno-exceptions`** (both envs) — saves ~72KB. The project had exactly one `throw`, an
+  unimplemented `setTextBig` stub nobody caught (on target that is an abort + reboot, not a
+  diagnostic). Everything built from source loses its unwind tables; the prebuilt IDF blobs
+  (`net80211`, `lwip`, `btdm`) keep theirs, which is the remaining ~38KB.
+- **gzipped pages** (above) — saves ~20KB.
+
+For reference, where the image actually goes: WiFi/networking ~435KB, NimBLE 128KB,
+`libbtdm_app` (BLE controller blob) 64KB. NimBLE is ~10% — it is not the thing to cut.
 
 ### ELM327 / OBD Diagnostics
 
