@@ -1,6 +1,9 @@
 # Architecture V2 — Dual-board CAN gateway + DUDU7 head unit integration
 
-*Status: DESIGN — approved direction, phased rollout below. Date: 2026-07-19.*
+*Status: **V2.1 FINAL** — role swap approved 2026-07-19: the WROVER is the brain (GW board),
+the C3 SuperMini becomes the display co-processor (DISP board). Migration phases M1–M4 in §9.
+P0/P1 code (portable modules + LinkProto + tunnel) was built exactly so this shuffle is a
+re-wiring of mains, not a rewrite.*
 *Research inputs: aerodomigue/esp32-canbox-nissan (full RE), forum.dudu-auto.com d/1421
 (mikescotland, Clio III — closest prior art, working system), DUDU wiki, smartgauges/canbox,
 x0r.fr/blog/39 (Clio III main-CAN decode), Racelogic Mégane II DB, this repo's codebase map.*
@@ -34,37 +37,50 @@ steering angle for reverse-camera guidelines).
                  │      │ SN65HVD230                   │ SN65HVD230    │
                  │      ▼                              ▼               │
                  │ ┌─────────────┐  LinkProto UART ┌─────────────┐     │
-                 │ │  VH board   │◄───────────────►│  MM board   │     │
+                 │ │  GW board   │◄───────────────►│ DISP board  │     │
                  │ │ ESP32-WROVER│    (crossed)    │ ESP32-C3    │     │
                  │ │ 8MB PSRAM   │                 │ SuperMini   │     │
-                 │ └──────┬──────┘                 └──────┬──────┘     │
-                 │        │ canbox UART 38400             │ BLE        │
-                 │        ▼ (Raise RAV4)                  ▼            │
-                 │ ┌─────────────┐                  iPhone (AMS/ANCS/  │
-                 │ │   DUDU7 HU  │                  CTS, HID keyboard) │
-                 │ └─────────────┘                                     │
+                 │ │  THE BRAIN  │                 │ (display    │     │
+                 │ └──┬───┬───┬──┘                 │  co-proc)   │     │
+                 │    │   │   │ BLE                └──────┬──────┘     │
+                 │    │   │   ▼                          USB-CDC       │
+                 │    │   │  iPhone (AMS/ANCS/CTS)      (bench proxy + │
+                 │    │   │  DUDU7 (HID keyboard)        native flash) │
+                 │    │   │ WiFi: web UI / OTA (rare)                  │
+                 │    │   ▼ canbox UART 38400 (Raise RAV4)             │
+                 │    │ ┌─────────────┐                                │
+                 │    └►│   DUDU7 HU  │ (USB 5V powers both boards)    │
+                 │      └─────────────┘                                │
                  └─────────────────────────────────────────────────────┘
 ```
 
-**MM board (multimedia) = ESP32-C3 SuperMini** — the current firmware, evolved. Stays on the
-multimedia CAN: OEM display emulation, SWC key capture (0x0A9/0x1C1), AUX detect, BLE, WiFi
-(AP/STA), web UI, OTA. It is the brain and the only UI.
+**GW board (gateway/brain) = ESP32-WROVER 8MB PSRAM** — owns everything that grows: vehicle
+main CAN (**TWAI listen-only — physically cannot disturb the bus**), `VehicleState` decode,
+the DUDU7 canbox UART (Raise emitter + HU→box RX capture), **BLE** (iPhone AMS/ANCS/CTS +
+DUDU7 HID keyboard), **WiFi** (AP/STA, web UI, OTA — rarely used, maintenance only),
+media + key routing (MediaRouter/KeyRouter), PSRAM/LittleFS capture logs. Every future
+feature (nav-screen RE, DUDU metadata, dashboards) lands here, where RAM and flash are
+abundant.
 
-**VH board (vehicle) = ESP32-WROVER 8MB PSRAM (bare module)** — new firmware, same repo.
-Listens on the vehicle main CAN (**TWAI listen-only mode — physically cannot disturb the
-bus**), decodes to a `VehicleState` signal model, owns the DUDU7 canbox UART (Raise emitter +
-HU→box RX capture), logs raw CAN + HU traffic to LittleFS/PSRAM for RE. **Radio-less by
-design: WiFi/BT are never initialized** — config, log download, captures, and firmware OTA all
-tunnel over the inter-board link and surface in MM's web UI. This kills the WROVER's WiFi
-power peaks (the module then draws ~50–100mA) and removes a whole WiFi stack from the image.
+**DISP board (display co-processor) = ESP32-C3 SuperMini** — the finished, stable job:
+multimedia CAN + AFFA3 display emulation (Carminat/UpdateList drivers), SWC key capture
+(0x0A9/0x1C1) → `KEY_EVT` to GW, AUX detect, MediaInfo rendering fed by `MEDIA_TEXT` from GW.
+Keeps native USB-CDC: the bench serial proxy for display RE **and** the wired maintenance
+port for both boards (§3.4). No BLE, no WiFi, no web — a small firmware that, once migrated,
+should almost never change again.
 
-Why this split (and not the reverse):
-- The C3 firmware is proven in the car with tight RAM; moving BLE+display to WROVER restarts
-  a year of hard-won stability. Zero-regression principle: MM keeps its job.
-- The VH job (CAN RX decode + UART TX + logging) is exactly what PSRAM + big flash + 3 UARTs
-  are good at, and it needs no BLE.
-- mikescotland shipped the same two-MCU split (engine-CAN board owns the HU UART; the SWC
-  board forwards key frames through it with priority). It works in daily use.
+Why this split (V2.1 — the reverse of the first draft):
+- **One TWAI controller per chip** is the only hard constraint forcing two boards; each board
+  owns one CAN bus. (A future single-WROVER variant needs an MCP2515 on SPI — §P5, seam ready.)
+- The BLE/WiFi/HTTP stack already builds and runs on classic ESP32 — the `esp32dev` bench env
+  IS this chip. Migration is a re-target with +8MB PSRAM, not a rewrite; the C3's chronic RAM
+  tightness (~62KB free with everything live) simply disappears.
+- Both DUDU7 interfaces (canbox UART + BLE HID) and both iPhone services (AMS/ANCS) live on
+  one board — no cross-board round-trips for keys→HU or media→router.
+- The display protocol work (AFFA3) is done and car-validated; freezing it into a small
+  peripheral firmware is the safest place for it. The link feeding it (MEDIA_TEXT/KEY_EVT)
+  is byte-identical to what P1 already ships.
+- mikescotland's two-MCU split proved the pattern; ours just puts the brain on the big chip.
 
 ## 3. Hardware
 
@@ -76,43 +92,57 @@ WROVER that never initializes WiFi/BT draws ~50–100mA (CPU + flash + PSRAM), a
 LDO (ME6211-class, ~500mA) can carry that on top of the C3's own BLE+WiFi peaks (~300–350mA).
 It is still thermally marginal on a SOT-23 LDO at 5V→3.3V — treat it as the interim plan.
 
-**Interim (now):** DUDU7 USB 5V → SuperMini 5V pin → SuperMini LDO 3.3V → WROVER 3V3.
-- Hard rule: VH firmware must never call `esp_wifi_*`/BT init (enforced by not linking them).
+**V2.1: the GW board runs BLE (always) + WiFi (occasionally), so it gets its own regulator
+from day one** — a dedicated 3.3V module (HT7833 / mini-buck, ≥600mA for WiFi TX peaks) off
+the 5V rail. The SuperMini keeps feeding itself from its onboard LDO. Owner-approved: if
+sags appear under load, upgrade the regulator — nothing else in the design changes.
 - ≥220µF bulk capacitance at the WROVER's 3V3/GND pins, short thick wires, common ground.
 - WROVER bare-module strapping: EN→3V3 via 10k, GPIO0 floating/high for normal boot (tie a
-  button to GND for the one-time bench flash), GPIO12 low/floating (flash voltage strap).
-
-**Target (later, cheap):** a dedicated 3.3V regulator module (HT7833 / AMS1117 board / mini
-buck) off the same 5V rail, or a WROVER devboard. Nothing else in the design changes.
+  button/pad to GND for the initial pre-solder flash), GPIO12 low/floating (flash voltage
+  strap). Owner flashes the module on a dedicated programming jig before soldering.
 - 5V source stays the **DUDU7 USB port** (ACC-switched): the gateway lives and dies with the
   head unit, no sleep logic needed (canbox-nissan pattern).
 
 ### 3.2 Pin map
 
-**VH — ESP32-WROVER.** GPIO16/17 are PSRAM-reserved on WROVER — never use them.
+**GW — ESP32-WROVER.** GPIO16/17 are PSRAM-reserved on WROVER — never use them.
 | Function | Pins | Notes |
 |---|---|---|
 | TWAI (vehicle CAN) | RX=GPIO21, TX=GPIO22 | + SN65HVD230; TX pin unused in listen-only but wired for future |
-| UART0 (debug/flash) | USB CP210x | console + flashing |
+| UART0 (debug/flash) | USB CP210x / jig | console + the one pre-solder flash |
 | UART1 → DUDU7 canbox | TX=GPIO25, RX=GPIO26 | 38400 8N1, 3.3V TTL direct (verified practice) |
-| UART2 → MM link | TX=GPIO18, RX=GPIO19 | LinkProto, 460800 8N1 |
+| UART2 → DISP link | TX=GPIO18, RX=GPIO19 | LinkProto, 460800 8N1 |
 
-**MM — ESP32-C3 SuperMini.** USB-CDC is native USB, so both hardware UARTs are free.
+**DISP — ESP32-C3 SuperMini.** USB-CDC is native USB, so both hardware UARTs are free.
 | Function | Pins | Notes |
 |---|---|---|
 | TWAI (multimedia CAN) | RX=GPIO3, TX=GPIO4 | unchanged |
-| UART1 → VH link | TX=GPIO21, RX=GPIO20 | the pins already labeled TX/RX on the SuperMini |
-| USB-CDC | native | console, flashing, serial proxy |
+| UART1 → GW link | TX=GPIO21, RX=GPIO20 | the pins already labeled TX/RX on the SuperMini |
+| USB-CDC | native | console, flashing, serial proxy, GW maintenance tunnel |
 
-Link wiring: MM TX21→VH GPIO19, MM RX20→VH GPIO18, GND–GND.
+Link wiring: DISP TX21→GW GPIO19, DISP RX20→GW GPIO18, GND–GND.
 
 ### 3.3 Vehicle CAN tap
 
 OBD-II socket: pin 6 = CAN-H, pin 14 = CAN-L (main bus, 500k). Multimedia CAN is also on the
-OBD socket (pins 12/13) per the Clio III thread — a possible cleaner tap for MM than the
-current splice, worth verifying on the Mégane II harness. VH's transceiver: SN65HVD230,
+OBD socket (pins 12/13) per the Clio III thread — a possible cleaner tap for DISP than the
+current splice, worth verifying on the Mégane II harness. GW's transceiver: SN65HVD230,
 **no 120Ω termination** (we tap a terminated bus; the "R" solder-jumper on CJMCU-230 modules
 must be open).
+
+### 3.4 Flashing paths — both boards through one cable
+
+The owner's requirement: after installation, everything updates through the DISP board's USB
+(always wired) or over WiFi; the WROVER is bench-flashed exactly once, pre-solder, on a jig.
+
+| Target | Normal path | Fallback |
+|---|---|---|
+| DISP (C3) | native USB (`esp32dev-mini`… → `disp-c3` env) | OTA-over-link from GW's web UI |
+| GW (WROVER) | WiFi OTA (GW hosts the web UI) | **USB tunnel:** PC → DISP USB-CDC → LinkProto `OTA_*` over the link → GW OTA partition (python tool extends `tools/serial_proxy.py`; same frames the P1 web upload uses) |
+
+Bricking recovery: both boards keep dual OTA slots; DISP additionally keeps a "known-good"
+fallback image slot. Absolute worst case for GW = unsolder-free jig clip on UART0 pads (keep
+TX0/RX0/EN/IO0 accessible when soldering).
 
 ## 4. Inter-board protocol — LinkProto
 
@@ -123,30 +153,37 @@ Portable module `src/link/` compiled into both firmwares **and** the `native` te
 - **Versioned hello:** on boot and every reconnect, `HELLO{proto_ver, fw_ver, caps bitmask}`
   both ways. Unknown types are skipped (forward compatible).
 - **Heartbeat:** `PING`/`PONG` at 1Hz; peer considered down after 3s — both sides expose link
-  state (MM shows it in the dashboard; VH falls back to autonomous canbox operation, which is
-  its normal mode anyway).
-- **Message types (v1):**
+  state. Link-down fallbacks: GW keeps canbox/BLE duty (its normal mode); DISP keeps the last
+  screen + its own status text.
+- **Message types (v1.1 — same ids as v1; V2.1 flips who sends what):**
   | Type | Dir | Content |
   |---|---|---|
   | `HELLO`, `PING/PONG` | both | as above |
-  | `SIG_BATCH` | VH→MM | decoded vehicle signals: N × `{sig_id:1, value:i32}` (scaled ints) |
-  | `MEDIA_TEXT` | VH→MM | `{field:1 (title/artist/album/source/state), utf8 text}` from HU |
-  | `HU_STATUS` | VH→MM | canbox link state, HU volume/source/freq (0xC0/0xC2/0xC4 parses) |
-  | `KEY_EVT` | MM→VH | `{AffaKey code, edge: press/release/long}` → VH translates to Raise 0x20 and forwards with priority over telemetry (mikescotland rule: key frames pre-empt, never interleave) |
-  | `RAW_FRAME` | both | `{bus:1, id:2, dlc:1, data}` — sniff/inject for RE; VH→MM streaming is rate-limited, bulk capture goes to VH's local FS instead |
-  | `TIME` | MM→VH | clock sync (MM has CTS/NTP) |
-  | `LOG` | VH→MM | text log line (throttled) for the MM serial proxy / web log |
-  | `CFG_GET/SET/ACK` | MM→VH | key/value config (VH NVS): capture filters, canbox options, decode overrides — settable from MM's web UI without reflashing |
-  | `CAP_CTL` | MM→VH | capture control: start/stop, mode (all / unknown-IDs / HU-UART), duration |
-  | `FILE_LS/REQ/DATA/ACK` | both | chunked file pull from VH's LittleFS (canlogs) with per-chunk CRC+ack+retry |
-  | `OTA_BEGIN/DATA/END/STAT` | MM→VH | **firmware update over the link**: MM's web UI accepts a VH image upload, streams it in CRC'd chunks (per-chunk ack, resume), VH writes its OTA partition and reboots. ~1.2MB at 460800 ≈ 30s (bump link to 921600 if wanted) |
+  | `SIG_BATCH` | GW→DISP | decoded vehicle signals N × `{sig_id:1, value:i32}` — lets the OEM display show vehicle data later; optional, off by default |
+  | `MEDIA_TEXT` | GW→DISP | `{field:1 (title/artist/album/source/state), utf8 text}` — the routed now-playing (AMS **or** DUDU metadata; DISP renders whatever GW's MediaRouter picked) |
+  | `HU_STATUS` | GW→DISP | HU volume/source/freq — informational, for future display screens |
+  | `KEY_EVT` | DISP→GW | `{AffaKey code, edge}` SWC keys; GW's KeyRouter fans out to AMS / HID / canbox `0x20` (keys pre-empt telemetry on the canbox UART — mikescotland rule) |
+  | `DISP_CMD` (0x21) | GW→DISP | display steering for the web UI + tests: `{op:1, args…}` mapping the IDisplay surface (setText / showMenu / popups / key inject / enable) — keeps `/emulate/*` and the bench flows working with the web on GW |
+  | `RAW_FRAME` | both | `{bus:1, id:2, dlc:1, data}` — bus 0 = multimedia (DISP→GW live view for `/wire`), bus 1 = vehicle, bus 2 = HU UART; injection in either direction for RE |
+  | `TIME` | GW→DISP | clock sync (GW has CTS/NTP) |
+  | `LOG` | DISP→GW | text log line (throttled) into GW's web log / serial |
+  | `CFG_GET/SET/ACK` | GW→DISP | DISP NVS keys (`display_type`, `skip_funcreg`, …) — settable from GW's web UI without reflashing |
+  | `CAP_CTL` | GW→DISP | multimedia-CAN capture control (DISP streams matching frames back as RAW_FRAME; bulk vehicle-CAN capture is GW-local) |
+  | `FILE_LS/REQ/DATA/ACK` | both | chunked file pull (GW's LittleFS canlogs today; generic) |
+  | `OTA_BEGIN/DATA/END/STAT` | **both** | firmware update over the link: GW web UI → DISP image; **and** PC → DISP USB tunnel → GW image (§3.4). CRC'd chunks, per-chunk ack, resume offset. ~1.2MB at 460800 ≈ 30–60s (bump to 921600 if wanted) |
 - **No blocking anywhere:** both ends are byte-pump state machines in `loop()`; TX through a
   ring buffer; a full buffer drops lowest-priority messages (LOG first, then RAW_FRAME).
 
-## 5. VH firmware (new, `[env:vehicle-wrover]`)
+## 5. GW firmware (WROVER — the brain)
 
-Modules (all portable except drivers):
-- `vh/main.cpp` — thin wiring, mirrors MM's setup/loop discipline.
+*Built in P1 as `[env:vehicle-wrover]` (vehicle-side modules only); migration M1 grows it into
+`[env:gw-wrover]` by absorbing the C3's BLE (BleHub/AMS/ANCS/HID), WiFiManager, HttpServerManager
++ web pages, MediaRouter/KeyRouter and CTS time — the same code the `esp32dev` bench env already
+compiles for this exact chip, now with PSRAM headroom. Display output leaves over the link
+(`MEDIA_TEXT`/`DISP_CMD`); SWC keys arrive over it (`KEY_EVT`).*
+
+Vehicle-side modules (all portable except drivers):
+- `vh/target/vh_main.cpp` — thin wiring; M1 renames/expands into the GW main.
 - **`VehicleDecoder`** — data-driven table (constexpr array in `VehicleDbc.h`, canbox-nissan
   `FrameConfig/FieldConfig` pattern: id → byte extract → formula → named signal slot). Feeds
   `VehicleState` (all signals as scaled ints + timestamps). Indicators use the timestamp-latch
@@ -175,10 +212,10 @@ Modules (all portable except drivers):
   `.canlog` files (same format as `tools/*.canlog` so existing tooling replays them). Triggered
   captures: "log everything for 60s", "log HU UART", "log unknown IDs only".
 - **`LinkTunnel`** — the maintenance plane, **in the very first image that goes into the car**
-  (requirement: never pull the board to reflash). Serves CFG_*, CAP_CTL, FILE_*, OTA_* over
-  LinkProto. VH has **no WiFi/BT at all** — MM's web UI is the only front-end: a "Vehicle
-  board" page with VehicleState, capture start/stop, log browser/download, config editor, and
-  a VH-firmware upload form. If MM is absent, VH runs canbox duty headless on its NVS config.
+  (requirement: never pull a board to reflash). Serves CFG_*, CAP_CTL, FILE_*, OTA_* over
+  LinkProto — generic enough that in V2.1 it runs on BOTH boards (DISP gets OTA'd from GW's
+  web; GW gets OTA'd through DISP's USB tunnel, §3.4). If the link is down, GW runs canbox +
+  BLE duty standalone on its NVS config.
 - **`VhConfig`** (NVS) — from day one: canbox enable/profile options, key-forward enable,
   capture defaults, decode-table overrides (per-signal enable + id remap for sniff-phase
   corrections), link baud. Everything the sniff campaign might want to tweak is a config, not
@@ -191,9 +228,14 @@ Modules (all portable except drivers):
 Partitions (WROVER 4MB): nvs 20K / otadata / app0 1.2M / app1 1.2M / LittleFS ~1.4M.
 (If the module turns out to be 8/16MB flash, grow LittleFS.)
 
-## 6. MM firmware refactors (existing code)
+## 6. C3 refactors (P0 — done) → DISP firmware (M2)
 
-Ordered by dependency; each lands green on the car before the next.
+The P0 refactors below were completed on the C3 and are exactly what makes the V2.1 role swap
+mechanical: media/keys/link/bus modules have no idea which chip they run on. In M2 the C3
+slims down to the DISP firmware: display drivers + multimedia CAN + SWC capture (`KEY_EVT`
+out) + MediaInfo-from-link + `DISP_CMD` server + USB serial proxy + LinkTunnel (OTA + the
+GW USB tunnel). BLE/WiFi/web compile out; the full v2.0 image stays in the other OTA slot as
+fallback.
 
 ### 6.1 Source-neutral media model (`src/media/`)
 - `struct MediaInfo` — neutral: title/artist/album/source name, playback state, elapsed,
@@ -238,19 +280,23 @@ Ordered by dependency; each lands green on the car before the next.
 
 ## 7. Build & repo layout
 
-Single repo, shared portable core, two firmware entry points:
+Single repo, shared portable core, two firmware entry points (final):
 
 ```
-src/            (MM firmware + shared)     src/link/       LinkProto codec (shared, native-tested)
-src/media/      MediaInfo, sources         src/keys/       KeyRouter, sources/sinks
-src_vh/         VH firmware entry + VH-only modules (VehicleDecoder, CanboxEmitter, HuRxParser, FsLogger)
+src/            shared modules             src/link/   LinkProto codec + LinkPort (native-tested)
+src/media/      MediaInfo, sources         src/keys/   KeyRouter, sinks
+src/vh/         vehicle domain (decoder, canbox, HU parser) + vh/target/ GW-only glue
+src/display/…   AFFA3 drivers (DISP)       src/gw/     (M1) GW main + web glue
+src/disp/       (M2) DISP main
 ```
 
-- `[env:esp32dev-mini]` (MM, unchanged) · `[env:vehicle-wrover]` (`board_build` WROVER,
-  `BOARD_HAS_PSRAM`, `build_src_filter = -<*> +<src_vh/> +<link/> +<bus/Frame*>…`)
-  · `[env:esp32dev]` (bench) · `[env:native]` grows tests for LinkProto codec, VehicleDecoder
-  tables, CanboxEmitter framing (golden byte vectors from the RE'd protocols).
-- CI builds all four envs.
+Envs, final set:
+- `[env:gw-wrover]` — GW firmware (M1): vehicle modules + BLE + WiFi/web + routers + link.
+- `[env:disp-c3]` — DISP firmware (M2): display + multimedia CAN + link + USB proxy.
+- `[env:esp32dev-mini]` — legacy full C3 image, kept until M4 cutover proves out (fallback).
+- `[env:esp32dev]` — bench board (WROOM): today's full firmware for display-RE work.
+- `[env:native]` — host tests (link codec, decoder tables, canbox golden vectors, media/keys).
+- Transitional: `[env:vehicle-wrover]` (P1 VH-only image) is subsumed by `gw-wrover` in M1.
 
 ## 8. Verified data annex (research results)
 
@@ -460,35 +506,61 @@ tests; all 4 envs build). REMAINING: wire the real boards (§3.2), one-time benc
 WROVER, then exercise capture/log-pull/OTA end-to-end over the physical UART — the exit
 criterion needs hardware on the desk.*
 
-**P2 — car sniff (no reflashing trips):** VH + SN65HVD230 on OBD 6/14, listen-only, capture
-campaign driven entirely from MM's web UI (start capture, drive the checklist, pull logs at
-home over MM's WiFi); verify §8.1 IDs on the Mégane II (idle/rev, roll, full lock both ways,
-all doors, all lights, key positions). Freeze `VehicleDbc.h` v1; per-signal corrections that
-fit the override config need no rebuild at all.
+### V2.1 role-swap migration (the final architecture; each step keeps a working fallback)
+
+**M1 — GW firmware (bench):** new `[env:gw-wrover]` = P1's VH modules **+** the C3 stack that
+already compiles for classic ESP32 (BleHub/AMS/ANCS/HID, WiFiManager, HttpServerManager +
+pages, MediaRouter/KeyRouter, CTS). Display becomes a `RemoteDisplay : IDisplay` that emits
+`MEDIA_TEXT`/`DISP_CMD` over the link; `KEY_EVT` flows in and feeds KeyRouter. Exit: on the
+bench, GW serves the web UI over WiFi, pairs the iPhone, and the C3 (still running the full
+v2.0 image with its link service) renders GW-routed media on the virtual display.
+
+**M2 — DISP firmware:** `[env:disp-c3]` — display drivers + multimedia CAN + SWC→`KEY_EVT` +
+MediaInfo-from-link + `DISP_CMD` server + USB serial proxy + LinkTunnel (incl. the GW USB
+tunnel, §3.4) + the python tunnel tool. No BLE/WiFi/web. Exit: bench pair GW+DISP does
+media, keys, display steering from GW's web, OTA both directions, GW flash through DISP USB.
+
+**M3 — BLE re-validation:** iPhone AMS/ANCS/CTS + DUDU HID against GW's classic-ESP32 BLE
+(4.2 dual-mode vs C3's BLE5 — NimBLE code identical, bench env proves it builds/runs; verify
+bonds persist + advertising invariants on real phones). Exit: same behaviors as the C3 image.
+
+**M4 — car cutover:** solder per §3.2/§3.1 (dedicated 3.3V reg), GW to OBD 6/14 + DUDU USB +
+canbox UART, DISP keeps its splice. Old full-C3 image stays in DISP's second OTA slot — if GW
+misbehaves, boot DISP back to v2.0 and the car works exactly as before the swap.
+
+### Feature phases (run on the final GW/DISP topology)
+
+**P2 — car sniff (no reflashing trips):** GW + SN65HVD230 on OBD 6/14, listen-only, capture
+campaign driven from GW's own web UI (start capture, drive the checklist, pull logs at home
+over WiFi); verify §8.1 IDs on the Mégane II (idle/rev, roll, full lock both ways, all doors,
+all lights, key positions). Freeze `VehicleDbc.h` v1; per-signal corrections that fit the
+override config need no rebuild at all.
 
 **P3 — canbox live:** DUDU7 profile → Raise RAV4; telemetry visible in DUDU UI (doors, speed,
-RPM, temp, guidelines). SWC keys end-to-end MM→VH→HU with latency <50ms. Confirm volume keys
-feel instant (priority forwarding).
+RPM, temp, guidelines). SWC keys end-to-end DISP→GW→HU with latency <50ms. Confirm volume
+keys feel instant (priority forwarding).
 
-**P4 — media capture & render:** log HU→box during track changes (password-108 viewer +
-VH capture); decode the DUDU media message; `HuLinkMediaSource` → OEM display shows
-HU-sourced now-playing. Fallback decision point: if no text on UART → build the DUDU-side app
-(Plan B).
+**P4 — media capture & render:** log HU→box during track changes (password-108 viewer + GW
+capture); decode the DUDU media message; `HuLinkMediaSource` (now GW-local) → `MEDIA_TEXT` →
+OEM display shows HU-sourced now-playing. Fallback decision point: if no text on UART → build
+the DUDU-side app (Plan B).
 
-**P5 — future options (designed-for, not built):** single-board variant (MCP2515/TJA1050 SPI
-CAN as second controller — `ICanBus` seam ready); GPIO button matrix (`GpioMatrixSource` slot
-ready); dropping the OEM display entirely (KeyRouter + sinks unaffected).
+**P5 — future options (designed-for, not built):** single-board GW (MCP2515/TJA1050 SPI CAN
+as second controller — `ICanBus` seam ready — retiring the C3 entirely); GPIO button matrix
+(`GpioMatrixSource` slot ready); dropping the OEM display (KeyRouter + sinks unaffected).
 
 ## 10. Risks / open items
 
 | Risk | Mitigation |
 |---|---|
-| SuperMini-LDO → bare WROVER power | Acceptable only with VH radio-less (~50–100mA); bulk caps + short wires; upgrade path = $1 LDO/buck module, nothing else changes (§3.1) |
-| VH bricked by bad OTA-over-link | Dual OTA slots + `esp_ota_mark_valid` only after LinkTunnel handshake succeeds post-boot; rollback on watchdog; worst case = one bench reflash |
+| GW power (BLE always + WiFi peaks on WROVER) | Dedicated ≥600mA 3.3V regulator from day one (§3.1, owner-approved); bulk caps; measure under WiFi+BLE load in M4 |
+| BLE behavior differs on classic ESP32 vs C3 | Same NimBLE code already builds/ran as the `esp32dev` bench env; M3 re-validates bonds/advertising with real phones BEFORE the car cutover; C3 fallback image keeps the old world bootable |
+| GW bricked by bad OTA-over-link | Dual OTA slots + rollback on watchdog; §3.4 USB tunnel through DISP; worst case = jig clip on UART0 pads |
+| DISP bricked | Native USB always wired; v2.0 full image in the second OTA slot |
 | DUDU7 doesn't emit media text on UART | Plan B: HU-side Android app over WiFi; Plan C: AMS unchanged |
 | Mégane II IDs differ from Clio III table | P2 correlation sniff before anything depends on them; listen-only means zero risk while sniffing |
 | DUDU Raise-Toyota quirks (seatbelt, long-press) | Skip broken addresses; key mapping configurable |
 | HU USB 5V budget for two boards | Measure under WiFi+BLE load in P3; buck fallback |
 | Link UART noise in car | COBS+CRC16, seq numbers, heartbeat; keys are edge events re-sent on release — a lost frame can't stick a key |
-| MM RAM headroom for new modules | New code is small (router/structs); heavy stuff (logs, capture) lives on VH's PSRAM |
+| Display latency over the link | MEDIA_TEXT/DISP_CMD are tiny at 460800 (<1ms/frame); the AFFA3 panel itself is the slow leg (~2s ACK windows) |
 | WROVER flash size unknown (4 vs 8/16MB) | Partition CSV per size; check at bring-up |
