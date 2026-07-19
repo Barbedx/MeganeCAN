@@ -10,6 +10,7 @@
  
 
 class WsWireLink;   // fwd: WebSocket WireProto link, registered during begin()
+class MediaRouter;  // fwd: source-neutral media model (media JSON reads it, not AMS)
 
 class HttpServerManager {
 public:
@@ -17,6 +18,7 @@ public:
 
   void attachElm(MyELMManager* mgr) { elm = mgr; }   // <-- add this
   void attachWire(WsWireLink* link) { _wire = link; } // WebSocket frame stream
+  void attachMedia(MediaRouter* media);               // media JSON source
 
     void begin();
 

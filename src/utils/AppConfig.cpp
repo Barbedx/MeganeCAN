@@ -1,5 +1,6 @@
 #include "AppConfig.h"
 #include <Preferences.h>
+#include "../keys/KeyRouter.h"   // defaultsForBtMode (key_sinks migration default)
 
 namespace AppConfig
 {
@@ -8,6 +9,10 @@ namespace AppConfig
     bool   autoTime    = true;
     bool   elmEnabled  = false;
     bool   skipFuncReg = false;
+
+    String  mediaSource = "ams";
+    uint8_t keySinks    = 0;
+    bool    linkEnabled = true;
 
     uint32_t schemaVersion = 0;
     bool     provisioned   = false;
@@ -23,6 +28,15 @@ namespace AppConfig
         autoTime    = prefs.getBool("auto_time",      true);
         elmEnabled  = prefs.getBool("elm_enabled",    false);
         skipFuncReg = prefs.getBool("skip_funcreg",   false);
+
+        // v2 keys. Defaults preserve v1 behavior exactly: media from AMS, key
+        // routing per bt_mode, link on (it no-ops until the VH board exists).
+        mediaSource = prefs.getString("media_source", "ams");
+        linkEnabled = prefs.getBool("link_enabled", true);
+        if (prefs.isKey("key_sinks"))
+            keySinks = prefs.getUChar("key_sinks", 0);
+        else  // unset -> follow bt_mode, recomputed each boot (not persisted)
+            keySinks = KeyRouter::defaultsForBtMode(btMode.c_str());
 
         // First-run / migration. provisioned tracks whether the device has been set
         // up. A legacy device that already has a display_type but no flag is treated
@@ -71,6 +85,19 @@ namespace AppConfig
     {
         if (!s) return false;
         return !strcmp(s, "ams") || !strcmp(s, "keyboard") || !strcmp(s, "both");
+    }
+
+    MediaSourceKind mediaSourceKind()
+    {
+        if (mediaSource == "hu")   return MediaSourceKind::Hu;
+        if (mediaSource == "auto") return MediaSourceKind::Auto;
+        return MediaSourceKind::Ams;
+    }
+
+    bool isMediaSource(const char* s)
+    {
+        if (!s) return false;
+        return !strcmp(s, "ams") || !strcmp(s, "hu") || !strcmp(s, "auto");
     }
 
     const char* displayKindStr(DisplayKind k)

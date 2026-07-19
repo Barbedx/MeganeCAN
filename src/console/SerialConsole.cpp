@@ -9,12 +9,12 @@
 #include "../utils/Log.h"        // Log::setLevel (the `vb` alias target)
 #include "../bluetooth.h"
 #include "../utils/AppConfig.h"
-#include "../apple_media_service.h"
+#include "../keys/KeyRouter.h"
 #include "../effects/ScrollEffect.h"
 
 // main-side globals this console drives.
 extern AffaDisplayBase *display;
-extern String btMode;
+extern KeyRouter g_keyRouter;
 extern void gotFrame(CAN_FRAME *frame);
 
 namespace {
@@ -46,26 +46,22 @@ void cmd_clearbonds(SerialCommands *sender)
     else
         Serial.println("[BT] ClearBonds only available in AMS mode");
 }
+// pp/nx/pv go through the key router, so they hit whatever sink the config
+// routes transport keys to (AMS today, HU-UART later) — same path as SWC keys.
 void cmd_playpause(SerialCommands *sender)
 {
-    if (AppConfig::amsActive() && Bluetooth::IsConnected())
-        AppleMediaService::Toggle();
-    else
-        Serial.println("[BT] Not connected in AMS mode");
+    g_keyRouter.route(AffaCommon::AffaKey::Pause, false);
+    Serial.println("[key] play/pause -> router");
 }
 void cmd_next(SerialCommands *sender)
 {
-    if (AppConfig::amsActive() && Bluetooth::IsConnected())
-        AppleMediaService::NextTrack();
-    else
-        Serial.println("[BT] Not connected in AMS mode");
+    g_keyRouter.route(AffaCommon::AffaKey::RollUp, false);
+    Serial.println("[key] next -> router");
 }
 void cmd_prev(SerialCommands *sender)
 {
-    if (AppConfig::amsActive() && Bluetooth::IsConnected())
-        AppleMediaService::PrevTrack();
-    else
-        Serial.println("[BT] Not connected in AMS mode");
+    g_keyRouter.route(AffaCommon::AffaKey::RollDown, false);
+    Serial.println("[key] prev -> router");
 }
 void cmd_scrollmtx(SerialCommands *sender)
 {

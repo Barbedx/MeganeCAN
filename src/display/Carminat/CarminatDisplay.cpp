@@ -551,7 +551,7 @@ AffaCommon::AffaError CarminatDisplay::setText(const char *text, uint8_t digit)
   return AffaCommon::AffaError::NoError;
 }
 
-void CarminatDisplay::setMediaInfo(const AppleMediaService::MediaInformation &info)
+void CarminatDisplay::setMediaInfo(const MediaInfo &info)
 {
   // State update lives in the collaborator; the coordinator owns the event loop and
   // schedules the redraw via the queue (drained in processEvents).

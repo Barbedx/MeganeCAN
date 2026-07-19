@@ -15,7 +15,6 @@
 #include "display/UpdateList/UpdateListBase.h"
 #include "display/Carminat/CarminatDisplay.h"
 #include "bluetooth.h"
-#include "apple_media_service.h"
 #include "wifi_manager.h"
 #include "utils/CanLog.h"
 #include "utils/CanUtils.h"
@@ -38,6 +37,11 @@
 #include <string.h>
 #include "ble/BleHub.h"
 #include "ble/HidRole.h"
+#include "media/AmsMediaSource.h"
+#include "media/MediaRouter.h"
+#include "keys/KeyRouter.h"
+#include "keys/AmsKeySink.h"
+#include "keys/HidKeySink.h"
 
 AffaDisplayBase *display = nullptr;
 unsigned long lastPingTime = 0;
@@ -51,6 +55,20 @@ bool _elmEnabled = false; // ELM327 enabled (read from NVS, configurable via Web
 Preferences preferences;
 // HttpServerManager serverManager(*display, preferences);
 HttpServerManager *serverManager = nullptr;
+
+// Source-neutral media model (ARCHITECTURE-V2 §6.1): sources push MediaInfo into
+// the router; the router's pick feeds the display. P0 has only the AMS source —
+// the HU (DUDU7 over LinkProto) slot arrives with the VH board.
+static AmsMediaSource g_amsSource;
+MediaRouter g_mediaRouter;
+
+// Key routing matrix (§6.2): SWC keys -> configured sinks (AMS / BLE HID; the
+// HU-UART sink lands in P1). Config = AppConfig::keySinks (defaults per bt_mode).
+static AmsKeySink g_amsKeySink;
+static HidKeySink g_hidKeySink;
+KeyRouter g_keyRouter;   // extern'd by SerialConsole (pp/nx/pv honor the sinks)
+
+static void onMediaChange(IMediaSource &src, void *); // defined below HandleKey
 
 // WireProto links: UART (existing serial proxy) + WebSocket (phone live view/record).
 SerialWireLink g_serialLink;
@@ -113,7 +131,10 @@ void selectVirtualDisplay(const String& displayType) {
 // Deliver the virtual display's ACK/key frames into the radio's recv() — now a direct
 // Frame call (the display port no longer needs a CAN_FRAME round-trip).
 static void radioRecv(const Frame& f, void*) {
-    if (display) display->recv(f);
+    if (!display) return;
+    Frame tagged = f;
+    tagged.source = Frame::SRC_VIRTUAL;   // twin's frames, not the real bus
+    display->recv(tagged);
 }
 
 // Compat shim for /api/fullemu + the /wire buttons: full-emu ON == route VIRTUAL_ONLY
@@ -172,23 +193,24 @@ MyELMManager *elmManager = nullptr;
 const char *ssid = Soft_AP_WIFI_SSID;
 const char *password = Soft_AP_WIFI_PASS;
 
+// The one bus RX consumer, registered via HwCanBus::onReceive — no more direct
+// display->recv shortcut in gotFrame, so every subscriber sees the same tagged
+// Frame the single conversion point (ingest) produced.
+static void busRx(const Frame& f, void*)
+{
+    if (f.id != 0x3CF && f.id != 0x3AF && f.id != 0x7AF)
+        CanUtils::printCanFrame(f, false);
+    CanLog::onFrame(f.id, f.extended, f.len, f.data);
+    g_imgCapture.onRx(f.id, f.data, f.len); // grab 0x1F1 image whole
+    if (display) display->recv(f);
+}
+
 void gotFrame(CAN_FRAME *frame)
 {
-    // Route every received frame through the bus: refreshes the live-bus gate
-    // (replaces CanUtils::noteRxActivity) and fans out to RX taps.
+    // Route every received frame through the bus: refreshes the live-bus gate,
+    // converts to the portable Frame (tagging its source), fans out to RX taps,
+    // then dispatches to busRx above.
     HwCanBus::instance().ingest(*frame);
-    if (frame->id != 0x3CF && frame->id != 0x3AF && frame->id != 0x7AF)
-        CanUtils::printCanFrame(*frame, false);
-    CanLog::onFrame(frame->id, frame->extended, frame->length, frame->data.uint8);
-    g_imgCapture.onRx(frame->id, frame->data.uint8, frame->length); // grab 0x1F1 image whole
-
-    // The display port speaks Frame, not the vendor CAN_FRAME.
-    Frame fr;
-    fr.id = frame->id;
-    fr.extended = frame->extended;
-    fr.len = frame->length > 8 ? 8 : frame->length;
-    for (int i = 0; i < fr.len; i++) fr.data[i] = frame->data.uint8[i];
-    display->recv(fr);
 }
 
 
@@ -277,6 +299,20 @@ void initDisplay()
     display->setBus(HwCanBus::instance());  // radio sends through the bus seam (behavior-neutral)
     display->setClock(defaultClock());      // ArduinoClock (millis/delay) for the ACK wait
 
+    // Media routing: sources push into the router; the display reads status
+    // (active/statusText) through it instead of touching Bluetooth directly.
+    g_mediaRouter.setSources(&g_amsSource, /*hu=*/nullptr);
+    g_mediaRouter.setMode(MediaRouter::modeFromStr(AppConfig::mediaSource.c_str()));
+    g_amsSource.setChangeCallback(onMediaChange, nullptr);
+    display->attachMediaRouter(&g_mediaRouter);
+
+    // Key routing: sinks + per-class masks from config (default follows bt_mode).
+    g_keyRouter.bind(KeyRouter::SINK_AMS, &g_amsKeySink);
+    g_keyRouter.bind(KeyRouter::SINK_HID, &g_hidKeySink);
+    g_keyRouter.configure(AppConfig::keySinks);
+    LOGI("KEYS", "key_sinks=0x%02X media_source=%s",
+         AppConfig::keySinks, AppConfig::mediaSource.c_str());
+
     display->setSkipFuncReg(skipFuncReg);
     LOGI("DISP", "Skip func-reg: %s", skipFuncReg ? "yes" : "no");
 
@@ -285,6 +321,7 @@ void initDisplay()
     serverManager = new HttpServerManager(*display, preferences);
     serverManager->attachElm(elmManager);
     serverManager->attachWire(&g_wsLink);   // register the /canstream WebSocket in begin()
+    serverManager->attachMedia(&g_mediaRouter); // media JSON reads the neutral model
     elmManager->loadHeaderConfig(preferences); // load per-header enable/disable from NVS
     if (display->isCarminat())
         static_cast<CarminatDisplay*>(display)->attachElm(elmManager);
@@ -292,80 +329,18 @@ void initDisplay()
 }
 bool HandleKey(AffaCommon::AffaKey key, bool isHold)
 {
-    if (btMode == "ams")
-    {
-        if (!Bluetooth::IsConnected())
-        {
-            // Peripheral model: nothing to steer while disconnected — the phone
-            // pairs/reconnects from iOS Settings, no candidate cycling here.
-            return true;
-        }
-
-        switch (key)
-        {
-        case AffaCommon::AffaKey::Pause:    AppleMediaService::Toggle();    break;
-        case AffaCommon::AffaKey::RollUp:   AppleMediaService::NextTrack(); break;
-        case AffaCommon::AffaKey::RollDown: AppleMediaService::PrevTrack(); break;
-        case AffaCommon::AffaKey::VolumeUp:
-            if (isHold)
-                for (int i = 0; i < 15; i++) AppleMediaService::VolumeUp();
-            break;
-        default: break;
-        }
-    }
-    else if (btMode == "both")
-    {
-        // The split that makes running both links worthwhile: transport control goes
-        // straight to the audio source (the iPhone, over AMS) instead of round-tripping
-        // through the head unit's AVRCP, while volume goes to the head unit, which is
-        // what actually drives the amplifier.
-        //
-        // Each side no-ops independently: a disconnected iPhone must not break volume.
-        switch (key)
-        {
-        case AffaCommon::AffaKey::Pause:
-            if (Bluetooth::IsConnected()) AppleMediaService::Toggle();
-            break;
-        case AffaCommon::AffaKey::RollUp:
-            if (Bluetooth::IsConnected()) AppleMediaService::NextTrack();
-            break;
-        case AffaCommon::AffaKey::RollDown:
-            if (Bluetooth::IsConnected()) AppleMediaService::PrevTrack();
-            break;
-        case AffaCommon::AffaKey::VolumeUp:   Hid::press(KEY_MEDIA_VOLUME_UP);   break;
-        case AffaCommon::AffaKey::VolumeDown: Hid::press(KEY_MEDIA_VOLUME_DOWN); break;
-        default: break;
-        }
-    }
-    else // keyboard
-    {
-        switch (key)
-        {
-        case AffaCommon::AffaKey::Pause:    Hid::press(KEY_MEDIA_PLAY_PAUSE);     break;
-        case AffaCommon::AffaKey::RollUp:   Hid::press(KEY_MEDIA_NEXT_TRACK);     break;
-        case AffaCommon::AffaKey::RollDown: Hid::press(KEY_MEDIA_PREVIOUS_TRACK); break;
-        case AffaCommon::AffaKey::VolumeUp:
-            if (isHold) Hid::press(KEY_MEDIA_VOLUME_UP);
-            break;
-        default: break;
-        }
-    }
-    return true;
+    // All mode logic lives in the router now: per-class sink masks (transport vs
+    // volume) configured from AppConfig::keySinks (default derived from bt_mode,
+    // reproducing the old ams/both/keyboard behavior exactly).
+    return g_keyRouter.route(key, isHold);
 }
 
-static AppleMediaService::MediaInformation g_mediaInfo;
-void onDataUpdateCallback(const AppleMediaService::MediaInformation &info)
+// A source changed its now-playing state. Only the router's active pick reaches
+// the display, so a background source can't overwrite the screen.
+static void onMediaChange(IMediaSource &src, void *)
 {
-    // info.dump() is 8 serial lines; AMS fires often during playback, so throttle
-    // the log to keep the serial channel readable. Display update runs every time.
-    static uint32_t _lastDump = 0;
-    if (millis() - _lastDump > 5000)
-    {
-        _lastDump = millis();
-        info.dump();
-    }
-    display->setMediaInfo(info);
-    g_mediaInfo = info;
+    if (display && g_mediaRouter.activeSource() == &src)
+        display->setMediaInfo(src.current());
 }
 void setup()
 {
@@ -384,9 +359,7 @@ void setup()
                                  : BleHub::Mode::Ams;
 
         if (BleHub::amsActive(bleMode))
-            AppleMediaService::RegisterForNotifications(
-                onDataUpdateCallback,
-                AppleMediaService::NotificationLevel::All);
+            g_amsSource.begin();   // registers the AMS callback -> MediaInfo -> router
 
         // Still on a 16KB task stack: Begin() now also builds the HID service tree,
         // so it allocates more than before and must not run on setup()'s stack.
@@ -423,6 +396,9 @@ void setup()
     // decode). On the bench (no live bus) CAN TX is gated off anyway; flip to "virtual"
     // (/api/route?mode=virtual) so the twin ACKs and full sequences emit.
     g_transport.setRoute(DisplayTransport::CAN_AND_VIRTUAL);
+    // The single bus RX consumer (print + log + capture + display->recv). Must be
+    // registered before the controller starts delivering frames.
+    HwCanBus::instance().onReceive(busRx, nullptr);
     CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
     CAN0.begin(CAN_BPS_500K);
     CAN0.setGeneralCallback(gotFrame);
@@ -447,6 +423,9 @@ void loop()
 
     BleHub::Service(); // pumps whichever roles the mode enables
 
+    // Gated on the AMS role because the only media source today is AMS. When the
+    // HU link source lands (P1+), tickMedia must also run for it — regate on the
+    // router's active source then, not on BLE mode.
     if (BleHub::amsActive())
     {
         // Detect BT disconnect and notify display to freeze content.

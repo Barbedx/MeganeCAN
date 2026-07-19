@@ -10,10 +10,9 @@
 #endif
 
 
-// forward-declare, щоб не тягнути весь apple_media_service.h сюди
-namespace AppleMediaService {
-    struct MediaInformation;
-}
+// forward-declare — the display port speaks the neutral media model only
+struct MediaInfo;
+class MediaRouter;
 
 class AffaDisplayBase : public IDisplay
 {
@@ -29,11 +28,16 @@ void setKeyHandler(KeyHandler handler)
     LOGD("AFFA", "setKeyHandler = %X", (unsigned)(uint32_t)keyHandler);
     keyHandler = handler;
 }
-    // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати AMS
-    virtual void setMediaInfo(const AppleMediaService::MediaInformation& info) {
+    // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати медіа
+    virtual void setMediaInfo(const MediaInfo& info) {
         (void)info;
     }
     virtual void tickMedia() {}
+
+    // Media-source status seam: displays that render a "waiting for source"
+    // screen read active()/statusText() through the router instead of touching
+    // Bluetooth/AMS directly. Default just stores the pointer.
+    virtual void attachMediaRouter(MediaRouter* r) { _mediaRouter = r; }
 
     // Called by main loop when a new ELM value arrives (key = PID shortName, e.g. "PR071")
     virtual void onElmUpdate(const char* key, float value) { (void)key; (void)value; }
@@ -68,6 +72,7 @@ protected:
     IClock* _clock = nullptr;   // set via setClock (ArduinoClock on target, FakeClock in tests)
     ICanBus* _bus = nullptr;    // set via setBus (HwCanBus on target, Loopback in tests)
     KeyHandler keyHandler = nullptr;
+    MediaRouter* _mediaRouter = nullptr;  // set via attachMediaRouter (may stay null)
     SyncStatus _sync_status = SyncStatus::FAILED;
     bool _skipFuncReg = false;
     bool _emuSelfAck = false;

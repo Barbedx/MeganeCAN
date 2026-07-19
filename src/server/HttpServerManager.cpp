@@ -3,8 +3,9 @@
 #include "../commands/DisplayCommands.h"
 #include "../bluetooth.h"
 #include "../wifi_manager.h"
-#include "../apple_media_service.h"
+#include "../apple_media_service.h"      // /api/cmd (AMS remote commands) only
 #include "../apple_notification_service.h"
+#include "../media/MediaRouter.h"
 #include "../utils/Log.h"
 #include "../utils/CanLog.h"
 #include "../utils/AppConfig.h"
@@ -50,9 +51,13 @@ namespace
         return out;
     }
 
-    const char *pbState(AppleMediaService::MediaInformation::PlaybackState s)
+    // Media JSON reads the router's neutral model — same keys as before, plus
+    // "source" (which media source is active: ams/hu). AMS never leaks here.
+    MediaRouter *s_media = nullptr;
+
+    const char *pbState(MediaInfo::PlaybackState s)
     {
-        using St = AppleMediaService::MediaInformation::PlaybackState;
+        using St = MediaInfo::PlaybackState;
         switch (s) { case St::Playing: return "Playing"; case St::Paused: return "Paused";
                      case St::Rewinding: return "Rewinding"; case St::FastForwarding: return "FastForwarding";
                      default: return "Unknown"; }
@@ -60,27 +65,25 @@ namespace
 
     String buildMediaJson()
     {
-        bool conn = Bluetooth::IsConnected();
-        const auto &m = AppleMediaService::GetMediaInformation();
-        float elapsed = m.mElapsedTime;
-        if (conn && m.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing && m.mLastPlaybackInfoMs)
-            elapsed += (millis() - m.mLastPlaybackInfoMs) / 1000.0f * (m.mPlaybackRate > 0 ? m.mPlaybackRate : 1.0f);
+        bool conn = s_media && s_media->active();
         String j = "{\"connected\":";
         j += conn ? "true" : "false";
         if (conn)
         {
-            j += ",\"player\":\"" + String(jsonEsc(m.mPlayerName).c_str()) + "\"";
-            j += ",\"title\":\""  + String(jsonEsc(m.mTitle).c_str())  + "\"";
-            j += ",\"artist\":\"" + String(jsonEsc(m.mArtist).c_str()) + "\"";
-            j += ",\"album\":\""  + String(jsonEsc(m.mAlbum).c_str())  + "\"";
-            j += ",\"state\":\""  + String(pbState(m.mPlaybackState))  + "\"";
-            j += ",\"elapsed\":"  + String(elapsed, 1);
-            j += ",\"duration\":" + String(m.mDuration, 1);
-            j += ",\"volume\":"   + String(m.mVolume, 2);
-            j += ",\"queueIndex\":" + String(m.mQueueIndex);
-            j += ",\"queueCount\":" + String(m.mQueueCount);
-            j += ",\"shuffle\":"  + String((int)m.mShuffleMode);
-            j += ",\"repeat\":"   + String((int)m.mRepeatMode);
+            const MediaInfo &m = s_media->current();
+            j += ",\"source\":\"" + String(s_media->sourceName()) + "\"";
+            j += ",\"player\":\"" + String(jsonEsc(m.playerName).c_str()) + "\"";
+            j += ",\"title\":\""  + String(jsonEsc(m.title).c_str())  + "\"";
+            j += ",\"artist\":\"" + String(jsonEsc(m.artist).c_str()) + "\"";
+            j += ",\"album\":\""  + String(jsonEsc(m.album).c_str())  + "\"";
+            j += ",\"state\":\""  + String(pbState(m.playbackState))  + "\"";
+            j += ",\"elapsed\":"  + String(m.elapsedAt(millis()), 1);
+            j += ",\"duration\":" + String(m.duration, 1);
+            j += ",\"volume\":"   + String(m.volume, 2);
+            j += ",\"queueIndex\":" + String(m.queueIndex);
+            j += ",\"queueCount\":" + String(m.queueCount);
+            j += ",\"shuffle\":"  + String((int)m.shuffleMode);
+            j += ",\"repeat\":"   + String((int)m.repeatMode);
         }
         j += "}";
         return j;
@@ -104,6 +107,10 @@ namespace
     }
 } // namespace
 
+void HttpServerManager::attachMedia(MediaRouter *media)
+{
+    s_media = media;   // read by the file-scope JSON builders (buildMediaJson)
+}
 
 void HttpServerManager::begin()
 {

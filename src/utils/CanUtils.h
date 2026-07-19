@@ -3,6 +3,7 @@
 #include <can_common.h>
 #include <esp32_can.h>
 #include <Arduino.h>
+#include "../bus/Frame.h"
 
 class CanUtils {
 public:
@@ -12,6 +13,7 @@ public:
     static void sendMsgBuf(uint32_t id, const uint8_t* data, uint8_t len = 8);
     static void sendFrame(CAN_FRAME &frame);
     static void printCanFrame(const CAN_FRAME &frame, bool isOutgoing);
+    static void printCanFrame(const Frame &frame, bool isOutgoing);
 
     // Live-bus gate. We only transmit once we've actually received CAN traffic,
     // proving a transceiver + live bus is present. Without it (e.g. the bench

@@ -70,6 +70,7 @@ void HwCanBus::ingest(const CAN_FRAME& f)
     Frame fr;
     fr.id = f.id;
     fr.extended = f.extended;
+    fr.source = Frame::SRC_MM_CAN;   // the ONE conversion point tags the origin
     fr.len = f.length > 8 ? 8 : f.length;
     for (int i = 0; i < fr.len; i++)
         fr.data[i] = f.data.uint8[i];

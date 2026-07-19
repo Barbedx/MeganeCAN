@@ -36,7 +36,9 @@ public:
     void setTxEnabled(bool on) override { _txEnabled = on; }
     bool txEnabled() const { return _txEnabled; }
 
-    static constexpr int MAX_TAPS = 4;
+    // 4 were all consumed (SerialMirror, WsRecorder, EmuBridge + headroom);
+    // 6 leaves room for the LinkProto endpoint (P1) and one spare.
+    static constexpr int MAX_TAPS = 6;
 
 private:
     HwCanBus() = default;

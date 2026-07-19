@@ -1,24 +1,24 @@
 #include "CarminatNowPlaying.h"
 #include "utils/TextUtils.h"
-#include "bluetooth.h"
+#include "media/MediaRouter.h"
 #include <time.h>
 
 // All bodies below are cut verbatim from CarminatDisplay; the only edits are the
 // seam swaps: showMenu(...) -> _panel.showMenu(...), tracker -> _aux, mainMenu ->
 // _menu. The emitted CAN frames are therefore byte-identical.
 
-void CarminatNowPlaying::setMediaInfo(const AppleMediaService::MediaInformation &info)
+void CarminatNowPlaying::setMediaInfo(const MediaInfo &info)
 {
   // визначаємо: новий трек чи той самий
-  bool titleChanged = (_mediaInfo.mTitle != info.mTitle);
-  bool artistChanged = (_mediaInfo.mArtist != info.mArtist);
-  bool playerChanged = (_mediaInfo.mPlayerName != info.mPlayerName);
+  bool titleChanged = (_mediaInfo.title != info.title);
+  bool artistChanged = (_mediaInfo.artist != info.artist);
+  bool playerChanged = (_mediaInfo.playerName != info.playerName);
 
   _mediaInfo = info;
 
   if (playerChanged)
   {
-    _mediaPlayerName = _mediaInfo.mPlayerName.c_str();
+    _mediaPlayerName = _mediaInfo.playerName.c_str();
     if (_mediaPlayerName.isEmpty())
     {
       _mediaPlayerName = "PLAYER";
@@ -29,17 +29,17 @@ void CarminatNowPlaying::setMediaInfo(const AppleMediaService::MediaInformation 
   {
     // побудувати повний рядок 2: "Artist - Title"
     _mediaLine2Full = "";
-    if (!_mediaInfo.mArtist.empty())
+    if (!_mediaInfo.artist.empty())
     {
-      _mediaLine2Full += _mediaInfo.mArtist.c_str();
+      _mediaLine2Full += _mediaInfo.artist.c_str();
     }
-    if (!_mediaInfo.mArtist.empty() && !_mediaInfo.mTitle.empty())
+    if (!_mediaInfo.artist.empty() && !_mediaInfo.title.empty())
     {
       _mediaLine2Full += " - ";
     }
-    if (!_mediaInfo.mTitle.empty())
+    if (!_mediaInfo.title.empty())
     {
-      _mediaLine2Full += _mediaInfo.mTitle.c_str();
+      _mediaLine2Full += _mediaInfo.title.c_str();
     }
 
     _scrollPos = 0; // reset scroll on track change
@@ -47,11 +47,9 @@ void CarminatNowPlaying::setMediaInfo(const AppleMediaService::MediaInformation 
   }
 }
 
-String CarminatNowPlaying::buildProgressLine() const
+String CarminatNowPlaying::buildProgressLine(float posSec) const
 {
-  // AMS дає секунди (float)
-  float posSec = _mediaInfo.mElapsedTime;
-  float durSec = _mediaInfo.mDuration;
+  float durSec = _mediaInfo.duration;
 
   if (durSec <= 0.0f)
   {
@@ -114,13 +112,16 @@ void CarminatNowPlaying::tick()
 
   uint32_t now = millis();
 
-  // When BT not connected: show what we're doing instead of an empty screen
-  if (!Bluetooth::IsConnected())
+  // Source not active (e.g. no iPhone connected): show what we're doing instead
+  // of an empty screen. Status comes through the router seam, not Bluetooth.
+  if (!_router || !_router->active())
   {
     if (now - _lastMediaRenderMs >= 1000)
     {
       _lastMediaRenderMs = now;
-      _panel.showMenu("MeganeCAN", Bluetooth::GetStatusText(), "for AMS device", 0x00);
+      _panel.showMenu("MeganeCAN",
+                      _router ? _router->statusText() : "no media source",
+                      "for AMS device", 0x00);
     }
     return;
   }
@@ -142,21 +143,8 @@ void CarminatNowPlaying::tick()
     return;
   }
 
-  // Оновлюємо дані про медіа з AMS
-  AppleMediaService::MediaInformation current = AppleMediaService::GetMediaInformation();
-  _mediaInfo = current;
-  _mediaPlayerName = current.mPlayerName.c_str();
-
-  // Локально дораховуємо elapsed time, якщо грає
-   if (current.mPlaybackState == AppleMediaService::MediaInformation::PlaybackState::Playing)
-   {
-   if (current.mLastPlaybackInfoMs != 0)
-   {
-     uint32_t dtMs = now - current.mLastPlaybackInfoMs;
-     float dtSec = dtMs / 1000.0f;
-     _mediaInfo.mElapsedTime = current.mElapsedTime + dtSec * current.mPlaybackRate;
-   }
-   }
+  // Push-only: _mediaInfo arrives via setMediaInfo; elapsed is extrapolated at
+  // render time (MediaInfo::elapsedAt), no source pull here.
 
   // Обмежимо частоту перерисовки, наприклад раз на 300ms
   if (!(now - _lastMediaRenderMs >= 300))
@@ -183,14 +171,14 @@ void CarminatNowPlaying::renderMediaScreen(bool forceRedraw)
     return;
 
   String status_icon;
-  switch (_mediaInfo.mPlaybackState)
+  switch (_mediaInfo.playbackState)
   {
-  case AppleMediaService::MediaInformation::PlaybackState::Playing:
+  case MediaInfo::PlaybackState::Playing:
   {
     status_icon = ">";
     break;
   }
-  case AppleMediaService::MediaInformation::PlaybackState::Paused:
+  case MediaInfo::PlaybackState::Paused:
   {
 
     status_icon = "||";
@@ -225,18 +213,11 @@ void CarminatNowPlaying::renderMediaScreen(bool forceRedraw)
   String line2 = buildScrollingTitle();
   const char *row2 = line2.c_str();
 
-  // 3-й рядок: прогрес
-  String line3 = buildProgressLine();
+  // 3-й рядок: прогрес (elapsed екстрапольований на зараз)
+  String line3 = buildProgressLine(_mediaInfo.elapsedAt(millis()));
   const char *row3 = line3.c_str();
   // scrollLockIndicator = 0 -> без стрілок, бо це не меню
   _panel.showMenu(header, row2, row3, /*scrollLockIndicator*/ 0x00);
-  // --- 6. Текстове представлення в Serial (для тестів без дисплея) ---
-  // Serial.println();
-  // Serial.println("===== MEDIA SCREEN =====");
-  // Serial.println(header);   // 1-й рядок
-  // Serial.println(line2);       // 2-й рядок
-  // Serial.println(line3);       // 3-й рядок
-  // Serial.println("========================");
 }
 
 void CarminatNowPlaying::renderNotificationScreen(const AppleNotificationService::NotificationInfo &n)
@@ -258,12 +239,12 @@ void CarminatNowPlaying::renderNotificationScreen(const AppleNotificationService
 String CarminatNowPlaying::buildScrollingTitle()
 {
 
-  String full = String(_mediaInfo.mArtist.c_str());
-  if (full.length() > 0 && _mediaInfo.mTitle.size() > 0)
+  String full = String(_mediaInfo.artist.c_str());
+  if (full.length() > 0 && _mediaInfo.title.size() > 0)
   {
     full += ": ";
   }
-  full += String(_mediaInfo.mTitle.c_str());
+  full += String(_mediaInfo.title.c_str());
   full = normalizeTitle(full);
   full += "  "; // trailing spaces AFTER trim/normalize so they aren't stripped
   const int MAX_VISIBLE = 20; // match progress bar row width

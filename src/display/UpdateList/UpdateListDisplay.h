@@ -1,6 +1,6 @@
 #pragma once
 #include "UpdateListBase.h"
-#include "../../apple_media_service.h"
+#include "media/MediaInfo.h"
 #include <Arduino.h>
 
 // Affa2 8-segment display.
@@ -11,7 +11,7 @@ class UpdateListDisplay : public UpdateListBase
 public:
     UpdateListDisplay() = default;
 
-    void setMediaInfo(const AppleMediaService::MediaInformation &info) override;
+    void setMediaInfo(const MediaInfo &info) override;
     void tickMedia() override;
     void onBtDisconnected() override;
 

@@ -66,3 +66,15 @@ void CanUtils::printCanFrame(const CAN_FRAME &frame, bool isOutgoing)
     LOGT("CAN", "%s %03X [%u] %s", isOutgoing ? "TX" : "RX",
          (unsigned)frame.id, (unsigned)frame.length, hex);
 }
+
+void CanUtils::printCanFrame(const Frame &frame, bool isOutgoing)
+{
+    if (!Log::enabled(LogLevel::TRC))
+        return;
+    char hex[3 * 8 + 1];
+    int p = 0;
+    for (int i = 0; i < frame.len && i < 8; i++)
+        p += snprintf(hex + p, sizeof(hex) - p, "%s%02X", i ? " " : "", frame.data[i]);
+    LOGT("CAN", "%s %03X [%u] %s", isOutgoing ? "TX" : "RX",
+         (unsigned)frame.id, (unsigned)frame.len, hex);
+}

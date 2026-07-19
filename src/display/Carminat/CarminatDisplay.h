@@ -2,7 +2,7 @@
 #include <vector>
 #include <map>
 #include <Arduino.h>
-#include "apple_media_service.h"
+#include "media/MediaInfo.h"    // neutral media model — no AMS types in the display layer
 #include "apple_notification_service.h"
 #include "CarminatConstants.h"
 #include "../AffaCommonConstants.h" /* Common Affa constants and enums */
@@ -60,8 +60,15 @@ public:
  
     void recv(const Frame &frame) override;
     void processEvents();
-    void setMediaInfo(const AppleMediaService::MediaInformation& info) override;
+    void setMediaInfo(const MediaInfo& info) override;
     void tick() override;
+
+    // Forward the source-status seam into the now-playing collaborator.
+    void attachMediaRouter(MediaRouter* r) override
+    {
+        AffaDisplayBase::attachMediaRouter(r);
+        _nowPlaying.attachRouter(r);
+    }
 
     AffaCommon::AffaError setText(const char *text, uint8_t digit = 255) override;
     AffaCommon::AffaError setState(bool enabled) override;
