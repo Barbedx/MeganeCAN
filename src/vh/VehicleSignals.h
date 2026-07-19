@@ -34,7 +34,19 @@ namespace Vh
         SIG_COUNT
     };
 
-    const char* sigName(uint8_t s);   // short name for logs/JSON
+    // Short name for logs/JSON. Inline so MM (which doesn't compile src/vh
+    // .cpp files) can render VH signal names too.
+    inline const char* sigName(uint8_t s)
+    {
+        static const char* const names[SIG_COUNT] = {
+            "speed", "rpm", "steering", "out_temp", "eng_temp", "odometer",
+            "door_fl", "door_fr", "door_rl", "door_rr", "boot",
+            "light_pos", "light_dip", "light_main", "ind_left", "ind_right",
+            "fog_front", "fog_rear", "reverse", "handbrake", "brake",
+            "key_on", "key_acc", "backlight",
+        };
+        return s < SIG_COUNT ? names[s] : "?";
+    }
 
     struct VehicleState {
         int32_t  val[SIG_COUNT] = {};

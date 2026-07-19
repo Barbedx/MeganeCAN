@@ -6,6 +6,7 @@
 #include "../apple_media_service.h"      // /api/cmd (AMS remote commands) only
 #include "../apple_notification_service.h"
 #include "../media/MediaRouter.h"
+#include "../link/mm/MmLinkService.h"
 #include "../utils/Log.h"
 #include "../utils/CanLog.h"
 #include "../utils/AppConfig.h"
@@ -631,6 +632,87 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "application/json", msg);
     });
 
+    // ---- VH board (vehicle gateway) — ARCHITECTURE-V2 §6.4. One multiplexed
+    // route family; MM's web UI is the ONLY front-end for the radio-less VH.
+    _server.on("/vh", HTTP_GET, [](PsychicRequest *request)
+               { return servePage(request, VH_HTML_GZ, VH_HTML_GZ_LEN); });
+
+    _server.on("/api/vh", HTTP_GET, [](PsychicRequest *request) {
+        return request->reply(200, "application/json", MmLink::statusJson().c_str());
+    });
+
+    _server.on("/api/vh/cfg", HTTP_GET, [](PsychicRequest *request) {
+        if (!request->hasParam("key"))
+            return request->reply(400, "text/plain", "missing key");
+        String key = request->getParam("key")->value();
+        if (request->hasParam("val"))
+        {
+            bool ok = MmLink::cfgSet(key.c_str(), request->getParam("val")->value().c_str());
+            return request->reply(ok ? 200 : 502, "text/plain", ok ? "ok" : "fail");
+        }
+        char val[24];
+        if (!MmLink::cfgGet(key.c_str(), val, sizeof(val)))
+            return request->reply(502, "text/plain", "fail");
+        return request->reply(200, "text/plain", val);
+    });
+
+    _server.on("/api/vh/cap", HTTP_GET, [](PsychicRequest *request) {
+        uint8_t op   = request->hasParam("op")   ? request->getParam("op")->value().toInt()   : 1;
+        uint8_t mode = request->hasParam("mode") ? request->getParam("mode")->value().toInt() : 0;
+        uint16_t secs = request->hasParam("secs") ? request->getParam("secs")->value().toInt() : 60;
+        bool ok = MmLink::capCtl(op, mode, secs);
+        return request->reply(ok ? 200 : 502, "text/plain", ok ? "ok" : "fail");
+    });
+
+    _server.on("/api/vh/ls", HTTP_GET, [](PsychicRequest *request) {
+        String j;
+        if (!MmLink::fileLs(j))
+            return request->reply(502, "text/plain", "fail");
+        return request->reply(200, "application/json", j.c_str());
+    });
+
+    // One ≤4KB chunk of a VH file per request; X-Total carries the file size so
+    // the page JS loops offsets and assembles the download client-side.
+    _server.on("/api/vh/file", HTTP_GET, [](PsychicRequest *request) {
+        if (!request->hasParam("name"))
+            return request->reply(400, "text/plain", "missing name");
+        String name = request->getParam("name")->value();
+        uint32_t off = request->hasParam("off")
+                           ? strtoul(request->getParam("off")->value().c_str(), nullptr, 10) : 0;
+        static uint8_t buf[4096];   // httpd task only; requests are serialized
+        uint32_t total = 0;
+        int n = MmLink::fileRead(name.c_str(), off, buf, sizeof(buf), total);
+        if (n < 0)
+            return request->reply(502, "text/plain", "fail");
+        PsychicResponse resp(request);
+        resp.setCode(200);
+        resp.setContentType("application/octet-stream");
+        resp.addHeader("X-Total", String(total).c_str());
+        resp.setContent(buf, n);
+        return resp.send();
+    });
+
+    // VH firmware OTA-over-link (P1 exit criterion): raw-body POST of the
+    // vehicle-wrover firmware.bin; MM streams it to VH in CRC'd link chunks.
+    {
+        PsychicUploadHandler *vhOta = new PsychicUploadHandler();
+        vhOta->onUpload([](PsychicRequest *request, const String &filename,
+                           uint64_t index, uint8_t *data, size_t len, bool last) {
+            if (index == 0 && !MmLink::otaBegin(request->contentLength()))
+                return ESP_FAIL;
+            if (len && !MmLink::otaWrite(data, len))
+                return ESP_FAIL;
+            return ESP_OK;
+        });
+        vhOta->onRequest([](PsychicRequest *request) {
+            bool ok = MmLink::otaEnd();
+            String msg = ok ? "ok — VH rebooting into the new image"
+                            : String("fail: ") + MmLink::otaError();
+            return request->reply(ok ? 200 : 502, "text/plain", msg.c_str());
+        });
+        _server.on("/api/vh/ota", HTTP_POST, vhOta);
+    }
+
     _server.on("/api/dashboard", HTTP_GET, [](PsychicRequest *request) {
         String j = "{\"media\":";
         j += buildMediaJson();
@@ -642,6 +724,8 @@ void HttpServerManager::setupRoutes()
              "\",\"ssid\":\"" + String(WiFiManager::SSID().c_str()) +
              "\",\"ip\":\"" + String(WiFiManager::IP().c_str()) +
              "\",\"host\":\"" + String(WiFiManager::Hostname().c_str()) + "\"}";
+        j += ",\"vhlink\":{\"enabled\":" + String(MmLink::enabled() ? "true" : "false") +
+             ",\"up\":" + String(MmLink::up() ? "true" : "false") + "}";
         j += ",\"can\":";
         j += CanLog::configJson().c_str();
         j += "}";

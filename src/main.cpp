@@ -39,9 +39,12 @@
 #include "ble/HidRole.h"
 #include "media/AmsMediaSource.h"
 #include "media/MediaRouter.h"
+#include "media/HuLinkMediaSource.h"
 #include "keys/KeyRouter.h"
 #include "keys/AmsKeySink.h"
 #include "keys/HidKeySink.h"
+#include "keys/UartCanboxSink.h"
+#include "link/mm/MmLinkService.h"
 
 AffaDisplayBase *display = nullptr;
 unsigned long lastPingTime = 0;
@@ -66,6 +69,7 @@ MediaRouter g_mediaRouter;
 // HU-UART sink lands in P1). Config = AppConfig::keySinks (defaults per bt_mode).
 static AmsKeySink g_amsKeySink;
 static HidKeySink g_hidKeySink;
+static UartCanboxSink g_huKeySink;   // -> LinkProto KEY_EVT -> VH -> DUDU7
 KeyRouter g_keyRouter;   // extern'd by SerialConsole (pp/nx/pv honor the sinks)
 
 static void onMediaChange(IMediaSource &src, void *); // defined below HandleKey
@@ -299,16 +303,23 @@ void initDisplay()
     display->setBus(HwCanBus::instance());  // radio sends through the bus seam (behavior-neutral)
     display->setClock(defaultClock());      // ArduinoClock (millis/delay) for the ACK wait
 
+    // Inter-board link to the VH board (no-ops if link_enabled=false).
+    MmLink::begin();
+
     // Media routing: sources push into the router; the display reads status
     // (active/statusText) through it instead of touching Bluetooth directly.
-    g_mediaRouter.setSources(&g_amsSource, /*hu=*/nullptr);
+    g_mediaRouter.setSources(&g_amsSource,
+                             MmLink::enabled() ? &MmLink::mediaSource() : nullptr);
     g_mediaRouter.setMode(MediaRouter::modeFromStr(AppConfig::mediaSource.c_str()));
     g_amsSource.setChangeCallback(onMediaChange, nullptr);
+    if (MmLink::enabled())
+        MmLink::mediaSource().setChangeCallback(onMediaChange, nullptr);
     display->attachMediaRouter(&g_mediaRouter);
 
     // Key routing: sinks + per-class masks from config (default follows bt_mode).
     g_keyRouter.bind(KeyRouter::SINK_AMS, &g_amsKeySink);
     g_keyRouter.bind(KeyRouter::SINK_HID, &g_hidKeySink);
+    g_keyRouter.bind(KeyRouter::SINK_HU,  &g_huKeySink);
     g_keyRouter.configure(AppConfig::keySinks);
     LOGI("KEYS", "key_sinks=0x%02X media_source=%s",
          AppConfig::keySinks, AppConfig::mediaSource.c_str());
@@ -423,6 +434,8 @@ void loop()
 
     BleHub::Service(); // pumps whichever roles the mode enables
 
+    MmLink::service(); // VH link pump (telemetry in, keys/maintenance out)
+
     // Gated on the AMS role because the only media source today is AMS. When the
     // HU link source lands (P1+), tickMedia must also run for it — regate on the
     // router's active source then, not on BLE mode.
@@ -448,6 +461,7 @@ void loop()
                 display->setTime(buf);
                 _timeSyncDone = true;
                 LOGI("BT", "Auto-time synced: %s", buf);
+                MmLink::sendTime((uint32_t)time(nullptr)); // VH log timestamps
             }
         }
         if (!Bluetooth::IsConnected())

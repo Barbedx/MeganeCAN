@@ -3,18 +3,6 @@
 
 namespace Vh
 {
-    const char* sigName(uint8_t s)
-    {
-        static const char* names[SIG_COUNT] = {
-            "speed", "rpm", "steering", "out_temp", "eng_temp", "odometer",
-            "door_fl", "door_fr", "door_rl", "door_rr", "boot",
-            "light_pos", "light_dip", "light_main", "ind_left", "ind_right",
-            "fog_front", "fog_rear", "reverse", "handbrake", "brake",
-            "key_on", "key_acc", "backlight",
-        };
-        return s < SIG_COUNT ? names[s] : "?";
-    }
-
     void VehicleDecoder::setSignalEnabled(uint8_t sig, bool on)
     {
         if (sig >= SIG_COUNT) return;

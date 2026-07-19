@@ -454,6 +454,11 @@ replayed `.canlog` fixtures, FsLogger, **full LinkTunnel: config + capture contr
 + OTA-over-link, exercised end-to-end on the bench** (C3 ↔ WROVER over the real UART wires).
 One-time bench flash of the bare module via a USB-UART adapter (EN/IO0 strapping) — after
 this, all updates ride the link. Exit criterion: flash a new VH image from MM's web page.
+*Status 2026-07-19: CODE COMPLETE (src/link + src/vh + [env:vehicle-wrover] + MM MmLinkService,
+/api/vh routes, /vh page with capture/config/log-download/OTA; test_link 13 + test_vh 21 native
+tests; all 4 envs build). REMAINING: wire the real boards (§3.2), one-time bench flash of the
+WROVER, then exercise capture/log-pull/OTA end-to-end over the physical UART — the exit
+criterion needs hardware on the desk.*
 
 **P2 — car sniff (no reflashing trips):** VH + SN65HVD230 on OBD 6/14, listen-only, capture
 campaign driven entirely from MM's web UI (start capture, drive the checklist, pull logs at

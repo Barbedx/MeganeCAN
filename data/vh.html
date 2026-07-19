@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicle board</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #14171c; color: #dde3ea;
+         margin: 0; padding: 16px; }
+  h1 { font-size: 1.2em; margin: 0 0 12px; }
+  h2 { font-size: 1em; margin: 16px 0 6px; color: #8ab4f8; }
+  .card { background: #1d232b; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .kv { font-size: .9em; }
+  .kv b { color: #9aa7b4; font-weight: 500; margin-right: 4px; }
+  .ok { color: #6fdc8c; } .bad { color: #ff8389; }
+  button, select, input { background: #2a323d; color: #dde3ea; border: 1px solid #3b4654;
+         border-radius: 6px; padding: 6px 10px; font-size: .9em; }
+  button:hover { background: #35404e; cursor: pointer; }
+  table { border-collapse: collapse; font-size: .85em; width: 100%; }
+  td, th { padding: 3px 8px; text-align: left; border-bottom: 1px solid #2a323d; }
+  #log { font-family: monospace; font-size: .8em; white-space: pre-wrap;
+         color: #9aa7b4; max-height: 120px; overflow-y: auto; }
+  progress { width: 100%; }
+  a { color: #8ab4f8; }
+</style>
+</head>
+<body>
+<h1>Vehicle board (VH) <a href="/" style="font-size:.7em">← dashboard</a></h1>
+
+<div class="card">
+  <h2 style="margin-top:0">Link</h2>
+  <div class="row kv" id="linkrow">loading…</div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Vehicle state</h2>
+  <div class="row kv" id="sigs">—</div>
+  <div class="row kv" id="hu"></div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Capture</h2>
+  <select id="capmode">
+    <option value="0">everything</option>
+    <option value="1">unknown IDs only</option>
+    <option value="2">HU UART only</option>
+  </select>
+  <input id="capsecs" type="number" value="60" min="0" max="3600" style="width:70px"> s
+  <button onclick="cap(1)">Start</button>
+  <button onclick="cap(0)">Stop</button>
+  <h2>Files</h2>
+  <table id="files"><tr><th>name</th><th>size</th><th></th></tr></table>
+  <button onclick="ls()">Refresh list</button>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Config</h2>
+  <select id="cfgkey">
+    <option>canbox</option><option>keyfwd</option><option>rpmmul</option>
+    <option>rpmdiv</option><option>sigdis</option><option>capmode</option>
+    <option>capsecs</option>
+  </select>
+  <input id="cfgval" placeholder="value" style="width:90px">
+  <button onclick="cfgGet()">Get</button>
+  <button onclick="cfgSet()">Set</button>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">VH firmware update (over link)</h2>
+  <input type="file" id="fw" accept=".bin">
+  <button onclick="ota()">Flash</button>
+  <progress id="otap" value="0" max="100" style="display:none"></progress>
+</div>
+
+<div class="card"><div id="log"></div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = m => { $('log').textContent = new Date().toLocaleTimeString() + ' ' + m + '\n' + $('log').textContent; };
+
+async function poll() {
+  try {
+    const s = await (await fetch('/api/vh')).json();
+    $('linkrow').innerHTML =
+      kv('enabled', s.enabled) + kv('up', s.up, s.up ? 'ok' : 'bad') +
+      (s.peerFw ? kv('peer fw', s.peerFw) : '') +
+      (s.drops !== undefined ? kv('tx drops', s.drops) + kv('seq gaps', s.gaps) + kv('raw', s.raw) : '');
+    $('sigs').innerHTML = s.sigs && Object.keys(s.sigs).length
+      ? Object.entries(s.sigs).map(([k, v]) => kv(k, v)).join('')
+      : '<i>no signals yet (bench: no vehicle CAN)</i>';
+    $('hu').innerHTML = s.hu
+      ? kv('HU source', s.hu.source) + kv('vol', s.hu.vol) + kv('freq', s.hu.freq)
+      : '';
+  } catch (e) { $('linkrow').innerHTML = '<span class="bad">MM unreachable</span>'; }
+}
+const kv = (k, v, cls) => `<span class="kv"><b>${k}</b><span class="${cls || ''}">${v}</span></span>`;
+setInterval(poll, 2000); poll();
+
+async function cap(op) {
+  const r = await fetch(`/api/vh/cap?op=${op}&mode=${$('capmode').value}&secs=${$('capsecs').value}`);
+  log('capture ' + (op ? 'start' : 'stop') + ': ' + await r.text());
+  if (!op) ls();
+}
+
+async function ls() {
+  try {
+    const files = await (await fetch('/api/vh/ls')).json();
+    $('files').innerHTML = '<tr><th>name</th><th>size</th><th></th></tr>' +
+      files.map(f => `<tr><td>${f.name}</td><td>${f.size}</td>` +
+        `<td><button onclick="dl('${f.name}',${f.size})">download</button></td></tr>`).join('');
+  } catch (e) { log('ls failed'); }
+}
+
+async function dl(name, size) {
+  log(`downloading ${name} (${size}B)…`);
+  const parts = [];
+  for (let off = 0; off < size;) {
+    const r = await fetch(`/api/vh/file?name=${encodeURIComponent(name)}&off=${off}`);
+    if (!r.ok) { log('download failed at ' + off); return; }
+    const b = await r.arrayBuffer();
+    if (b.byteLength === 0) break;
+    parts.push(b);
+    off += b.byteLength;
+  }
+  const blob = new Blob(parts);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name.replace(/^\//, '');
+  a.click();
+  log(`${name} done (${blob.size}B)`);
+}
+
+async function cfgGet() {
+  const r = await fetch(`/api/vh/cfg?key=${$('cfgkey').value}`);
+  const t = await r.text();
+  if (r.ok) $('cfgval').value = t;
+  log(`cfg ${$('cfgkey').value} = ${t}`);
+}
+async function cfgSet() {
+  const r = await fetch(`/api/vh/cfg?key=${$('cfgkey').value}&val=${encodeURIComponent($('cfgval').value)}`);
+  log(`cfg set ${$('cfgkey').value}=${$('cfgval').value}: ${await r.text()}`);
+}
+
+async function ota() {
+  const f = $('fw').files[0];
+  if (!f) { log('pick the vehicle-wrover firmware.bin first'); return; }
+  if (!confirm(`Flash ${f.name} (${f.size}B) to the VH board over the link?`)) return;
+  $('otap').style.display = 'block';
+  log(`OTA start: ${f.size}B (~${Math.round(f.size / 20000)}s over the link)`);
+  // Raw-body POST; MM streams it on in link-sized chunks with per-chunk acks.
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `/api/vh/ota`);
+  xhr.upload.onprogress = e => { $('otap').value = 100 * e.loaded / e.total; };
+  xhr.onload = () => log('OTA: ' + xhr.responseText);
+  xhr.onerror = () => log('OTA: connection error');
+  xhr.send(f);
+}
+</script>
+</body>
+</html>
