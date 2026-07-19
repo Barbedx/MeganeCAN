@@ -30,10 +30,21 @@ pio device monitor
 pio run -t upload --upload-port <device-ip>
 ```
 
-Two envs: **`esp32dev-mini`** (ESP32-C3 SuperMini — the car board, native USB) and **`esp32dev`**
-(classic ESP32 WROOM — the bench board, CP210x UART). Build/flash a specific board and repo path:
-`pio run -e esp32dev -t upload --upload-port COMx -d <repo>`. CAN pins: RX=GPIO3, TX=GPIO4.
-If BLE bonds won't persist on a board, `pio run -e <env> -t erase` first (corrupt NVS).
+Firmware envs: **`esp32dev-mini`** (ESP32-C3 SuperMini — the MM car board, native USB),
+**`esp32dev`** (classic ESP32 WROOM — the bench board, CP210x UART), and **`vehicle-wrover`**
+(bare ESP32-WROVER — the VH board: `src/vh/` + `src/link/` only, radio-less, partitions_vh.csv;
+first flash via USB-UART, afterwards OTA-over-link from MM's `/vh` page). Build/flash a specific
+board and repo path: `pio run -e esp32dev -t upload --upload-port COMx -d <repo>`. MM CAN pins:
+RX=GPIO3, TX=GPIO4. If BLE bonds won't persist on a board, `pio run -e <env> -t erase` first
+(corrupt NVS). `pio test -e native` runs the host suites (incl. `test_link`, `test_vh`,
+`test_media`, `test_keys`).
+
+P0/P1 layer map: `src/media/` (MediaInfo/IMediaSource/MediaRouter + AMS/HU sources), `src/keys/`
+(KeyRouter + AMS/HID/HU-UART sinks, packed `key_sinks` config), `src/link/` (LinkProto: COBS+CRC16
+codec, LinkPort; `link/mm/MmLinkService` = MM-side endpoint + HTTP mailbox), `src/vh/` (VehicleDbc
+decode table, VehicleDecoder, Raise CanboxEmitter, HuRxParser; `vh/target/` = VH-only firmware:
+VhConfig, FsLogger, LinkTunnel, vh_main). Web page `data/vh.html` (`/vh`) drives VH capture,
+config, log download and firmware OTA through `/api/vh*`.
 
 ## Secrets
 
