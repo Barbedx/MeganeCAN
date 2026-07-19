@@ -10,8 +10,8 @@
 // If MM is absent, VH runs canbox duty headless on its NVS config.
 #include <Arduino.h>
 #include <esp_task_wdt.h>
-#include "driver/twai.h"
 
+#include "TwaiCanBus.h"
 #include "../VehicleDecoder.h"
 #include "../CanboxEmitter.h"
 #include "../HuRxParser.h"
@@ -24,7 +24,8 @@
 
 // ---- identity ---------------------------------------------------------------
 static constexpr uint16_t VH_FW_VER = 0x0100;   // 1.0
-static constexpr uint32_t VH_CAPS   = 0x7;      // bit0 canbox, bit1 capture, bit2 ota
+static constexpr uint32_t VH_CAPS =             // CR-05 capability bitmap
+    LinkProto::Caps::CAP_CAN | LinkProto::Caps::CAP_LOGGER | LinkProto::Caps::CAP_OTA;
 
 // ---- pins (§3.2; GPIO16/17 are PSRAM-reserved on WROVER — never use) --------
 static constexpr gpio_num_t PIN_CAN_TX = GPIO_NUM_22;  // unused in listen-only, wired for future
@@ -33,6 +34,7 @@ static constexpr int PIN_HU_TX = 25, PIN_HU_RX = 26;   // UART1 -> DUDU7, 38400
 static constexpr int PIN_MM_TX = 18, PIN_MM_RX = 19;   // UART2 -> MM link, 460800
 
 // ---- modules ----------------------------------------------------------------
+static TwaiCanBus         g_vehicleCan;   // CR-04: CAN only through ICanBus
 static Vh::VehicleDecoder g_decoder;
 static Vh::CanboxEmitter  g_canbox;
 static Vh::HuRxParser     g_huRx;
@@ -41,7 +43,6 @@ static LinkPort           g_link;
 static HwSerialLinkStream g_linkStream;
 static LinkTunnel         g_tunnel;
 
-static uint32_t g_lastCanRxMs = 0;
 static uint32_t g_cfgGen = 0;
 
 // ---- canbox UART out (whole frames only — one write per frame) --------------
@@ -146,6 +147,18 @@ static void onHuFrame(uint8_t cmd, const uint8_t* payload, uint8_t len,
     }
 }
 
+// ---- vehicle CAN in (via ICanBus, CR-04) ------------------------------------
+static void onVehicleFrame(const Frame& f, void*)
+{
+    uint32_t now = millis();
+    // knownFrames() only moves for table-matched ids — the delta tells the
+    // capture filter whether this frame was "known".
+    uint32_t knownBefore = g_decoder.knownFrames();
+    g_decoder.feed(f, now);
+    g_fsLog.onCanFrame((uint16_t)f.id, f.data, f.len,
+                       g_decoder.knownFrames() != knownBefore, now);
+}
+
 // ---- telemetry to MM --------------------------------------------------------
 static void sendSigBatch(uint32_t now)
 {
@@ -202,14 +215,10 @@ void setup()
     g_tunnel.begin(g_link, g_fsLog);
     applyConfig();
 
-    // TWAI listen-only: physically incapable of ACKing or erroring the vehicle
-    // bus (§5 safety). TX pin is configured but never driven in this mode.
-    twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT(PIN_CAN_TX, PIN_CAN_RX,
-                                                          TWAI_MODE_LISTEN_ONLY);
-    g.rx_queue_len = 32;
-    twai_timing_config_t t = TWAI_TIMING_CONFIG_500KBITS();
-    twai_filter_config_t f = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    if (twai_driver_install(&g, &t, &f) == ESP_OK && twai_start() == ESP_OK)
+    // Vehicle CAN through the ICanBus seam (CR-04). Listen-only: physically
+    // incapable of ACKing or erroring the vehicle bus (§5 safety).
+    g_vehicleCan.onReceive(onVehicleFrame, nullptr);
+    if (g_vehicleCan.begin(PIN_CAN_TX, PIN_CAN_RX, /*listenOnly=*/true))
         Serial.println("[can] TWAI up (listen-only, 500k)");
     else
         Serial.println("[can] TWAI INSTALL FAILED");
@@ -227,27 +236,7 @@ void loop()
     esp_task_wdt_reset();
     uint32_t now = millis();
 
-    // Vehicle CAN in (drain the queue, non-blocking).
-    twai_message_t msg;
-    while (twai_receive(&msg, 0) == ESP_OK)
-    {
-        if (msg.rtr) continue;
-        g_lastCanRxMs = now;
-        Frame f;
-        f.id = msg.identifier;
-        f.extended = msg.extd;
-        f.source = Frame::SRC_VH_CAN;
-        f.len = msg.data_length_code > 8 ? 8 : msg.data_length_code;
-        for (int i = 0; i < f.len; i++) f.data[i] = msg.data[i];
-
-        // knownFrames() only moves for table-matched ids — the delta tells the
-        // capture filter whether this frame was "known".
-        uint32_t knownBefore = g_decoder.knownFrames();
-        g_decoder.feed(f, now);
-        g_fsLog.onCanFrame((uint16_t)f.id, f.data, f.len,
-                           g_decoder.knownFrames() != knownBefore, now);
-    }
-
+    g_vehicleCan.poll();   // drain RX -> onVehicleFrame (decoder + capture)
     g_decoder.tick(now);
     g_canbox.tick(g_decoder.state(), now);
 
@@ -279,7 +268,7 @@ void loop()
     {
         s_lastLog = now;
         Serial.printf("[vh] can:%s known=%lu unk=%lu link:%s cap:%d heap=%u\n",
-                      (now - g_lastCanRxMs < 2000) ? "live" : "silent",
+                      g_vehicleCan.isLive() ? "live" : "silent",
                       (unsigned long)g_decoder.knownFrames(),
                       (unsigned long)g_decoder.unknownFrames(),
                       g_link.up() ? "up" : "down",

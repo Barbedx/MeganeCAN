@@ -1,9 +1,21 @@
 # Architecture V2 — Dual-board CAN gateway + DUDU7 head unit integration
 
-*Status: **V2.1 FINAL** — role swap approved 2026-07-19: the WROVER is the brain (GW board),
-the C3 SuperMini becomes the display co-processor (DISP board). Migration phases M1–M4 in §9.
-P0/P1 code (portable modules + LinkProto + tunnel) was built exactly so this shuffle is a
-re-wiring of mains, not a rewrite.*
+*Status: **V2.2** — V2.1 role swap (2026-07-19: WROVER = GW brain, C3 = peripheral) plus
+change requests CR-01..CR-10 accepted 2026-07-20. Migration phases M1–M4 in §9. P0/P1 code
+(portable modules + LinkProto + tunnel) was built exactly so this shuffle is a re-wiring of
+mains, not a rewrite.*
+
+## 0. Design principle (V2.2)
+
+**GW (WROVER) is the only application processor. All other boards are replaceable
+peripherals communicating through stable interfaces. Business logic must never depend on a
+specific peripheral implementation.** Concretely:
+- The peripheral is addressed only through LinkProto capabilities (§4) and `ICanBus` — never
+  by name. Today it is an ESP32-C3 driving the AFFA3 display; tomorrow it may be an
+  MCP2515/2518FD bridge or another MCU. (CR-02/03/04)
+- The runtime protocol and the programming transport version independently (CR-01).
+- Inside GW, modules talk through the EventBus, not each other (CR-07); only the Logger
+  touches the filesystem (CR-08).
 *Research inputs: aerodomigue/esp32-canbox-nissan (full RE), forum.dudu-auto.com d/1421
 (mikescotland, Clio III — closest prior art, working system), DUDU wiki, smartgauges/canbox,
 x0r.fr/blog/39 (Clio III main-CAN decode), Racelogic Mégane II DB, this repo's codebase map.*
@@ -62,12 +74,15 @@ media + key routing (MediaRouter/KeyRouter), PSRAM/LittleFS capture logs. Every 
 feature (nav-screen RE, DUDU metadata, dashboards) lands here, where RAM and flash are
 abundant.
 
-**DISP board (display co-processor) = ESP32-C3 SuperMini** — the finished, stable job:
-multimedia CAN + AFFA3 display emulation (Carminat/UpdateList drivers), SWC key capture
-(0x0A9/0x1C1) → `KEY_EVT` to GW, AUX detect, MediaInfo rendering fed by `MEDIA_TEXT` from GW.
-Keeps native USB-CDC: the bench serial proxy for display RE **and** the wired maintenance
-port for both boards (§3.4). No BLE, no WiFi, no web — a small firmware that, once migrated,
-should almost never change again.
+**IOC board (IO Controller — the replaceable peripheral; today an ESP32-C3 SuperMini,
+called DISP in code where it drives the display)** — a **thin peripheral with zero business
+logic** (CR-02): multimedia CAN + AFFA3 display emulation (Carminat/UpdateList drivers), SWC
+key capture (0x0A9/0x1C1) → `KEY_EVT` to GW, AUX detect, MediaInfo rendering fed by
+`MEDIA_TEXT` from GW, USB bridge, link endpoint. Nothing else — every decision (routing,
+modes, media source, key mapping) is GW's. Keeps native USB-CDC: the bench serial proxy for
+display RE **and** the wired maintenance port for both boards (§3.4). No BLE, no WiFi, no
+web. The architecture treats it as *a* peripheral, not *the* C3: a future MCP2515/2518FD
+bridge or different MCU slots into the same LinkProto caps + `ICanBus` contracts (CR-03).
 
 Why this split (V2.1 — the reverse of the first draft):
 - **One TWAI controller per chip** is the only hard constraint forcing two boards; each board
@@ -92,16 +107,21 @@ WROVER that never initializes WiFi/BT draws ~50–100mA (CPU + flash + PSRAM), a
 LDO (ME6211-class, ~500mA) can carry that on top of the C3's own BLE+WiFi peaks (~300–350mA).
 It is still thermally marginal on a SOT-23 LDO at 5V→3.3V — treat it as the interim plan.
 
-**V2.1: the GW board runs BLE (always) + WiFi (occasionally), so it gets its own regulator
-from day one** — a dedicated 3.3V module (HT7833 / mini-buck, ≥600mA for WiFi TX peaks) off
-the 5V rail. The SuperMini keeps feeding itself from its onboard LDO. Owner-approved: if
-sags appear under load, upgrade the regulator — nothing else in the design changes.
+**One power architecture, no interim variants (CR-06):**
+
+```
+12V (ACC-switched)  →  Buck 5V  →  3.3V regulator (≥600mA, WiFi TX peaks)
+                                        → GW (WROVER)
+                                        → IOC / peripheral
+                                        → CAN transceivers
+```
+
 - ≥220µF bulk capacitance at the WROVER's 3V3/GND pins, short thick wires, common ground.
 - WROVER bare-module strapping: EN→3V3 via 10k, GPIO0 floating/high for normal boot (tie a
   button/pad to GND for the initial pre-solder flash), GPIO12 low/floating (flash voltage
   strap). Owner flashes the module on a dedicated programming jig before soldering.
-- 5V source stays the **DUDU7 USB port** (ACC-switched): the gateway lives and dies with the
-  head unit, no sleep logic needed (canbox-nissan pattern).
+- ACC-switched 12V = the gateway lives and dies with the ignition; no sleep logic
+  (canbox-nissan pattern). The DUDU7 USB port is NOT a power source in the final design.
 
 ### 3.2 Pin map
 
@@ -122,6 +142,16 @@ sags appear under load, upgrade the regulator — nothing else in the design cha
 
 Link wiring: DISP TX21→GW GPIO19, DISP RX20→GW GPIO18, GND–GND.
 
+### 3.2a PCB provisions (CR-09, CR-10)
+
+- **USB independence (CR-09):** route the GW's UART0 (TX0/RX0/EN/IO0) to a footprint for an
+  optional USB-UART — even while maintenance runs through the IOC's USB. The C3 can then be
+  retired (single-board variant, §P5) or a different CAN module substituted with no main-PCB
+  redesign.
+- **Expansion header (CR-10):** one universal header on the main PCB: UART, SPI, I²C, 3.3V,
+  5V, GND, Reset, spare GPIO. Target add-ons without touching the board: MCP2515/2518FD
+  (second CAN), GPS, IMU, LTE, an extra MCU.
+
 ### 3.3 Vehicle CAN tap
 
 OBD-II socket: pin 6 = CAN-H, pin 14 = CAN-L (main bus, 500k). Multimedia CAN is also on the
@@ -130,28 +160,49 @@ current splice, worth verifying on the Mégane II harness. GW's transceiver: SN6
 **no 120Ω termination** (we tap a terminated bus; the "R" solder-jumper on CJMCU-230 modules
 must be open).
 
-### 3.4 Flashing paths — both boards through one cable
+### 3.4 Flashing — the end-user story (owner-final)
 
-The owner's requirement: after installation, everything updates through the DISP board's USB
-(always wired) or over WiFi; the WROVER is bench-flashed exactly once, pre-solder, on a jig.
+One product, one versioned **release bundle** (`gw.bin` + `disp.bin` + manifest, built
+together — the two halves are never mixed across versions). No legacy images, no fallback
+firmwares: clean-slate, polished to done. The WROVER is jig-flashed exactly once, pre-solder;
+after that the end user has exactly two paths:
 
-| Target | Normal path | Fallback |
-|---|---|---|
-| DISP (C3) | native USB (`esp32dev-mini`… → `disp-c3` env) | OTA-over-link from GW's web UI |
-| GW (WROVER) | WiFi OTA (GW hosts the web UI) | **USB tunnel:** PC → DISP USB-CDC → LinkProto `OTA_*` over the link → GW OTA partition (python tool extends `tools/serial_proxy.py`; same frames the P1 web upload uses) |
+1. **USB into the SuperMini** (the always-wired maintenance port): the C3 flashes over its
+   native USB; the WROVER flashes through the same cable via the USB↔link tunnel
+   (PC tool → DISP USB-CDC → LinkProto `OTA_*` → GW OTA partition; same frames as the web
+   path — the tool extends `tools/serial_proxy.py`).
+2. **WiFi OTA** (GW hosts the web UI): "Update system" takes the release bundle, GW buffers
+   it **entirely in PSRAM first** (both images fit in 8MB with room to spare — nothing
+   flashes until the whole bundle is received and checksummed), then: flash DISP over the
+   link → DISP confirms boot → GW writes its own inactive slot → reboot. Order matters:
+   self-flash comes LAST so the PSRAM buffer survives until the peer is done.
 
-Bricking recovery: both boards keep dual OTA slots; DISP additionally keeps a "known-good"
-fallback image slot. Absolute worst case for GW = unsolder-free jig clip on UART0 pads (keep
-TX0/RX0/EN/IO0 accessible when soldering).
+Dual app slots on each chip are the *mechanics* of ESP32 OTA (a running image cannot
+overwrite itself; boot-failure rolls back to the slot that booted last) — not a legacy-image
+scheme. Absolute worst case for GW = jig clip on UART0 pads (keep TX0/RX0/EN/IO0 accessible
+when soldering).
 
-## 4. Inter-board protocol — LinkProto
+## 4. Inter-board protocols — LinkProto (runtime) + ProgProto (programming)
 
 Portable module `src/link/` compiled into both firmwares **and** the `native` test env.
+
+**CR-01: two independent protocols over one byte transport.** The COBS+CRC16 framing and the
+LinkPort pump are the shared *transport*. On top of it:
+- **LinkProto (runtime)** — HELLO/PING, KEY_EVT, MEDIA_TEXT, SIG_BATCH, DISP_CMD, HU_STATUS,
+  CFG, CAP_CTL, LOG, RAW_FRAME, TIME, FILE (log pull). Versioned by `LinkProto::VERSION`.
+- **ProgProto (programming transport)** — firmware upload, recovery, flashing (`OTA_*`,
+  type range 0x70–0x7F, `src/link/ProgProto.h`). Versioned independently
+  (`ProgProto::VERSION`) and deliberately frozen: runtime can evolve without ever touching
+  the thing that reflashes boards, and vice versa.
 
 - **Framing:** COBS-encoded frames delimited by `0x00`; payload = `[ver:1][type:1][seq:1]
   [payload…][crc16-ccitt:2]`. Max frame 128B. CRC over ver..payload.
 - **Versioned hello:** on boot and every reconnect, `HELLO{proto_ver, fw_ver, caps bitmask}`
   both ways. Unknown types are skipped (forward compatible).
+- **Capability bitmap (CR-05), `LinkProto::Caps`:** `DISPLAY` 0x01, `CAN` 0x02, `BLE` 0x04,
+  `LOGGER` 0x08, `OTA` 0x10, `KEYBOARD` 0x20, `MEDIA` 0x40, `WEB` 0x80 (32-bit field, rest
+  reserved). GW discovers what the attached peripheral can do from HELLO — an IOC without a
+  display or a pure MCP-bridge peripheral degrades features automatically, never by ifdef.
 - **Heartbeat:** `PING`/`PONG` at 1Hz; peer considered down after 3s — both sides expose link
   state. Link-down fallbacks: GW keeps canbox/BLE duty (its normal mode); DISP keeps the last
   screen + its own status text.
@@ -181,6 +232,18 @@ Portable module `src/link/` compiled into both firmwares **and** the `native` te
 + web pages, MediaRouter/KeyRouter and CTS time — the same code the `esp32dev` bench env already
 compiles for this exact chip, now with PSRAM headroom. Display output leaves over the link
 (`MEDIA_TEXT`/`DISP_CMD`); SWC keys arrive over it (`KEY_EVT`).*
+
+**GW internal architecture (CR-04/07/08):**
+- **`ICanBus` = the CR-04 `ICanInterface`** (kept under its existing name — same contract:
+  `send/onReceive/isLive/poll` over portable `Frame`). Implementations: `HwCanBus`
+  (ESP32 TWAI via esp32_can — the C3), `TwaiCanBus` (IDF TWAI listen-only — the GW),
+  `LoopbackCanBus`/`ReplayCanBus` (native tests), future `Mcp2515CanBus`/`Mcp2518CanBus`
+  (expansion header). ALL code touches CAN only through this interface.
+- **EventBus (CR-07, `src/core/EventBus`)**: `CAN → Decoder → EventBus → {CarState, Display
+  feed, BLE, Raise emitter, Logger, Web}` — modules subscribe to signal-change events instead
+  of holding references to each other. The decoder publishes; consumers never poll each other.
+- **Logging pipeline (CR-08)**: `Event → PSRAM ring → Logger → LittleFS`. FsLogger is the
+  ONLY module that opens files; everything else emits events into the ring.
 
 Vehicle-side modules (all portable except drivers):
 - `vh/target/vh_main.cpp` — thin wiring; M1 renames/expands into the GW main.
@@ -518,15 +581,17 @@ v2.0 image with its link service) renders GW-routed media on the virtual display
 **M2 — DISP firmware:** `[env:disp-c3]` — display drivers + multimedia CAN + SWC→`KEY_EVT` +
 MediaInfo-from-link + `DISP_CMD` server + USB serial proxy + LinkTunnel (incl. the GW USB
 tunnel, §3.4) + the python tunnel tool. No BLE/WiFi/web. Exit: bench pair GW+DISP does
-media, keys, display steering from GW's web, OTA both directions, GW flash through DISP USB.
+media, keys, display steering from GW's web, the release-bundle update flow (§3.4) end to
+end, and a GW flash through DISP's USB.
 
 **M3 — BLE re-validation:** iPhone AMS/ANCS/CTS + DUDU HID against GW's classic-ESP32 BLE
 (4.2 dual-mode vs C3's BLE5 — NimBLE code identical, bench env proves it builds/runs; verify
 bonds persist + advertising invariants on real phones). Exit: same behaviors as the C3 image.
 
 **M4 — car cutover:** solder per §3.2/§3.1 (dedicated 3.3V reg), GW to OBD 6/14 + DUDU USB +
-canbox UART, DISP keeps its splice. Old full-C3 image stays in DISP's second OTA slot — if GW
-misbehaves, boot DISP back to v2.0 and the car works exactly as before the swap.
+canbox UART, DISP keeps its splice. Clean cutover, no legacy images (owner decision): if
+something misbehaves, fix forward — both boards stay reachable through the SuperMini USB
+(§3.4) without pulling anything from the dash.
 
 ### Feature phases (run on the final GW/DISP topology)
 
@@ -554,9 +619,10 @@ as second controller — `ICanBus` seam ready — retiring the C3 entirely); GPI
 | Risk | Mitigation |
 |---|---|
 | GW power (BLE always + WiFi peaks on WROVER) | Dedicated ≥600mA 3.3V regulator from day one (§3.1, owner-approved); bulk caps; measure under WiFi+BLE load in M4 |
-| BLE behavior differs on classic ESP32 vs C3 | Same NimBLE code already builds/ran as the `esp32dev` bench env; M3 re-validates bonds/advertising with real phones BEFORE the car cutover; C3 fallback image keeps the old world bootable |
-| GW bricked by bad OTA-over-link | Dual OTA slots + rollback on watchdog; §3.4 USB tunnel through DISP; worst case = jig clip on UART0 pads |
-| DISP bricked | Native USB always wired; v2.0 full image in the second OTA slot |
+| BLE behavior differs on classic ESP32 vs C3 | Same NimBLE code already builds/ran as the `esp32dev` bench env; M3 re-validates bonds/advertising with real phones BEFORE the car cutover |
+| GW bricked by bad OTA | Bundle fully buffered in PSRAM before any flash; dual-slot boot rollback (OTA mechanics, not legacy images); §3.4 USB tunnel through DISP; worst case = jig clip on UART0 pads |
+| DISP bricked | Native USB always wired — reflash in seconds |
+| Mixed firmware versions across the two boards | Release bundle only (gw+disp built together); HELLO carries fw_ver — mismatch shows loudly in the web UI |
 | DUDU7 doesn't emit media text on UART | Plan B: HU-side Android app over WiFi; Plan C: AMS unchanged |
 | Mégane II IDs differ from Clio III table | P2 correlation sniff before anything depends on them; listen-only means zero risk while sniffing |
 | DUDU Raise-Toyota quirks (seatbelt, long-press) | Skip broken addresses; key mapping configurable |

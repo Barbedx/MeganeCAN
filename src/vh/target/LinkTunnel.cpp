@@ -1,10 +1,15 @@
 #include "LinkTunnel.h"
 #include "VhConfig.h"
+#include "../../link/ProgProto.h"
 #include <Arduino.h>
 #include <Update.h>
 #include <string.h>
 
 using namespace LinkProto;
+using ProgProto::OTA_BEGIN;
+using ProgProto::OTA_DATA;
+using ProgProto::OTA_END;
+using ProgProto::OTA_STAT;
 
 void LinkTunnel::begin(LinkPort& link, VhFs::FsLogger& fs)
 {

@@ -1,10 +1,13 @@
 #pragma once
 #include <stdint.h>
 
-// LinkProto v1 — the MM (ESP32-C3) <-> VH (WROVER) inter-board protocol
-// (ARCHITECTURE-V2 §4). Wire: COBS-encoded frames delimited by 0x00; the
-// pre-COBS frame is [ver:1][type:1][seq:1][payload…][crc16-ccitt BE:2], CRC
-// over ver..payload. Unknown types are skipped (forward compatible).
+// LinkProto — the RUNTIME inter-board protocol (ARCHITECTURE-V2 §4). Wire:
+// COBS-encoded frames delimited by 0x00; the pre-COBS frame is
+// [ver:1][type:1][seq:1][payload…][crc16-ccitt BE:2], CRC over ver..payload.
+// Unknown types are skipped (forward compatible).
+//
+// CR-01: firmware upload/recovery lives in the separate, independently
+// versioned ProgProto.h (type range 0x70-0x7F, same byte transport).
 namespace LinkProto
 {
     constexpr uint8_t  VERSION       = 1;
@@ -35,11 +38,22 @@ namespace LinkProto
         FILE_REQ   = 0x61, // {offset:4 LE, name\0}
         FILE_DATA  = 0x62, // {offset:4 LE, total:4 LE, data...} (empty data = EOF)
         FILE_ACK   = 0x63, // {offset:4 LE} flow control
-        OTA_BEGIN  = 0x70, // {size:4 LE}
-        OTA_DATA   = 0x71, // {offset:4 LE, data...}
-        OTA_END    = 0x72, // {crc? reserved}
-        OTA_STAT   = 0x73, // {code:1 (0=ok/ack, else error), detail:4 LE}
+        // 0x70-0x7F reserved for the programming transport — see ProgProto.h (CR-01).
     };
+
+    // HELLO capability bitmap (CR-05): what the peer can do. GW adapts features
+    // to the attached peripheral from this — never from its name or an ifdef.
+    // CAP_ prefix: bare names collide with Arduino.h macros (DISPLAY, …).
+    namespace Caps {
+        constexpr uint32_t CAP_DISPLAY  = 0x01;  // drives an OEM display
+        constexpr uint32_t CAP_CAN      = 0x02;  // owns a CAN interface
+        constexpr uint32_t CAP_BLE      = 0x04;  // BLE roles (AMS/HID)
+        constexpr uint32_t CAP_LOGGER   = 0x08;  // FS capture/logging
+        constexpr uint32_t CAP_OTA      = 0x10;  // accepts ProgProto flashing
+        constexpr uint32_t CAP_KEYBOARD = 0x20;  // emits key events
+        constexpr uint32_t CAP_MEDIA    = 0x40;  // media source/render
+        constexpr uint32_t CAP_WEB      = 0x80;  // hosts the web UI
+    }
 
     // MEDIA_TEXT field ids
     enum MediaField : uint8_t {

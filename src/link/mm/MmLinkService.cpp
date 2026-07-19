@@ -1,6 +1,7 @@
 #include "MmLinkService.h"
 #include "../LinkPort.h"
 #include "../HwSerialLinkStream.h"
+#include "../ProgProto.h"
 #include "../../bus/ArduinoClock.h"
 #include "../../media/HuLinkMediaSource.h"
 #include "../../utils/AppConfig.h"
@@ -8,12 +9,18 @@
 #include <string.h>
 
 using namespace LinkProto;
+using ProgProto::OTA_BEGIN;
+using ProgProto::OTA_DATA;
+using ProgProto::OTA_END;
+using ProgProto::OTA_STAT;
 
 namespace MmLink
 {
     // ---- state (loop-task owned unless noted) -------------------------------
     static constexpr uint16_t MM_FW_VER = 0x0100;
-    static constexpr uint32_t MM_CAPS   = 0x1;
+    static constexpr uint32_t MM_CAPS =             // CR-05 capability bitmap
+        Caps::CAP_DISPLAY | Caps::CAP_CAN | Caps::CAP_BLE | Caps::CAP_OTA |
+        Caps::CAP_KEYBOARD | Caps::CAP_MEDIA | Caps::CAP_WEB;
     static constexpr int PIN_TX = 21, PIN_RX = 20;   // §3.2 (SuperMini TX/RX pins)
 
     static bool s_enabled = false;
