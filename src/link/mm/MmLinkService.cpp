@@ -1,4 +1,5 @@
 #include "MmLinkService.h"
+#include "../LinkUi.h"
 #include "../LinkPort.h"
 #include "../HwSerialLinkStream.h"
 #include "../ProgProto.h"
@@ -503,4 +504,23 @@ namespace MmLink
         j += "}";
         return j;
     }
+}
+
+// LinkUi (the role-neutral web surface) — C3/MM role: everything proxies to
+// the remote vehicle board over the link.
+namespace LinkUi
+{
+    bool enabled() { return MmLink::enabled(); }
+    bool up() { return MmLink::up(); }
+    String statusJson() { return MmLink::statusJson(); }
+    bool cfgGet(const char* k, char* v, size_t n) { return MmLink::cfgGet(k, v, n); }
+    bool cfgSet(const char* k, const char* v) { return MmLink::cfgSet(k, v); }
+    bool capCtl(uint8_t op, uint8_t mode, uint16_t secs) { return MmLink::capCtl(op, mode, secs); }
+    bool fileLs(String& j) { return MmLink::fileLs(j); }
+    int fileRead(const char* n, uint32_t off, uint8_t* b, size_t m, uint32_t& t)
+    { return MmLink::fileRead(n, off, b, m, t); }
+    bool otaBegin(uint32_t size) { return MmLink::otaBegin(size); }
+    bool otaWrite(const uint8_t* d, size_t l) { return MmLink::otaWrite(d, l); }
+    bool otaEnd() { return MmLink::otaEnd(); }
+    const char* otaError() { return MmLink::otaError(); }
 }

@@ -36,6 +36,10 @@ namespace Vh
                                   uint8_t* out);
         static uint8_t checksum(uint8_t cmd, uint8_t len, const uint8_t* payload);
 
+        // Mégane SWC AffaKey (u16) -> Raise RAV4 key code; 0 = unmapped.
+        // Lives with the profile (the HU owns its codes); P3 tunes it on DUDU.
+        static uint8_t rav4CodeForAffa(uint16_t affaKey);
+
         // Raise doors mask (0x24): driver 0x80, passenger 0x40, RR 0x20,
         // RL 0x10, boot 0x08.
         static uint8_t doorsMask(const VehicleState& s);

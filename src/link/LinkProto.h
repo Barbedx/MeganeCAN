@@ -27,6 +27,7 @@ namespace LinkProto
         MEDIA_TEXT = 0x11, // {field:1, utf8 text...}
         HU_STATUS  = 0x12, // {linkUp:1, source:1, volume:1, freq_x10:2 LE}
         KEY_EVT    = 0x20, // {affaKey:2 LE, edge:1 (0=release,1=press,2=long)}
+        DISP_CMD   = 0x21, // {op:1 (DispOp), args...} — GW steers the peripheral's display
         RAW_FRAME  = 0x30, // {bus:1, id:2 LE, dlc:1, data...}
         TIME       = 0x40, // {unix:4 LE} clock sync (MM has CTS/NTP)
         LOG        = 0x41, // text line (throttled)
@@ -58,6 +59,25 @@ namespace LinkProto
     // MEDIA_TEXT field ids
     enum MediaField : uint8_t {
         MF_TITLE = 0, MF_ARTIST = 1, MF_ALBUM = 2, MF_SOURCE = 3, MF_STATE = 4,
+    };
+
+    // DISP_CMD ops — the IDisplay surface serialized (GW's RemoteDisplay sends,
+    // the peripheral's DISP_CMD server executes on its local driver). Strings
+    // are NUL-terminated and packed back to back.
+    enum DispOp : uint8_t {
+        DO_SET_TEXT   = 1,  // {digit:1, text...}
+        DO_SET_STATE  = 2,  // {on:1}
+        DO_SET_TIME   = 3,  // {"HHMM"}
+        DO_SHOW_MENU  = 4,  // {scroll:1, header\0 item1\0 item2\0}
+        DO_INFO_POPUP = 5,  // {l1\0 l2\0 l3\0}
+        DO_HIDE_INFO  = 6,  // {}
+        DO_CONFIRM    = 7,  // {cap\0 r1\0 r2\0}
+        DO_FULLSCREEN = 8,  // {l1\0 l2\0 l3\0}
+        DO_HIDE_FULL  = 9,  // {}
+        DO_POPUP_TEXT = 10, // {icon:1, srcIcon:1, fmt:1, text...}
+        DO_HIDE_POPUP = 11, // {}
+        DO_KEY        = 12, // {affaKey:2 LE, hold:1} — inject into the display's ProcessKey
+        DO_AUX        = 13, // {on:1}
     };
 
     // TX priority classes — a full queue drops the lowest class first

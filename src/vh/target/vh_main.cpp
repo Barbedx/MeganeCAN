@@ -51,25 +51,6 @@ static void huWrite(const uint8_t* frame, uint8_t len, void*)
     Serial1.write(frame, len);
 }
 
-// ---- AffaKey (Mégane SWC) -> Raise RAV4 key code map ------------------------
-// P3 tunes this on the real DUDU7; the mapping lives here (not MM) so the HU
-// profile owns its own codes.
-static uint8_t affaToRav4(uint16_t affaKey)
-{
-    switch (affaKey)
-    {
-    case 0x0003: return 0x01;   // VolumeUp  -> VOL+
-    case 0x0004: return 0x02;   // VolumeDown-> VOL-
-    case 0x0005: return 0x16;   // Pause     -> OK (play/pause in DUDU UI)
-    case 0x0101: return 0x85;   // RollUp    -> NEXT
-    case 0x0141: return 0x86;   // RollDown  -> PREV
-    case 0x0001: return 0x07;   // SrcRight  -> SOURCE
-    case 0x0002: return 0x88;   // SrcLeft   -> TEL
-    case 0x0000: return 0x08;   // Load      -> VOICE
-    default:     return 0;
-    }
-}
-
 // ---- link RX ----------------------------------------------------------------
 static void onLinkMsg(uint8_t type, const uint8_t* p, uint16_t len, void*)
 {
@@ -84,7 +65,7 @@ static void onLinkMsg(uint8_t type, const uint8_t* p, uint16_t len, void*)
         if (len >= 3 && VhConfig::keyForward)
         {
             uint16_t key = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-            uint8_t code = affaToRav4(key);
+            uint8_t code = Vh::CanboxEmitter::rav4CodeForAffa(key);
             if (code)
                 g_canbox.sendKey(code, p[2]);
         }

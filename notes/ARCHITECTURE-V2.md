@@ -577,6 +577,10 @@ pages, MediaRouter/KeyRouter, CTS). Display becomes a `RemoteDisplay : IDisplay`
 `MEDIA_TEXT`/`DISP_CMD` over the link; `KEY_EVT` flows in and feeds KeyRouter. Exit: on the
 bench, GW serves the web UI over WiFi, pairs the iPhone, and the C3 (still running the full
 v2.0 image with its link service) renders GW-routed media on the virtual display.
+*Status 2026-07-20: CODE COMPLETE — src/gw/ (gw_main, RemoteDisplay, GwLink+LinkUi,
+CanboxKeySink), LinkUi role facade (link-time selection, no ifdefs), partitions_gw.csv
+(2×1.44MB app + 1MB littlefs); image 85.7% RAM 26.1%. All 5 envs + 78/78 native green.
+Bench exit criterion awaits the wired boards.*
 
 **M2 — DISP firmware:** `[env:disp-c3]` — display drivers + multimedia CAN + SWC→`KEY_EVT` +
 MediaInfo-from-link + `DISP_CMD` server + USB serial proxy + LinkTunnel (incl. the GW USB

@@ -1,0 +1,9 @@
+# GW board (ESP32-WROVER, 4MB): the full brain image (WiFi+BT+web) needs
+# C3-sized slots — 1.4375MB each — plus LittleFS for capture logs (the PSRAM
+# ring stages them, so 1MB of flash is plenty). ARCHITECTURE-V2 §5/§7.
+# Name,     Type, SubType, Offset,   Size
+nvs,        data, nvs,     0x9000,   0x5000
+otadata,    data, ota,     0xe000,   0x2000
+app0,       app,  ota_0,   0x10000,  0x170000
+app1,       app,  ota_1,   0x180000, 0x170000
+littlefs,   data, spiffs,  0x2F0000, 0x110000
