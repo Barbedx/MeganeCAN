@@ -146,6 +146,11 @@ void loop()
     DispLink::service(now);
     g_tunnel.service(now);
 
+    // GW changed a boot-time display key over CFG: restart into the new driver
+    // (the CFG_ACK has had time to drain).
+    if (DispLink::cfg().rebootAtMs() && now >= DispLink::cfg().rebootAtMs())
+        ESP.restart();
+
     display->processEvents();
     display->tickMedia();   // link-fed media; no BLE gate on this board
     if (now - last_sync > SYNC_INTERVAL_MS)

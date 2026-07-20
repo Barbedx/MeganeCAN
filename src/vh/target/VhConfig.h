@@ -23,6 +23,16 @@ namespace VhConfig
     bool set(const char* key, const char* value);   // persists + updates RAM
     bool get(const char* key, char* out, size_t outLen);
 
-    // Bumped by set(); vh_main re-applies runtime knobs when it changes.
+    // Bumped by set(); the GW main re-applies runtime knobs when it changes.
     uint32_t generation();
 }
+
+#include "LinkTunnel.h"   // ITunnelConfig
+
+// The GW's tunnel-config binding: exposes the vehicle/canbox knobs above.
+struct VhConfigAdapter : ITunnelConfig {
+    bool get(const char* key, char* out, size_t outLen) override
+    { return VhConfig::get(key, out, outLen); }
+    bool set(const char* key, const char* value) override
+    { return VhConfig::set(key, value); }
+};

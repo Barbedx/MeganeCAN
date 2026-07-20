@@ -356,10 +356,12 @@ src/disp/       (M2) DISP main
 Envs, final set:
 - `[env:gw-wrover]` — GW firmware (M1): vehicle modules + BLE + WiFi/web + routers + link.
 - `[env:disp-c3]` — DISP firmware (M2): display + multimedia CAN + link + USB proxy.
-- `[env:esp32dev-mini]` — legacy full C3 image, kept until M4 cutover proves out (fallback).
+- `[env:esp32dev-mini]` — legacy full C3 image, kept until M4 cutover proves out.
 - `[env:esp32dev]` — bench board (WROOM): today's full firmware for display-RE work.
-- `[env:native]` — host tests (link codec, decoder tables, canbox golden vectors, media/keys).
-- Transitional: `[env:vehicle-wrover]` (P1 VH-only image) is subsumed by `gw-wrover` in M1.
+- `[env:native]` — host tests (link codec, decoder tables, canbox golden vectors, media/keys,
+  DISP_CMD/MEDIA_TEXT round-trip).
+- The P1-transitional `vehicle-wrover` image was deleted (owner: no legacy) — `gw-wrover`
+  covers everything it did.
 
 ## 8. Verified data annex (research results)
 

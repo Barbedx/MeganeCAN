@@ -1,7 +1,17 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 #include "../../link/LinkPort.h"
 #include "FsLogger.h"
+
+// What the CFG_GET/SET tunnel exposes is board-specific (CR-02: the peer
+// decides nothing) — GW binds its vehicle/canbox knobs (VhConfig), DISP binds
+// its display keys (display_type, skip_funcreg, ...). String-keyed either way.
+struct ITunnelConfig {
+    virtual ~ITunnelConfig() = default;
+    virtual bool get(const char* key, char* out, size_t outLen) = 0;
+    virtual bool set(const char* key, const char* value) = 0;
+};
 
 // The VH maintenance plane (ARCHITECTURE-V2 §5): config, capture control, log
 // pull and firmware-OTA — all over LinkProto, because VH has no WiFi/BT and
@@ -21,7 +31,7 @@
 //   OTA_END {}                 -> OTA_STAT {0, size} then reboot into the new image
 class LinkTunnel {
 public:
-    void begin(LinkPort& link, VhFs::FsLogger& fs);
+    void begin(LinkPort& link, VhFs::FsLogger& fs, ITunnelConfig& cfg);
     // Feed one app-level link message; returns true if consumed.
     bool handle(uint8_t type, const uint8_t* p, uint16_t len);
     void service(uint32_t nowMs);      // deferred reboot after OTA_END
@@ -34,6 +44,7 @@ private:
 
     LinkPort* _link = nullptr;
     VhFs::FsLogger* _fs = nullptr;
+    ITunnelConfig* _cfg = nullptr;
 
     bool _otaActive = false;
     uint32_t _otaSize = 0;

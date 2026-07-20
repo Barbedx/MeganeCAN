@@ -25,8 +25,8 @@ public:
     //void setMediaInfo();
 void setKeyHandler(KeyHandler handler)
 {
-    LOGD("AFFA", "setKeyHandler = %X", (unsigned)(uint32_t)keyHandler);
     keyHandler = handler;
+    LOGD("AFFA", "setKeyHandler = %X", (unsigned)(uint32_t)keyHandler);
 }
     // by default – нічого не робить, не всі дисплеї зобов’язані підтримувати медіа
     virtual void setMediaInfo(const MediaInfo& info) {

@@ -4,6 +4,7 @@
 #include "../media/MediaRouter.h"
 #include "../media/HuLinkMediaSource.h"
 #include "../vh/target/LinkTunnel.h"
+#include "DispCfg.h"
 
 // DISP-side link endpoint (M2): the thin peripheral's only brain-facing port.
 //   in:  MEDIA_TEXT -> MediaInfo -> display, DISP_CMD -> local driver calls,
@@ -19,6 +20,7 @@ namespace DispLink
     bool up();
 
     HuLinkMediaSource& mediaSource();
+    DispCfg& cfg();   // reboot-pending polled by disp_main
 
     void sendKey(uint16_t affaKey, uint8_t edge);
     // From the USB console: inject one raw frame into the link (the @PROG bridge).

@@ -1,5 +1,4 @@
 #include "LinkTunnel.h"
-#include "VhConfig.h"
 #include "../../link/ProgProto.h"
 #include <Arduino.h>
 #include <Update.h>
@@ -11,10 +10,11 @@ using ProgProto::OTA_DATA;
 using ProgProto::OTA_END;
 using ProgProto::OTA_STAT;
 
-void LinkTunnel::begin(LinkPort& link, VhFs::FsLogger& fs)
+void LinkTunnel::begin(LinkPort& link, VhFs::FsLogger& fs, ITunnelConfig& cfg)
 {
     _link = &link;
     _fs = &fs;
+    _cfg = &cfg;
 }
 
 void LinkTunnel::cfgAck(bool ok, const char* key, const char* value)
@@ -53,8 +53,8 @@ bool LinkTunnel::handle(uint8_t type, const uint8_t* p, uint16_t len)
         // payload: key\0 (a lone NUL-less key is tolerated)
         char key[24] = {};
         strncpy(key, (const char*)p, len < sizeof(key) - 1 ? len : sizeof(key) - 1);
-        char val[16];
-        bool ok = VhConfig::get(key, val, sizeof(val));
+        char val[24];
+        bool ok = _cfg && _cfg->get(key, val, sizeof(val));
         cfgAck(ok, key, ok ? val : "");
         return true;
     }
@@ -70,7 +70,7 @@ bool LinkTunnel::handle(uint8_t type, const uint8_t* p, uint16_t len)
             strncpy(val, (const char*)(p + nul + 1),
                     vlen < sizeof(val) - 1 ? vlen : sizeof(val) - 1);
         }
-        bool ok = VhConfig::set(key, val);
+        bool ok = _cfg && _cfg->set(key, val);
         cfgAck(ok, key, val);
         return true;
     }

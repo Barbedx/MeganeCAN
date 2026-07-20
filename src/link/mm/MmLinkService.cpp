@@ -3,6 +3,7 @@
 #include "../LinkPort.h"
 #include "../HwSerialLinkStream.h"
 #include "../ProgProto.h"
+#include "../ProgOtaClient.h"
 #include "../../bus/ArduinoClock.h"
 #include "../../media/HuLinkMediaSource.h"
 #include "../../utils/AppConfig.h"
@@ -60,19 +61,8 @@ namespace MmLink
     static MiniMsg s_miniQ[8];
     static volatile uint8_t s_miniHead = 0, s_miniTail = 0;
 
-    // OTA streaming state (handler fills the buffer; service drains it).
-    enum OtaState : uint8_t { OTA_IDLE, OTA_RUN, OTA_ERROR };
-    static volatile OtaState s_otaState = OTA_IDLE;
-    static uint8_t  s_otaBuf[2048];
-    static volatile uint16_t s_otaBufLen = 0;   // handler writes, service consumes
-    static uint16_t s_otaBufOff = 0;
-    static uint32_t s_otaSent = 0;              // bytes acked by VH
-    static uint32_t s_otaInFlightOff = 0;
-    static volatile bool s_otaAwaitAck = false;
-    static uint32_t s_otaLastTxMs = 0;
-    static char s_otaErr[32] = "";
-
-    constexpr uint16_t OTA_CHUNK = 112;         // 4B offset + data ≤ MAX_PAYLOAD
+    // Peer-OTA: the shared flasher (link/ProgOtaClient), bound in begin().
+    static ProgOtaClient s_peerOta;
 
     // ---- link RX ------------------------------------------------------------
     static void onMsg(uint8_t type, const uint8_t* p, uint16_t len, void*)
@@ -118,25 +108,9 @@ namespace MmLink
             LOGI("VH", "%.*s", (int)len, (const char*)p);
             return;
         case OTA_STAT:
-            if (len >= 5)
-            {
-                uint8_t code = p[0];
-                uint32_t detail = (uint32_t)p[1] | ((uint32_t)p[2] << 8)
-                                | ((uint32_t)p[3] << 16) | ((uint32_t)p[4] << 24);
-                if (s_otaState == OTA_RUN && s_otaAwaitAck)
-                {
-                    if (code == 0) { s_otaSent = detail; s_otaAwaitAck = false; }
-                    else
-                    {
-                        snprintf(s_otaErr, sizeof(s_otaErr), "vh err %u @%lu",
-                                 code, (unsigned long)detail);
-                        s_otaState = OTA_ERROR;
-                        s_otaAwaitAck = false;
-                    }
-                    return;
-                }
-            }
-            break;   // may also be a mailbox reply (begin/end)
+            if (s_peerOta.onStat(p, len))
+                return;
+            break;
         default:
             break;
         }
@@ -159,6 +133,9 @@ namespace MmLink
         s_stream.bind(Serial1);
         s_port.begin(s_stream, defaultClock(), MM_FW_VER, MM_CAPS);
         s_port.onMessage(onMsg, nullptr);
+        s_peerOta.bind([](uint8_t type, const uint8_t* p, uint16_t n, void*) {
+            return s_port.send(type, p, n, PRIO_HIGH);
+        }, nullptr);
         s_enabled = true;
         LOGI("LINK", "MM link up on UART1 (TX=%d RX=%d, 460800)", PIN_TX, PIN_RX);
     }
@@ -199,33 +176,7 @@ namespace MmLink
         else if (s_op.state == OP_SENT && now - s_op.sentMs > 2000)
             s_op.state = OP_FAIL;   // VH silent — let the handler time out cleanly
 
-        // OTA streaming: stop-and-wait chunks out of the shared buffer.
-        if (s_otaState == OTA_RUN && !s_otaAwaitAck && s_otaBufLen > 0)
-        {
-            uint16_t avail = (uint16_t)(s_otaBufLen - s_otaBufOff);
-            uint16_t n = avail > OTA_CHUNK ? OTA_CHUNK : avail;
-            uint8_t frame[4 + OTA_CHUNK];
-            uint32_t off = s_otaInFlightOff;
-            frame[0] = (uint8_t)(off & 0xFF);
-            frame[1] = (uint8_t)((off >> 8) & 0xFF);
-            frame[2] = (uint8_t)((off >> 16) & 0xFF);
-            frame[3] = (uint8_t)((off >> 24) & 0xFF);
-            memcpy(frame + 4, s_otaBuf + s_otaBufOff, n);
-            if (s_port.send(OTA_DATA, frame, (uint16_t)(4 + n), PRIO_HIGH))
-            {
-                s_otaAwaitAck = true;
-                s_otaLastTxMs = now;
-                s_otaInFlightOff += n;
-                s_otaBufOff = (uint16_t)(s_otaBufOff + n);
-                if (s_otaBufOff >= s_otaBufLen) { s_otaBufOff = 0; s_otaBufLen = 0; }
-            }
-        }
-        if (s_otaState == OTA_RUN && s_otaAwaitAck && now - s_otaLastTxMs > 3000)
-        {
-            snprintf(s_otaErr, sizeof(s_otaErr), "ack timeout @%lu",
-                     (unsigned long)s_otaSent);
-            s_otaState = OTA_ERROR;
-        }
+        s_peerOta.service(now);   // peer-flash chunk pump
 
         s_port.service();
     }
@@ -391,74 +342,17 @@ namespace MmLink
         return (int)got;
     }
 
-    // ---- OTA-over-link ------------------------------------------------------
-    const char* otaError() { return s_otaErr; }
+    // ---- OTA-over-link (shared ProgOtaClient does the whole dance) ----------
+    const char* otaError() { return s_peerOta.error(); }
 
     bool otaBegin(uint32_t size)
     {
-        if (!s_enabled || s_otaState == OTA_RUN) return false;
-        s_otaErr[0] = 0;
-        uint8_t req[4] = { (uint8_t)(size & 0xFF), (uint8_t)((size >> 8) & 0xFF),
-                           (uint8_t)((size >> 16) & 0xFF), (uint8_t)((size >> 24) & 0xFF) };
-        if (!runOp(OTA_BEGIN, req, sizeof(req), OTA_STAT, 8000))   // erase takes a while
-        {
-            snprintf(s_otaErr, sizeof(s_otaErr), "begin timeout");
-            return false;
-        }
-        bool ok = s_op.respLen >= 1 && s_op.resp[0] == 0;
-        if (!ok) snprintf(s_otaErr, sizeof(s_otaErr), "vh begin err %u", s_op.resp[0]);
-        s_op.state = OP_IDLE;
-        if (ok)
-        {
-            s_otaSent = 0;
-            s_otaInFlightOff = 0;
-            s_otaBufLen = 0;
-            s_otaBufOff = 0;
-            s_otaAwaitAck = false;
-            s_otaState = OTA_RUN;
-        }
-        return ok;
+        if (!s_enabled || !up()) return false;
+        return s_peerOta.begin(size);
     }
 
-    bool otaWrite(const uint8_t* data, size_t len)
-    {
-        while (len > 0)
-        {
-            if (s_otaState != OTA_RUN) return false;
-            if (s_otaBufLen == 0)     // service consumed the previous fill
-            {
-                uint16_t n = len > sizeof(s_otaBuf) ? sizeof(s_otaBuf) : (uint16_t)len;
-                memcpy(s_otaBuf, data, n);
-                s_otaBufOff = 0;
-                s_otaBufLen = n;      // hand over to service()
-                data += n;
-                len -= n;
-            }
-            else
-                vTaskDelay(pdMS_TO_TICKS(2));
-        }
-        return true;
-    }
-
-    bool otaEnd()
-    {
-        // Wait for the buffer + in-flight chunk to drain.
-        uint32_t t0 = millis();
-        while ((s_otaBufLen > 0 || s_otaAwaitAck) && s_otaState == OTA_RUN &&
-               millis() - t0 < 10000)
-            vTaskDelay(pdMS_TO_TICKS(5));
-        if (s_otaState != OTA_RUN) return false;
-        s_otaState = OTA_IDLE;
-        if (!runOp(OTA_END, nullptr, 0, OTA_STAT, 15000))   // flash verify takes time
-        {
-            snprintf(s_otaErr, sizeof(s_otaErr), "end timeout");
-            return false;
-        }
-        bool ok = s_op.respLen >= 1 && s_op.resp[0] == 0;
-        if (!ok) snprintf(s_otaErr, sizeof(s_otaErr), "vh end err %u", s_op.resp[0]);
-        s_op.state = OP_IDLE;
-        return ok;
-    }
+    bool otaWrite(const uint8_t* data, size_t len) { return s_peerOta.write(data, len); }
+    bool otaEnd() { return s_peerOta.end(); }
 
     // ---- status JSON --------------------------------------------------------
     String statusJson()
@@ -498,8 +392,8 @@ namespace MmLink
                          (unsigned long)(now - s_huStatusMs));
                 j += buf;
             }
-            if (s_otaState == OTA_RUN)
-                j += ",\"ota\":" + String(s_otaSent);
+            if (s_peerOta.active())
+                j += ",\"ota\":" + String(s_peerOta.progress());
         }
         j += "}";
         return j;
