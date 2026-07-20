@@ -288,8 +288,10 @@ Vehicle-side modules (all portable except drivers):
   feature (fuel level needs a diag request; deferred). esp_task_wdt 5s; CAN-silence + link-loss
   are states, not reboots (the HU may be on while the car is off).
 
-Partitions (WROVER 4MB): nvs 20K / otadata / app0 1.2M / app1 1.2M / LittleFS ~1.4M.
-(If the module turns out to be 8/16MB flash, grow LittleFS.)
+Partitions (`partitions_gw.csv`, WROVER-E N16R8 — owner confirmed **16MB flash** + 8MB
+PSRAM): nvs 20K / otadata / app0 3M / app1 3M / LittleFS ~10M. Ten megabytes of capture
+space = hours of full-bus `.canlog`, and the 3MB app slots never need thinking about again.
+Verify with `esptool flash_id` at the one bench flash.
 
 ## 6. C3 refactors (P0 — done) → DISP firmware (M2)
 
@@ -639,4 +641,4 @@ as second controller — `ICanBus` seam ready — retiring the C3 entirely); GPI
 | HU USB 5V budget for two boards | Measure under WiFi+BLE load in P3; buck fallback |
 | Link UART noise in car | COBS+CRC16, seq numbers, heartbeat; keys are edge events re-sent on release — a lost frame can't stick a key |
 | Display latency over the link | MEDIA_TEXT/DISP_CMD are tiny at 460800 (<1ms/frame); the AFFA3 panel itself is the slow leg (~2s ACK windows) |
-| WROVER flash size unknown (4 vs 8/16MB) | Partition CSV per size; check at bring-up |
+| WROVER flash size | RESOLVED: modules are 16MB (N16R8); partitions_gw.csv uses it — confirm with esptool flash_id at the one bench flash |
