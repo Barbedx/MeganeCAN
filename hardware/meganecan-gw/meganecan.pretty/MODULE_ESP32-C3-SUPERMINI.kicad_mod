@@ -1,0 +1,572 @@
+(footprint "MODULE_ESP32-C3-SUPERMINI"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "ESP32-C3 SuperMini module socket, 2x 1x08 2.54mm THT (15.24mm row spacing), USB-C at -Y; fit female headers so the module is removable")
+	(tags "ESP32 C3 SuperMini module socket header 2.54mm")
+	(property "Reference" "REF**"
+		(at 0 12.9 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "057f4e84-f2fd-5f6c-baa3-a31fc1cbee3a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "MODULE_ESP32-C3-SUPERMINI"
+		(at 0 14.5 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "c87262b9-3f82-5aba-9295-6ff7ab121adb")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "70409f8c-12f2-538f-80fa-c4b26fb13cac")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "ESP32-C3 SuperMini module socket, 2x 1x08 2.54mm THT (15.24mm row spacing), USB-C at -Y; fit female headers so the module is removable"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "8dfba230-2a46-5c7a-8553-b0814b47b485")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -9 -11.26)
+		(end 9 -11.26)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "516912f7-a7f5-5f74-8806-f751c32c6da3")
+	)
+	(fp_line
+		(start 9 -11.26)
+		(end 9 11.26)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "dc89d609-be5d-5bc6-b22b-31dc6a2d92b3")
+	)
+	(fp_line
+		(start 9 11.26)
+		(end -9 11.26)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "fcceba29-e6d8-5144-a27e-4405d29e93b8")
+	)
+	(fp_line
+		(start -9 11.26)
+		(end -9 -11.26)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "cc57663a-9b10-5c4e-81e3-951ad7445b5f")
+	)
+	(fp_line
+		(start -9.15 -11.41)
+		(end 9.15 -11.41)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "8e01dade-a95d-51b8-b8da-a2efd2669cb1")
+	)
+	(fp_line
+		(start 9.15 -11.41)
+		(end 9.15 11.41)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "2b4c0f22-7ac9-5e9f-b543-7fd61af7b059")
+	)
+	(fp_line
+		(start 9.15 11.41)
+		(end -9.15 11.41)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "6ed99adc-d354-5c89-9a48-111b63a2e5de")
+	)
+	(fp_line
+		(start -9.15 11.41)
+		(end -9.15 -11.41)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "4141a9d7-2ce4-5aa6-b9c7-ceed5c28a477")
+	)
+	(fp_line
+		(start -9.25 -12.5)
+		(end 9.25 -12.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "ae3a0ea3-7bad-5797-81c8-d3b25b6341c4")
+	)
+	(fp_line
+		(start 9.25 -12.5)
+		(end 9.25 11.51)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "a7f11851-8794-51ee-9e8b-9dc3e8675610")
+	)
+	(fp_line
+		(start 9.25 11.51)
+		(end -9.25 11.51)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "80418cb0-7775-5d12-a677-01974aa8fa62")
+	)
+	(fp_line
+		(start -9.25 11.51)
+		(end -9.25 -12.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "8d7cb7de-ed60-57da-8951-619cce723758")
+	)
+	(fp_line
+		(start -2.6 -10.4)
+		(end 2.6 -10.4)
+		(stroke
+			(width 0.5)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "98a7d1e9-f205-5f54-bffb-d8198e6dfbd5")
+	)
+	(fp_poly
+		(pts
+				(xy 0 -9.1)
+				(xy -1.1 -10.2)
+				(xy 1.1 -10.2)
+		)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.SilkS")
+		(uuid "7e95b812-90c5-5f6e-a950-c4f599c3951c")
+	)
+	(fp_text user "USB"
+		(at 0 -12.4 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "22415b58-cfdf-5f68-8b19-6d1bc2a3a51f")
+		(effects
+			(font
+				(size 1.2 1.2)
+				(thickness 0.24)
+				(bold yes)
+			)
+		)
+	)
+	(fp_poly
+		(pts
+				(xy -8.75 -10.9)
+				(xy -7.75 -10.9)
+				(xy -8.25 -10.2)
+		)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.SilkS")
+		(uuid "94978bca-4128-5b1c-b385-9e3f5db80a38")
+	)
+	(fp_text user "1 5V"
+		(at -5.5 -10.55 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "5fe48bcf-8187-5edb-bf95-59b9410ee0a1")
+		(effects
+			(font
+				(size 0.7 0.7)
+				(thickness 0.12)
+			)
+		)
+	)
+	(pad "1" thru_hole rect
+		(at -7.62 -8.89)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "c2cb72ec-82c7-56b6-bbf7-34652485790b")
+	)
+	(fp_text user "5V"
+		(at -7.62 -8.89 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "219d8666-b2df-542e-b878-5fef3820ac15")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "2" thru_hole circle
+		(at -7.62 -6.35)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "584ae966-8fb0-51db-899f-638355c25a18")
+	)
+	(fp_text user "GND"
+		(at -7.62 -6.35 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "e3282fad-f13c-50b6-8dbc-636dd2afd2f9")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "3" thru_hole circle
+		(at -7.62 -3.81)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "b62e49cb-277b-5b77-9daa-0d7d5dc9d0ab")
+	)
+	(fp_text user "3V3"
+		(at -7.62 -3.81 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "102a7a09-d982-5591-ac09-88bc22b4a41e")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "4" thru_hole circle
+		(at -7.62 -1.27)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "06d16ef8-feb6-593b-8e82-c90050188108")
+	)
+	(fp_text user "GPIO0"
+		(at -7.62 -1.27 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "5c77165e-a614-5f1a-b907-16d2c7e23d92")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "5" thru_hole circle
+		(at -7.62 1.27)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "7e04e475-1bdd-5428-b0e2-91bd8e372ab9")
+	)
+	(fp_text user "GPIO1"
+		(at -7.62 1.27 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "0fc9d893-331a-5681-b4a7-2d429c2e3eb5")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "6" thru_hole circle
+		(at -7.62 3.81)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "3042c61f-65be-5ba4-b692-81213aee3430")
+	)
+	(fp_text user "GPIO2"
+		(at -7.62 3.81 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "d1f0b7ad-115a-59d0-875c-b4e83f26422e")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "7" thru_hole circle
+		(at -7.62 6.35)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "2ff88bf4-42d4-5e7e-8218-09659baead44")
+	)
+	(fp_text user "GPIO3"
+		(at -7.62 6.35 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "b3462eef-0899-5838-854c-afde578a168c")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "8" thru_hole circle
+		(at -7.62 8.89)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "fceec4cd-2854-5339-8391-5964359bb728")
+	)
+	(fp_text user "GPIO4"
+		(at -7.62 8.89 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "41d172bf-079e-57fd-9fdd-63636511fdd7")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "9" thru_hole circle
+		(at 7.62 8.89)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "5d66143d-ab8e-5b2a-9c59-350312716a37")
+	)
+	(fp_text user "GPIO21"
+		(at 7.62 8.89 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "da7222ee-6fb7-5af1-aebe-a9a3d1491e7a")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "10" thru_hole circle
+		(at 7.62 6.35)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "ea007221-f069-557f-a57d-81ba67376059")
+	)
+	(fp_text user "GPIO20"
+		(at 7.62 6.35 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "57742fa3-fb29-58e2-8f16-aa82fd9185ed")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "11" thru_hole circle
+		(at 7.62 3.81)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "1de90f6f-f396-556d-9607-903f93263686")
+	)
+	(fp_text user "GPIO10"
+		(at 7.62 3.81 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "5b1b7931-e451-5e55-b78d-24045ce34346")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "12" thru_hole circle
+		(at 7.62 1.27)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "399bd5d3-9414-5749-8d24-70ccf390668e")
+	)
+	(fp_text user "GPIO9"
+		(at 7.62 1.27 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "e75cc500-0362-542e-b5e0-f7a18cabff8c")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "13" thru_hole circle
+		(at 7.62 -1.27)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "176ce2ce-5066-5d62-a399-1b2edc71168d")
+	)
+	(fp_text user "GPIO8"
+		(at 7.62 -1.27 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "6a84cfe2-99ff-5edd-8856-cf3ac361441f")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "14" thru_hole circle
+		(at 7.62 -3.81)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "acc0422e-4522-53de-9b7a-e32a2541bb42")
+	)
+	(fp_text user "GPIO7"
+		(at 7.62 -3.81 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "6cd3a5c4-fb0f-5525-bc85-6393fcfff6ee")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "15" thru_hole circle
+		(at 7.62 -6.35)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "17a09bea-3cdb-58e0-a9e4-a07ff1f3029e")
+	)
+	(fp_text user "GPIO6"
+		(at 7.62 -6.35 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "77da3baf-920c-5d6d-a7bc-29ae97933939")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(pad "16" thru_hole circle
+		(at 7.62 -8.89)
+		(size 1.8 1.8)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(uuid "b07e9070-43a1-5996-8bf4-36d0a185a004")
+	)
+	(fp_text user "GPIO5"
+		(at 7.62 -8.89 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "2342b657-aaaa-58d8-8175-dc82a11db749")
+		(effects
+			(font
+				(size 0.6 0.6)
+				(thickness 0.1)
+			)
+		)
+	)
+	(fp_text user "Module underside sits ~8.5 mm above the carrier; the inter-row corridor is 15.24 - 1.80 = 13.44 mm. Anything placed under the module must be <=7 mm tall and solderable before the headers are fitted. Prefer GND pour and routing only."
+		(at 0 13.8 0)
+		(unlocked yes)
+		(layer "Cmts.User")
+		(uuid "00c35230-22e9-53f3-bd7a-6b5e9ce26e7d")
+		(effects
+			(font
+				(size 0.7 0.7)
+				(thickness 0.1)
+			)
+		)
+	)
+	(fp_text user "3V3 (pad 3) is the module LDO OUTPUT - do NOT tie to the carrier 3V3 rail"
+		(at 0 15 0)
+		(unlocked yes)
+		(layer "Cmts.User")
+		(uuid "77aeb15d-b8ed-5241-9f36-b3e336e6908b")
+		(effects
+			(font
+				(size 0.7 0.7)
+				(thickness 0.1)
+			)
+		)
+	)
+	(embedded_fonts no)
+)

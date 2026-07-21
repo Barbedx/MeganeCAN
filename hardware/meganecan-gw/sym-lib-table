@@ -1,0 +1,4 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "MeganeCAN")(type "KiCad")(uri "${KIPRJMOD}/meganecan.kicad_sym")(options "")(descr "MeganeCAN GW project symbols"))
+)

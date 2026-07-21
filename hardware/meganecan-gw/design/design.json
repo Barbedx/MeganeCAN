@@ -1,0 +1,2608 @@
+{
+  "schema": "meganecan-gw.design.v1",
+  "revision": "2026-07-20b",
+  "board": "MeganeCAN GW carrier — ESP32-WROVER-IB (GW brain) + ESP32-C3 SuperMini (DISP co-processor, socketed) + 2x SN65HVD230, 12V automotive input",
+  "fab": {
+    "house": "JLCPCB",
+    "layers": 2,
+    "assembly": "hand"
+  },
+  "sources_reconciled": [
+    "design/wrover-ib.md  — WROVER pin-name -> pad-number map, custom symbol + footprint geometry",
+    "design/c3-supermini.md — C3 socket pin order + pad numbers, footprint geometry",
+    "design/power.md — power tree; SECTION 7 RECOMMENDATION ADOPTED (AMS1117-3.3 deleted, LM2596S-3.3 12V->3V3)",
+    "design/netlist.md — base netlist and refdes scheme; superseded where power.md §7 applies"
+  ],
+  "power_architecture_decision": {
+    "adopted": "power.md §7 — single change: delete AMS1117-3.3 and the 5V->3V3 linear path; generate 3V3 directly from the protected 12V rail with an on-board LM2596S-3.3 switcher; demote the Mini-360 to feeding only the C3 SuperMini 5V pin.",
+    "rejected_original": "ARCHITECTURE-V2 CR-06 two-stage tree Mini-360(12->5) -> AMS1117-3.3(5->3.3).",
+    "reason": "AMS1117 dissipates 1.10 W in SOT-223 at the 646 mA 3V3 peak -> Tj 138 C at 70 C automotive ambient (Tjmax 125 C), and it forces the Mini-360 to carry ~1.00 A, past its measured ~750 mA trip point. Both failures vanish when the 3V3 rail is switched from 12 V.",
+    "after": {
+      "linear_dissipation_w": 0.0,
+      "mini360_peak_load_ma": 350,
+      "lm2596_dissipation_w": 0.8,
+      "lm2596_tj_at_70c_ambient": 98,
+      "v3v3_headroom": "3 A rated vs 0.646 A peak"
+    },
+    "why_not_one_3A_buck_to_3V3_for_everything": "The C3 SuperMini's 3V3 pin is its own LDO output; driving it externally while USB is attached creates a second contention path. Keeping the C3 on 5 V preserves exactly one backfeed path (the documented USB maintenance path), already handled by D3."
+  },
+  "rails": [
+    {
+      "net": "V12_PROT",
+      "nominal_v": 12.0,
+      "range_v": [
+        9.0,
+        16.0
+      ],
+      "tvs_clamp_v": 38.9,
+      "source": "ACC via F1 -> D1 -> TVS1"
+    },
+    {
+      "net": "+5V",
+      "nominal_v": 4.55,
+      "range_v": [
+        4.4,
+        5.2
+      ],
+      "peak_ma": 350,
+      "sustained_ma": 120,
+      "source": "PS1 Mini-360 via D3, or C3 USB backfeed"
+    },
+    {
+      "net": "+3V3",
+      "nominal_v": 3.3,
+      "range_v": [
+        3.2,
+        3.4
+      ],
+      "peak_ma": 646,
+      "sustained_ma": 270,
+      "source": "U5 LM2596S-3.3 direct from V12_PROT"
+    }
+  ],
+  "components": [
+    {
+      "ref": "U1",
+      "value": "ESP32-WROVER-IB",
+      "part": "Espressif ESP32-WROVER-IB",
+      "symbol": "MeganeCAN:ESP32-WROVER-IB",
+      "footprint": "MeganeCAN:ESP32-WROVER-IB",
+      "custom": true,
+      "lcsc": null,
+      "notes": "8 MB PSRAM, IPEX antenna, bare module (no onboard regulator). GPIO16/17 are PSRAM-internal; pads 27/28 are NC1/NC2. NRND per datasheet watermark."
+    },
+    {
+      "ref": "U2",
+      "value": "ESP32-C3 SuperMini",
+      "part": "ESP32-C3 SuperMini daughterboard",
+      "symbol": "MeganeCAN:ESP32-C3-SuperMini",
+      "footprint": "MeganeCAN:MODULE_ESP32-C3-SUPERMINI",
+      "custom": true,
+      "lcsc": null,
+      "notes": "Socketed on 2x 1x8 2.54mm female headers, NOT soldered. Has its own onboard LDO — pad 3 (3V3) must stay unconnected."
+    },
+    {
+      "ref": "U3",
+      "value": "SN65HVD230",
+      "part": "TI SN65HVD230DR",
+      "symbol": "Interface_CAN_LIN:SN65HVD230",
+      "footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+      "custom": false,
+      "lcsc": "C12084",
+      "function": "vehicle CAN transceiver (WROVER TWAI, 500k)"
+    },
+    {
+      "ref": "U4",
+      "value": "SN65HVD230",
+      "part": "TI SN65HVD230DR",
+      "symbol": "Interface_CAN_LIN:SN65HVD230",
+      "footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+      "custom": false,
+      "lcsc": "C12084",
+      "function": "multimedia CAN transceiver (C3 TWAI, 500k)"
+    },
+    {
+      "ref": "U5",
+      "value": "LM2596S-3.3",
+      "part": "LM2596S-3.3 fixed 3.3V 3A step-down",
+      "symbol": "Regulator_Switching:LM2596S-3.3",
+      "footprint": "Package_TO_SOT_SMD:TO-263-5_TabPin3",
+      "custom": false,
+      "lcsc": "C347421",
+      "notes": "REPLACES the AMS1117-3.3 of ARCHITECTURE-V2 CR-06. Fixed output — no feedback divider, no trim pot. 40 V max Vin suits automotive. Pad 3 is both GND pin and tab; needs >=2 cm2 pour with >=8 thermal vias."
+    },
+    {
+      "ref": "PS1",
+      "value": "Mini-360 (MP2307)",
+      "part": "MP2307 Mini-360 buck module",
+      "symbol": "MeganeCAN:Mini360",
+      "footprint": "MeganeCAN:MINI360_4pad_Socket",
+      "custom": true,
+      "lcsc": null,
+      "notes": "Pot trimmed to 5.00 V. Feeds ONLY the C3 (~350 mA peak). Pad coordinates PROVISIONAL — caliper-verify before fab; J7 is the fallback."
+    },
+    {
+      "ref": "J7",
+      "value": "BUCK-ALT",
+      "part": "Pin header 1x4 2.54mm",
+      "symbol": "Connector_Generic:Conn_01x04",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "custom": false,
+      "lcsc": null,
+      "notes": "Mitigation B from power.md §1.2 — same four nets as PS1, so a mis-measured Mini-360 footprint can be wired in as a 4-wire pigtail. Cost: 4 holes."
+    },
+    {
+      "ref": "F1",
+      "value": "1812L110/16",
+      "part": "Littelfuse polyfuse PTC, Ihold 1.1A / Itrip 2.2A, 16V",
+      "symbol": "Device:Polyfuse",
+      "footprint": "Fuse:Fuse_1812_4532Metric_Pad1.30x3.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C2830175",
+      "notes": "SMD 1812 adopted over netlist.md's radial THT alternative — hand-solderable and keeps the input loop tight. 16 V rating is fine downstream of TVS1."
+    },
+    {
+      "ref": "D1",
+      "value": "SS56",
+      "part": "Schottky 40V 5A, series reverse-polarity",
+      "symbol": "Device:D_Schottky",
+      "footprint": "Diode_SMD:D_SMA-SMB_Universal_Handsoldering",
+      "custom": false,
+      "lcsc": "",
+      "notes": "Neither Diode:SS54 nor Diode:SS56 exists in KiCad 10 - generic Device:D_Schottky with value SS56. SMA package, Vf ~0.55 V @ 1 A. Upsized from SS54 (40 V) for margin over the 38.9 V TVS clamp.",
+      "description": "Schottky 60V 5A, series reverse-polarity (60V for margin over the 38.9V TVS clamp)"
+    },
+    {
+      "ref": "D2",
+      "value": "SMBJ24A",
+      "part": "TVS unidirectional, Vbr 26.7V, Vclamp 38.9V, 600W",
+      "symbol": "Device:D_TVS",
+      "footprint": "Diode_SMD:D_SMB_Handsoldering",
+      "custom": false,
+      "lcsc": "C2687123",
+      "notes": "Placed AFTER D1 so it clamps the rail the regulators actually see. Device:D_TVS is the bidirectional-looking symbol (pins A1/A2); wire pin 1 to V12_PROT (cathode/band end), pin 2 to GND.",
+      "description": "TVS unidirectional, Vbr 26.7V, Vclamp 38.9V, 600W. Sits on V12_FUSED, UPSTREAM of D1."
+    },
+    {
+      "ref": "D3",
+      "value": "SS34",
+      "part": "Schottky 40V 3A, OR-ing",
+      "symbol": "Diode:SS34",
+      "footprint": "Diode_SMD:D_SMA-SMB_Universal_Handsoldering",
+      "custom": false,
+      "lcsc": "C8678",
+      "notes": "Blocks the C3's USB 5V backfeed from fighting the Mini-360 output. Vf ~0.45 V @ 350 mA -> +5V sits at ~4.55 V when buck-fed, above the C3 LDO's ~3.6 V minimum."
+    },
+    {
+      "ref": "D6",
+      "value": "SS36",
+      "part": "Schottky 40V 3A, LM2596 catch diode",
+      "symbol": "Device:D_Schottky",
+      "footprint": "Diode_SMD:D_SMA-SMB_Universal_Handsoldering",
+      "custom": false,
+      "lcsc": "",
+      "notes": "Cathode to the switch node, anode to the same ground pour region as C16's negative terminal.",
+      "description": "Schottky 60V 3A, LM2596 catch diode"
+    },
+    {
+      "ref": "L1",
+      "value": "33uH/3A",
+      "part": "Shielded power inductor",
+      "symbol": "Device:L",
+      "footprint": "Inductor_SMD:L_12x12mm_H8mm",
+      "custom": false,
+      "lcsc": "C169305"
+    },
+    {
+      "ref": "D4",
+      "value": "GRN",
+      "part": "LED green, power indicator",
+      "symbol": "Device:LED",
+      "footprint": "LED_SMD:LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C2297"
+    },
+    {
+      "ref": "D5",
+      "value": "BLU",
+      "part": "LED blue, status indicator",
+      "symbol": "Device:LED",
+      "footprint": "LED_SMD:LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C2293",
+      "notes": "Driven by U1 IO2 (safe strap — LED-to-GND holds the strap low/floating at boot)."
+    },
+    {
+      "ref": "SW1",
+      "value": "RESET",
+      "part": "Tactile switch SPST-NO 6x6mm",
+      "symbol": "Switch:SW_Push",
+      "footprint": "Button_Switch_THT:SW_PUSH_6mm",
+      "custom": false,
+      "lcsc": "C393939"
+    },
+    {
+      "ref": "SW2",
+      "value": "BOOT",
+      "part": "Tactile switch SPST-NO 6x6mm",
+      "symbol": "Switch:SW_Push",
+      "footprint": "Button_Switch_THT:SW_PUSH_6mm",
+      "custom": false,
+      "lcsc": "C393939"
+    },
+    {
+      "ref": "J1",
+      "value": "PWR",
+      "part": "Screw terminal 3P 5.08mm",
+      "symbol": "Connector_Generic:Conn_01x03",
+      "footprint": "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-3-5.08_1x03_P5.08mm_Horizontal",
+      "custom": false,
+      "pinout": {
+        "1": "BAT (12V permanent)",
+        "2": "ACC (12V ignition-switched)",
+        "3": "GND"
+      }
+    },
+    {
+      "ref": "J2",
+      "value": "VCAN",
+      "part": "Screw terminal 3P 5.08mm",
+      "symbol": "Connector_Generic:Conn_01x03",
+      "footprint": "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-3-5.08_1x03_P5.08mm_Horizontal",
+      "custom": false,
+      "pinout": {
+        "1": "CANH",
+        "2": "CANL",
+        "3": "GND"
+      }
+    },
+    {
+      "ref": "J3",
+      "value": "MMCAN",
+      "part": "Screw terminal 3P 5.08mm",
+      "symbol": "Connector_Generic:Conn_01x03",
+      "footprint": "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-3-5.08_1x03_P5.08mm_Horizontal",
+      "custom": false,
+      "pinout": {
+        "1": "CANH",
+        "2": "CANL",
+        "3": "GND"
+      }
+    },
+    {
+      "ref": "J4",
+      "value": "HU",
+      "part": "JST-XH 3P vertical",
+      "symbol": "Connector_Generic:Conn_01x03",
+      "footprint": "Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical",
+      "custom": false,
+      "pinout": {
+        "1": "GW TX -> HU RX",
+        "2": "GW RX <- HU TX",
+        "3": "GND"
+      },
+      "notes": "DUDU7 canbox UART, 38400 8N1"
+    },
+    {
+      "ref": "J5",
+      "value": "JIG",
+      "part": "Pin header 1x6 2.54mm",
+      "symbol": "Connector_Generic:Conn_01x06",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
+      "custom": false,
+      "pinout": {
+        "1": "+3V3",
+        "2": "TXD0",
+        "3": "RXD0",
+        "4": "EN",
+        "5": "IO0",
+        "6": "GND"
+      },
+      "notes": "CR-09 WROVER USB-serial flash jig"
+    },
+    {
+      "ref": "J6",
+      "value": "EXP",
+      "part": "Pin header 1x12 2.54mm",
+      "symbol": "Connector_Generic:Conn_01x12",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x12_P2.54mm_Vertical",
+      "custom": false,
+      "pinout": {
+        "1": "+3V3",
+        "2": "+5V",
+        "3": "GND",
+        "4": "EN",
+        "5": "IO4",
+        "6": "IO5",
+        "7": "IO13",
+        "8": "IO14",
+        "9": "IO23",
+        "10": "IO27",
+        "11": "IO32",
+        "12": "IO33"
+      },
+      "notes": "CR-10 expansion. IO12 deliberately NOT brought out (flash-voltage strap must float)."
+    },
+    {
+      "ref": "JP1",
+      "value": "SRC-SEL",
+      "part": "Solder jumper 2-pad, OPEN by default",
+      "symbol": "Jumper:SolderJumper_3_Bridged12",
+      "footprint": "Jumper:SolderJumper-3_P1.3mm_Bridged12_RoundedPad1.0x1.5mm",
+      "custom": false,
+      "notes": "CLOSED ties BAT to the ACC node = permanently powered. Mini-360 Iq up to 60 mA (~1.4 Ah/day) would flatten the car battery in under a week. Silkscreen: 'LEAVE OPEN — 60mA DRAIN'.",
+      "description": "Solder jumper 3-pad, pads 1-2 bridged from the factory (ACC selected). Pad 2 is the sole path to F1, so BAT and ACC are never bridged to each other.",
+      "lcsc": ""
+    },
+    {
+      "ref": "JP2",
+      "value": "VCAN-TERM-H",
+      "part": "Solder jumper 2-pad, OPEN by default",
+      "symbol": "Jumper:SolderJumper_2_Open",
+      "footprint": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+      "custom": false,
+      "notes": "Enables vehicle-CAN split termination. Keep OPEN in-car (we tap an already-terminated bus, ARCH §3.3); CLOSE on the bench."
+    },
+    {
+      "ref": "JP3",
+      "value": "MMCAN-TERM-H",
+      "part": "Solder jumper 2-pad, OPEN by default",
+      "symbol": "Jumper:SolderJumper_2_Open",
+      "footprint": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+      "custom": false,
+      "notes": "Enables multimedia-CAN split termination. Same rule as JP2."
+    },
+    {
+      "ref": "R1",
+      "value": "47k",
+      "part": "Resistor 1% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C17714",
+      "function": "ACC sense divider, high side. Do NOT lower — it limits GPIO34 ESD-diode current to ~75 uA at the 38.9 V TVS clamp."
+    },
+    {
+      "ref": "R2",
+      "value": "10k",
+      "part": "Resistor 1% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C17414",
+      "function": "ACC sense divider, low side -> U1 IO34"
+    },
+    {
+      "ref": "R3",
+      "value": "10k",
+      "part": "Resistor 5% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C17414",
+      "function": "WROVER EN pull-up to +3V3"
+    },
+    {
+      "ref": "R4",
+      "value": "10k",
+      "part": "Resistor 5% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C17414",
+      "function": "WROVER IO0 boot-strap pull-up to +3V3"
+    },
+    {
+      "ref": "R5",
+      "value": "0R",
+      "part": "Resistor 5% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "",
+      "function": "U3 Rs slope control to GND",
+      "description": "Resistor 0 ohm jumper 0805 - SN65HVD230 Rs, high-speed mode"
+    },
+    {
+      "ref": "R6",
+      "value": "0R",
+      "part": "Resistor 5% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "",
+      "function": "U4 Rs slope control to GND",
+      "description": "Resistor 0 ohm jumper 0805 - SN65HVD230 Rs, high-speed mode"
+    },
+    {
+      "ref": "R7",
+      "value": "1k",
+      "part": "Resistor 5% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C17513",
+      "function": "D4 power-LED series, on +3V3"
+    },
+    {
+      "ref": "R8",
+      "value": "220R",
+      "part": "Resistor 5% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "",
+      "function": "D5 status-LED series to GND",
+      "description": "Resistor 5% 0805 - blue LED ballast (1k gave ~0.2mA off 3.3V)"
+    },
+    {
+      "ref": "R9",
+      "value": "60.4R",
+      "part": "Resistor 1% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C22980",
+      "function": "Vehicle CAN split termination, H side (behind JP2)"
+    },
+    {
+      "ref": "R10",
+      "value": "60.4R",
+      "part": "Resistor 1% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C22980",
+      "function": "Vehicle CAN split termination, L side"
+    },
+    {
+      "ref": "R11",
+      "value": "60.4R",
+      "part": "Resistor 1% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C22980",
+      "function": "MM CAN split termination, H side (behind JP3)"
+    },
+    {
+      "ref": "R12",
+      "value": "60.4R",
+      "part": "Resistor 1% 0805",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "custom": false,
+      "lcsc": "C22980",
+      "function": "MM CAN split termination, L side"
+    },
+    {
+      "ref": "C1",
+      "value": "100uF/50V",
+      "part": "Aluminium electrolytic",
+      "symbol": "Device:C_Polarized",
+      "footprint": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+      "custom": false,
+      "lcsc": "C3013",
+      "function": "12V input bulk / load-dump reservoir. 50 V (not 25 V) because SMBJ24A clamps at 38.9 V."
+    },
+    {
+      "ref": "C2",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "12V input HF bypass, next to C1"
+    },
+    {
+      "ref": "C16",
+      "value": "100uF/50V",
+      "part": "Aluminium electrolytic",
+      "symbol": "Device:C_Polarized",
+      "footprint": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+      "custom": false,
+      "lcsc": "C3013",
+      "function": "U5 LM2596 input capacitor — keep its negative terminal in the same ground pour region as D6's anode"
+    },
+    {
+      "ref": "C3",
+      "value": "220uF/6.3V low-ESR",
+      "part": "Aluminium electrolytic",
+      "symbol": "Device:C_Polarized",
+      "footprint": "Capacitor_THT:CP_Radial_D6.3mm_P2.50mm",
+      "custom": false,
+      "lcsc": "C3020",
+      "function": "DUAL ROLE: U5 LM2596 output capacitor AND the >=220uF WROVER bulk required by ARCHITECTURE-V2 §3 — place it at the WROVER 3V3 pads and route the regulator output through it"
+    },
+    {
+      "ref": "C4",
+      "value": "10uF/16V X5R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C15850",
+      "function": "+3V3 at U1"
+    },
+    {
+      "ref": "C5",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "+3V3 at U1, close to pad 2"
+    },
+    {
+      "ref": "C6",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "ACC_SENSE debounce / ESD (from power.md §4; absent from netlist.md — added)"
+    },
+    {
+      "ref": "C7",
+      "value": "22uF/10V X7R 1210",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_1210_3225Metric_Pad1.33x2.70mm_HandSolder",
+      "custom": false,
+      "lcsc": "C29823",
+      "function": "+5V rail ceramic decoupling. 1210 because a 22uF X7R in 0805 derates ~60% at bias."
+    },
+    {
+      "ref": "C8",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "U3 VCC decoupling"
+    },
+    {
+      "ref": "C9",
+      "value": "10uF/16V X5R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C15850",
+      "function": "U3 VCC bulk"
+    },
+    {
+      "ref": "C10",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "U4 VCC decoupling"
+    },
+    {
+      "ref": "C11",
+      "value": "10uF/16V X5R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C15850",
+      "function": "U4 VCC bulk"
+    },
+    {
+      "ref": "C12",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "Vehicle CAN split-termination centre -> GND"
+    },
+    {
+      "ref": "C13",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "MM CAN split-termination centre -> GND"
+    },
+    {
+      "ref": "C14",
+      "value": "47uF/10V",
+      "part": "Aluminium electrolytic",
+      "symbol": "Device:C_Polarized",
+      "footprint": "Capacitor_THT:CP_Radial_D5.0mm_P2.00mm",
+      "custom": false,
+      "lcsc": "C3020",
+      "function": "+5V rail bulk"
+    },
+    {
+      "ref": "C15",
+      "value": "100nF/50V X7R",
+      "part": "Ceramic",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "custom": false,
+      "lcsc": "C1590",
+      "function": "EN RC power-on delay with R3"
+    },
+    {
+      "ref": "JP4",
+      "value": "VCAN-TERM-L",
+      "symbol": "Jumper:SolderJumper_2_Open",
+      "footprint": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+      "lcsc": "",
+      "description": "Solder jumper 2-pad, OPEN by default - vehicle CAN split termination, L leg",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "JP5",
+      "value": "MMCAN-TERM-L",
+      "symbol": "Jumper:SolderJumper_2_Open",
+      "footprint": "Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm",
+      "lcsc": "",
+      "description": "Solder jumper 2-pad, OPEN by default - multimedia CAN split termination, L leg",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "R13",
+      "value": "1k",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "lcsc": "C17513",
+      "description": "Series isolation, C3 GPIO21 out -> WROVER IO19 (cross-domain ESD-diode backfeed)",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "R14",
+      "value": "1k",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "lcsc": "C17513",
+      "description": "Series isolation, C3 GPIO4 out -> U4 D",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "R15",
+      "value": "1k",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "lcsc": "C17513",
+      "description": "Series isolation, C3 GPIO3 in <- U4 R",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "R16",
+      "value": "470R",
+      "symbol": "Device:R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",
+      "lcsc": "",
+      "description": "EN -> EN_EXT isolation; keeps J5/J6 cabling off the WROVER reset pin",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "C17",
+      "value": "10uF/50V X7R 1210",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_1210_3225Metric_Pad1.33x2.70mm_HandSolder",
+      "lcsc": "",
+      "description": "LM2596 input bulk ceramic, at U5.VIN",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "C18",
+      "value": "100nF/50V X7R",
+      "symbol": "Device:C",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder",
+      "lcsc": "C1590",
+      "description": "Mini-360 local input ceramic, at PS1.IN+",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "D7",
+      "value": "NUP2105L",
+      "symbol": "Power_Protection:NUP2105L",
+      "footprint": "Package_TO_SOT_SMD:SOT-23",
+      "lcsc": "",
+      "description": "Dual-line CAN bus TVS array, 24 Vrwm - vehicle CAN transient protection at J2",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    },
+    {
+      "ref": "D8",
+      "value": "NUP2105L",
+      "symbol": "Power_Protection:NUP2105L",
+      "footprint": "Package_TO_SOT_SMD:SOT-23",
+      "lcsc": "",
+      "description": "Dual-line CAN bus TVS array, 24 Vrwm - multimedia CAN transient protection at J3",
+      "part": "",
+      "custom": "",
+      "notes": ""
+    }
+  ],
+  "component_count": 64,
+  "custom_symbols": [
+    {
+      "name": "MeganeCAN:ESP32-WROVER-IB",
+      "reference_prefix": "U",
+      "datasheet": "https://documentation.espressif.com/esp32-wrover-b_datasheet_en.pdf",
+      "description": "RF Module, ESP32-D0WD SoC, 8 MB PSRAM, Wi-Fi 802.11b/g/n, Bluetooth/BLE, 3.0-3.6V, IPEX antenna connector, SMD",
+      "body_rect": [
+        [
+          -15.24,
+          -25.4
+        ],
+        [
+          15.24,
+          33.02
+        ]
+      ],
+      "pin_length": 5.08,
+      "geometry_note": "Left pins at X=-20.32 rot 0; right pins at X=+20.32 rot 180; 3V3 at (0,38.10) rot 270; four GND at Y=-30.48 rot 90, X = -7.62/-2.54/+2.54/+7.62. All four GND pins drawn individually (not stacked) so the schematic shows every ground the module needs.",
+      "pins": [
+        {
+          "num": "1",
+          "name": "GND",
+          "type": "power_in",
+          "x": -7.62,
+          "y": -30.48,
+          "rot": 90
+        },
+        {
+          "num": "2",
+          "name": "3V3",
+          "type": "power_in",
+          "x": 0.0,
+          "y": 38.1,
+          "rot": 270
+        },
+        {
+          "num": "3",
+          "name": "EN",
+          "type": "input",
+          "x": -20.32,
+          "y": 30.48,
+          "rot": 0
+        },
+        {
+          "num": "4",
+          "name": "SENSOR_VP",
+          "type": "input",
+          "x": -20.32,
+          "y": 25.4,
+          "rot": 0
+        },
+        {
+          "num": "5",
+          "name": "SENSOR_VN",
+          "type": "input",
+          "x": -20.32,
+          "y": 22.86,
+          "rot": 0
+        },
+        {
+          "num": "6",
+          "name": "IO34",
+          "type": "input",
+          "x": -20.32,
+          "y": 20.32,
+          "rot": 0
+        },
+        {
+          "num": "7",
+          "name": "IO35",
+          "type": "input",
+          "x": -20.32,
+          "y": 17.78,
+          "rot": 0
+        },
+        {
+          "num": "8",
+          "name": "IO32",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -10.16,
+          "rot": 180
+        },
+        {
+          "num": "9",
+          "name": "IO33",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -12.7,
+          "rot": 180
+        },
+        {
+          "num": "10",
+          "name": "IO25",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -2.54,
+          "rot": 180
+        },
+        {
+          "num": "11",
+          "name": "IO26",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -5.08,
+          "rot": 180
+        },
+        {
+          "num": "12",
+          "name": "IO27",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -7.62,
+          "rot": 180
+        },
+        {
+          "num": "13",
+          "name": "IO14",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 15.24,
+          "rot": 180
+        },
+        {
+          "num": "14",
+          "name": "IO12",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 20.32,
+          "rot": 180
+        },
+        {
+          "num": "15",
+          "name": "GND",
+          "type": "power_in",
+          "x": -2.54,
+          "y": -30.48,
+          "rot": 90
+        },
+        {
+          "num": "16",
+          "name": "IO13",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 17.78,
+          "rot": 180
+        },
+        {
+          "num": "17",
+          "name": "SHD/SD2",
+          "type": "bidirectional",
+          "x": -20.32,
+          "y": 12.7,
+          "rot": 0
+        },
+        {
+          "num": "18",
+          "name": "SWP/SD3",
+          "type": "bidirectional",
+          "x": -20.32,
+          "y": 10.16,
+          "rot": 0
+        },
+        {
+          "num": "19",
+          "name": "SCS/CMD",
+          "type": "bidirectional",
+          "x": -20.32,
+          "y": 7.62,
+          "rot": 0
+        },
+        {
+          "num": "20",
+          "name": "SCK/CLK",
+          "type": "bidirectional",
+          "x": -20.32,
+          "y": 5.08,
+          "rot": 0
+        },
+        {
+          "num": "21",
+          "name": "SDO/SD0",
+          "type": "bidirectional",
+          "x": -20.32,
+          "y": 2.54,
+          "rot": 0
+        },
+        {
+          "num": "22",
+          "name": "SDI/SD1",
+          "type": "bidirectional",
+          "x": -20.32,
+          "y": 0.0,
+          "rot": 0
+        },
+        {
+          "num": "23",
+          "name": "IO15",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 12.7,
+          "rot": 180
+        },
+        {
+          "num": "24",
+          "name": "IO2",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 27.94,
+          "rot": 180
+        },
+        {
+          "num": "25",
+          "name": "IO0",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 30.48,
+          "rot": 180
+        },
+        {
+          "num": "26",
+          "name": "IO4",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 25.4,
+          "rot": 180
+        },
+        {
+          "num": "27",
+          "name": "NC1",
+          "type": "no_connect",
+          "x": -20.32,
+          "y": -5.08,
+          "rot": 0
+        },
+        {
+          "num": "28",
+          "name": "NC2",
+          "type": "no_connect",
+          "x": -20.32,
+          "y": -7.62,
+          "rot": 0
+        },
+        {
+          "num": "29",
+          "name": "IO5",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 22.86,
+          "rot": 180
+        },
+        {
+          "num": "30",
+          "name": "IO18",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 10.16,
+          "rot": 180
+        },
+        {
+          "num": "31",
+          "name": "IO19",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 7.62,
+          "rot": 180
+        },
+        {
+          "num": "32",
+          "name": "NC",
+          "type": "no_connect",
+          "x": -20.32,
+          "y": -10.16,
+          "rot": 0
+        },
+        {
+          "num": "33",
+          "name": "IO21",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 5.08,
+          "rot": 180
+        },
+        {
+          "num": "34",
+          "name": "RXD0",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -20.32,
+          "rot": 180
+        },
+        {
+          "num": "35",
+          "name": "TXD0",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": -17.78,
+          "rot": 180
+        },
+        {
+          "num": "36",
+          "name": "IO22",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 2.54,
+          "rot": 180
+        },
+        {
+          "num": "37",
+          "name": "IO23",
+          "type": "bidirectional",
+          "x": 20.32,
+          "y": 0.0,
+          "rot": 180
+        },
+        {
+          "num": "38",
+          "name": "GND",
+          "type": "power_in",
+          "x": 2.54,
+          "y": -30.48,
+          "rot": 90
+        },
+        {
+          "num": "39",
+          "name": "GND",
+          "type": "power_in",
+          "x": 7.62,
+          "y": -30.48,
+          "rot": 90
+        }
+      ]
+    },
+    {
+      "name": "MeganeCAN:ESP32-C3-SuperMini",
+      "reference_prefix": "U",
+      "description": "ESP32-C3 SuperMini daughterboard, socketed on 2x 1x8 2.54mm female headers. Own onboard 3.3V LDO.",
+      "geometry_note": "Body rect (-12.7,-12.7)..(12.7,12.7); left pins 1-8 at X=-17.78 rot 0 descending from Y=+8.89 in 2.54 steps; right pins 9-16 at X=+17.78 rot 180 ascending from Y=-8.89.",
+      "pins": [
+        {
+          "num": "1",
+          "name": "5V",
+          "type": "power_in"
+        },
+        {
+          "num": "2",
+          "name": "GND",
+          "type": "power_in"
+        },
+        {
+          "num": "3",
+          "name": "3V3",
+          "type": "power_out",
+          "note": "LDO OUTPUT — leave unconnected on this carrier"
+        },
+        {
+          "num": "4",
+          "name": "GPIO0",
+          "type": "bidirectional"
+        },
+        {
+          "num": "5",
+          "name": "GPIO1",
+          "type": "bidirectional"
+        },
+        {
+          "num": "6",
+          "name": "GPIO2",
+          "type": "bidirectional",
+          "note": "strapping pin"
+        },
+        {
+          "num": "7",
+          "name": "GPIO3",
+          "type": "bidirectional"
+        },
+        {
+          "num": "8",
+          "name": "GPIO4",
+          "type": "bidirectional"
+        },
+        {
+          "num": "9",
+          "name": "GPIO21",
+          "type": "bidirectional",
+          "note": "U0TXD"
+        },
+        {
+          "num": "10",
+          "name": "GPIO20",
+          "type": "bidirectional",
+          "note": "U0RXD"
+        },
+        {
+          "num": "11",
+          "name": "GPIO10",
+          "type": "bidirectional"
+        },
+        {
+          "num": "12",
+          "name": "GPIO9",
+          "type": "bidirectional",
+          "note": "BOOT button, strapping pin"
+        },
+        {
+          "num": "13",
+          "name": "GPIO8",
+          "type": "bidirectional",
+          "note": "onboard blue LED (inverted), strapping pin"
+        },
+        {
+          "num": "14",
+          "name": "GPIO7",
+          "type": "bidirectional"
+        },
+        {
+          "num": "15",
+          "name": "GPIO6",
+          "type": "bidirectional"
+        },
+        {
+          "num": "16",
+          "name": "GPIO5",
+          "type": "bidirectional"
+        }
+      ]
+    },
+    {
+      "name": "MeganeCAN:Mini360",
+      "reference_prefix": "PS",
+      "description": "Mini-360 (MP2307) step-down module, 4 terminals IN+ IN- OUT+ OUT-, pot-adjustable output",
+      "pins": [
+        {
+          "num": "1",
+          "name": "IN+",
+          "type": "power_in"
+        },
+        {
+          "num": "2",
+          "name": "IN-",
+          "type": "power_in"
+        },
+        {
+          "num": "3",
+          "name": "OUT+",
+          "type": "power_out"
+        },
+        {
+          "num": "4",
+          "name": "OUT-",
+          "type": "power_in"
+        }
+      ]
+    }
+  ],
+  "custom_footprints": [
+    {
+      "name": "MeganeCAN:ESP32-WROVER-IB",
+      "units": "mm",
+      "attr": "smd",
+      "origin": "geometric centre of the 18.0 x 31.4 mm body; +Y away from the antenna; antenna end at Y = -15.70",
+      "body": {
+        "size_x": 18.0,
+        "size_y": 31.4,
+        "height": 3.3,
+        "tol": 0.15
+      },
+      "pad_style": {
+        "type": "smd",
+        "shape": "rect",
+        "size": [
+          1.5,
+          0.9
+        ],
+        "rotation": 0,
+        "layers": [
+          "F.Cu",
+          "F.Mask",
+          "F.Paste"
+        ],
+        "pitch": 1.27,
+        "row_spacing_x": 17.5
+      },
+      "pads": [
+        {
+          "num": "1",
+          "name": "GND",
+          "x": -8.75,
+          "y": -8.26,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "2",
+          "name": "3V3",
+          "x": -8.75,
+          "y": -6.99,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "3",
+          "name": "EN",
+          "x": -8.75,
+          "y": -5.72,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "4",
+          "name": "SENSOR_VP",
+          "x": -8.75,
+          "y": -4.45,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "5",
+          "name": "SENSOR_VN",
+          "x": -8.75,
+          "y": -3.18,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "6",
+          "name": "IO34",
+          "x": -8.75,
+          "y": -1.91,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "7",
+          "name": "IO35",
+          "x": -8.75,
+          "y": -0.64,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "8",
+          "name": "IO32",
+          "x": -8.75,
+          "y": 0.63,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "9",
+          "name": "IO33",
+          "x": -8.75,
+          "y": 1.9,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "10",
+          "name": "IO25",
+          "x": -8.75,
+          "y": 3.17,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "11",
+          "name": "IO26",
+          "x": -8.75,
+          "y": 4.44,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "12",
+          "name": "IO27",
+          "x": -8.75,
+          "y": 5.71,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "13",
+          "name": "IO14",
+          "x": -8.75,
+          "y": 6.98,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "14",
+          "name": "IO12",
+          "x": -8.75,
+          "y": 8.25,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "15",
+          "name": "GND",
+          "x": -8.75,
+          "y": 9.52,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "16",
+          "name": "IO13",
+          "x": -8.75,
+          "y": 10.79,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "17",
+          "name": "SHD/SD2",
+          "x": -8.75,
+          "y": 12.06,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "18",
+          "name": "SWP/SD3",
+          "x": -8.75,
+          "y": 13.33,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "19",
+          "name": "SCS/CMD",
+          "x": -8.75,
+          "y": 14.6,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "20",
+          "name": "SCK/CLK",
+          "x": 8.75,
+          "y": 14.6,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "21",
+          "name": "SDO/SD0",
+          "x": 8.75,
+          "y": 13.33,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "22",
+          "name": "SDI/SD1",
+          "x": 8.75,
+          "y": 12.06,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "23",
+          "name": "IO15",
+          "x": 8.75,
+          "y": 10.79,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "24",
+          "name": "IO2",
+          "x": 8.75,
+          "y": 9.52,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "25",
+          "name": "IO0",
+          "x": 8.75,
+          "y": 8.25,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "26",
+          "name": "IO4",
+          "x": 8.75,
+          "y": 6.98,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "27",
+          "name": "NC1",
+          "x": 8.75,
+          "y": 5.71,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect",
+          "no_connect": true,
+          "note": "GPIO16 = PSRAM CS, not exposed. NEVER route."
+        },
+        {
+          "num": "28",
+          "name": "NC2",
+          "x": 8.75,
+          "y": 4.44,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect",
+          "no_connect": true,
+          "note": "GPIO17 = PSRAM CLK, not exposed. NEVER route."
+        },
+        {
+          "num": "29",
+          "name": "IO5",
+          "x": 8.75,
+          "y": 3.17,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "30",
+          "name": "IO18",
+          "x": 8.75,
+          "y": 1.9,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "31",
+          "name": "IO19",
+          "x": 8.75,
+          "y": 0.63,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "32",
+          "name": "NC",
+          "x": 8.75,
+          "y": -0.64,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect",
+          "no_connect": true
+        },
+        {
+          "num": "33",
+          "name": "IO21",
+          "x": 8.75,
+          "y": -1.91,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "34",
+          "name": "RXD0",
+          "x": 8.75,
+          "y": -3.18,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "35",
+          "name": "TXD0",
+          "x": 8.75,
+          "y": -4.45,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "36",
+          "name": "IO22",
+          "x": 8.75,
+          "y": -5.72,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "37",
+          "name": "IO23",
+          "x": 8.75,
+          "y": -6.99,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "38",
+          "name": "GND",
+          "x": 8.75,
+          "y": -8.26,
+          "w": 1.5,
+          "h": 0.9,
+          "shape": "rect"
+        },
+        {
+          "num": "39",
+          "name": "GND_EPAD",
+          "x": -1.5,
+          "y": -0.46,
+          "w": 3.5,
+          "h": 3.5,
+          "shape": "rect",
+          "layers": [
+            "F.Cu",
+            "F.Mask"
+          ],
+          "zone_connect": 2,
+          "note": "Grounding optional per datasheet. Do not paste the full square when hand-soldering — it floats the module."
+        }
+      ],
+      "epad_vias": {
+        "count": 4,
+        "land": 0.6,
+        "drill": 0.3,
+        "prop": "pad_prop_heatsink",
+        "positions": [
+          [
+            -2.4,
+            -1.36
+          ],
+          [
+            -0.6,
+            -1.36
+          ],
+          [
+            -2.4,
+            0.44
+          ],
+          [
+            -0.6,
+            0.44
+          ]
+        ]
+      },
+      "courtyard": {
+        "x": [
+          -9.75,
+          9.75
+        ],
+        "y": [
+          -15.95,
+          15.95
+        ],
+        "width": 0.05
+      },
+      "fab_outline": [
+        [
+          -8.0,
+          -15.7
+        ],
+        [
+          9.0,
+          -15.7
+        ],
+        [
+          9.0,
+          15.7
+        ],
+        [
+          -9.0,
+          15.7
+        ],
+        [
+          -9.0,
+          -14.7
+        ],
+        [
+          -8.0,
+          -15.7
+        ]
+      ],
+      "silk_segments": [
+        [
+          [
+            -9.12,
+            -15.82
+          ],
+          [
+            9.12,
+            -15.82
+          ]
+        ],
+        [
+          [
+            -9.12,
+            -15.82
+          ],
+          [
+            -9.12,
+            -8.96
+          ]
+        ],
+        [
+          [
+            9.12,
+            -15.82
+          ],
+          [
+            9.12,
+            -8.96
+          ]
+        ],
+        [
+          [
+            -9.12,
+            15.82
+          ],
+          [
+            9.12,
+            15.82
+          ]
+        ],
+        [
+          [
+            -9.12,
+            15.3
+          ],
+          [
+            -9.12,
+            15.82
+          ]
+        ],
+        [
+          [
+            9.12,
+            15.3
+          ],
+          [
+            9.12,
+            15.82
+          ]
+        ]
+      ],
+      "silk_pin1_triangle": [
+        [
+          -9.62,
+          -8.96
+        ],
+        [
+          -9.12,
+          -8.96
+        ],
+        [
+          -9.12,
+          -9.46
+        ]
+      ],
+      "keepout_zone": {
+        "polygon": [
+          [
+            -24.0,
+            -9.48
+          ],
+          [
+            24.0,
+            -9.48
+          ],
+          [
+            24.0,
+            -30.48
+          ],
+          [
+            -24.0,
+            -30.48
+          ]
+        ],
+        "note": "Inherited from the shared -B/-IB Figure 11. NOT an RF requirement for -IB (external IPEX antenna) — may be relaxed to mechanical clearance for the U.FL connector and pigtail if board area is tight. Never put the WROVER decoupling in this area regardless."
+      },
+      "silk_notes": [
+        "Reference designator on F.SilkS at (-10.9, 8.0) rotation 90 — the module body hides anything inside the outline",
+        "Silk may only run at X = +/-9.12 where there are no pads; pads occupy Y -8.71 .. +15.05 at that X",
+        "Pin-1 chamfer on F.Fab at the antenna-end left corner (1.0 mm)"
+      ],
+      "model_3d": null,
+      "critical_warning": "WROVER is a 19+19 two-row part with NO bottom row. Do not start from RF_Module:ESP32-WROOM-32 and stretch it — that footprint is 14 left + 10 bottom + 14 right."
+    },
+    {
+      "name": "MeganeCAN:MODULE_ESP32-C3-SUPERMINI",
+      "units": "mm",
+      "attr": "through_hole",
+      "origin": "centre of the 16-pad array",
+      "view": "top (F.Cu), NOT mirrored",
+      "usb_connector_direction": "-Y",
+      "board_outline": {
+        "size_x": 18.0,
+        "size_y": 22.52
+      },
+      "pad_style": {
+        "type": "thru_hole",
+        "drill": 1.0,
+        "diameter": 1.8,
+        "pitch": 2.54,
+        "row_spacing": 15.24,
+        "layers": [
+          "*.Cu",
+          "*.Mask"
+        ]
+      },
+      "pads": [
+        {
+          "num": "1",
+          "name": "5V",
+          "x": -7.62,
+          "y": -8.89,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "rect",
+          "drill": 1.0
+        },
+        {
+          "num": "2",
+          "name": "GND",
+          "x": -7.62,
+          "y": -6.35,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0
+        },
+        {
+          "num": "3",
+          "name": "3V3",
+          "x": -7.62,
+          "y": -3.81,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true,
+          "note": "C3 onboard LDO OUTPUT — do NOT tie to the carrier 3V3 rail"
+        },
+        {
+          "num": "4",
+          "name": "GPIO0",
+          "x": -7.62,
+          "y": -1.27,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "5",
+          "name": "GPIO1",
+          "x": -7.62,
+          "y": 1.27,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "6",
+          "name": "GPIO2",
+          "x": -7.62,
+          "y": 3.81,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "7",
+          "name": "GPIO3",
+          "x": -7.62,
+          "y": 6.35,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0
+        },
+        {
+          "num": "8",
+          "name": "GPIO4",
+          "x": -7.62,
+          "y": 8.89,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0
+        },
+        {
+          "num": "9",
+          "name": "GPIO21",
+          "x": 7.62,
+          "y": 8.89,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0
+        },
+        {
+          "num": "10",
+          "name": "GPIO20",
+          "x": 7.62,
+          "y": 6.35,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0
+        },
+        {
+          "num": "11",
+          "name": "GPIO10",
+          "x": 7.62,
+          "y": 3.81,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "12",
+          "name": "GPIO9",
+          "x": 7.62,
+          "y": 1.27,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "13",
+          "name": "GPIO8",
+          "x": 7.62,
+          "y": -1.27,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "14",
+          "name": "GPIO7",
+          "x": 7.62,
+          "y": -3.81,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "15",
+          "name": "GPIO6",
+          "x": 7.62,
+          "y": -6.35,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        },
+        {
+          "num": "16",
+          "name": "GPIO5",
+          "x": 7.62,
+          "y": -8.89,
+          "w": 1.8,
+          "h": 1.8,
+          "shape": "circle",
+          "drill": 1.0,
+          "no_connect": true
+        }
+      ],
+      "courtyard": {
+        "x": [
+          -9.25,
+          9.25
+        ],
+        "y": [
+          -12.5,
+          11.51
+        ],
+        "width": 0.05,
+        "note": "extra 1.0 mm at -Y for the USB-C shell overhang and mating cable strain relief"
+      },
+      "fab_outline": {
+        "x": [
+          -9.0,
+          9.0
+        ],
+        "y": [
+          -11.26,
+          11.26
+        ]
+      },
+      "silk_notes": [
+        "Outline rectangle offset 0.15 mm outside F.Fab, broken at pads",
+        "BOLD 'USB' bar + an arrow at the -Y end, outside the courtyard, so the module cannot be installed rotated 180 degrees",
+        "Pin-1 filled triangle plus text '1 5V' beside pad 1 (pad 1 is also the only rect pad)",
+        "Reference/value outside the -Y end or beside the +X row — the module body hides anything inside the outline"
+      ],
+      "keepout_note": "Module underside sits ~8.5 mm above the carrier; the inter-row corridor is 15.24 - 1.80 = 13.44 mm. Anything placed under the module must be <=7 mm tall and solderable before the headers are fitted. Prefer GND pour and routing only."
+    },
+    {
+      "name": "MeganeCAN:MINI360_4pad_Socket",
+      "units": "mm",
+      "attr": "through_hole",
+      "status": "PROVISIONAL — nominal + error budget, NOT a datasheet transcription",
+      "origin": "module centre",
+      "board_outline": {
+        "size_x": 17.0,
+        "size_y": 11.0,
+        "height": 4.0
+      },
+      "pads": [
+        {
+          "num": "1",
+          "name": "IN+",
+          "x": -7.1,
+          "y": -4.1,
+          "w": 3.6,
+          "h": 3.6,
+          "shape": "rect",
+          "drill": 2.2
+        },
+        {
+          "num": "2",
+          "name": "IN-",
+          "x": -7.1,
+          "y": 4.1,
+          "w": 3.6,
+          "h": 3.6,
+          "shape": "circle",
+          "drill": 2.2
+        },
+        {
+          "num": "3",
+          "name": "OUT+",
+          "x": 7.1,
+          "y": -4.1,
+          "w": 3.6,
+          "h": 3.6,
+          "shape": "circle",
+          "drill": 2.2
+        },
+        {
+          "num": "4",
+          "name": "OUT-",
+          "x": 7.1,
+          "y": 4.1,
+          "w": 3.6,
+          "h": 3.6,
+          "shape": "circle",
+          "drill": 2.2
+        }
+      ],
+      "courtyard": {
+        "x": [
+          -9.5,
+          9.5
+        ],
+        "y": [
+          -6.5,
+          6.5
+        ],
+        "width": 0.05
+      },
+      "fab_outline": {
+        "x": [
+          -8.5,
+          8.5
+        ],
+        "y": [
+          -5.5,
+          5.5
+        ]
+      },
+      "error_budget": "2.20 mm drill against a ~1.0 mm module pin absorbs +/-0.6 mm of positional error per pad. The oversized drill is deliberate.",
+      "silk_notes": [
+        "Silk only on the two short edges so the module body can overhang without covering it",
+        "Label IN+ / IN- / OUT+ / OUT- beside each pad",
+        "Note 'TRIM POT TO 5.00V BEFORE FITTING C3'"
+      ],
+      "mitigations": [
+        "A (required before fab): caliper-measure the actual module and patch the four X/Y values",
+        "B (kept regardless): J7, a PinHeader_1x04 on the same four nets, lets the module go in as a 4-wire pigtail if the pad rectangle is wrong"
+      ],
+      "mounting_note": "The module ships with no header — make pins from 4 short lengths of 0.8 mm solid wire or cut-down 2.54 header pins soldered through both boards."
+    }
+  ],
+  "pin_number_conventions": {
+    "diodes": "Device:D_Schottky / Diode:SS34 / Device:LED / Device:D_TVS all use pad 1 = cathode (band), pad 2 = anode. All 'D?.A' / 'D?.K' references from the source docs are resolved to numbers accordingly.",
+    "U3_U4_SN65HVD230": "1=D, 2=GND, 3=VCC, 4=R, 5=Vref, 6=CANL, 7=CANH, 8=Rs (verified in Interface_CAN_LIN.kicad_sym)",
+    "U5_LM2596S": "1=VIN, 2=OUT, 3=GND, 4=FB, 5=~ON/OFF (verified in Regulator_Switching.kicad_sym). TO-263-5_TabPin3 maps the tab to pad 3, so U5.3 grounds both the pin and the tab — no separate TAB reference.",
+    "C_Polarized": "pad 1 = +, pad 2 = -",
+    "U1_WROVER": "pin NAMES from the source docs resolved to PAD NUMBERS via design/wrover-ib.md §5",
+    "U2_C3": "pin names resolved to pad numbers via design/c3-supermini.md §2/§5"
+  },
+  "nets": {
+    "+3V3": [
+      "C10.1",
+      "C11.1",
+      "C3.1",
+      "C4.1",
+      "C5.1",
+      "C8.1",
+      "C9.1",
+      "J5.1",
+      "J6.1",
+      "L1.2_2",
+      "R3.1",
+      "R4.1",
+      "R7.1",
+      "U1.3V3_2",
+      "U3.VCC_3",
+      "U4.VCC_3",
+      "U5.FB_4"
+    ],
+    "+5V": [
+      "C14.1",
+      "C7.1",
+      "D3.K_1",
+      "J6.2",
+      "U2.5V_1"
+    ],
+    "+5V_BUCK": [
+      "D3.A_2",
+      "J7.3",
+      "PS1.OUT+_3"
+    ],
+    "ACC_SENSE": [
+      "C6.1",
+      "R1.2",
+      "R2.1",
+      "U1.IO34_6"
+    ],
+    "CANH_M": [
+      "D8.K_1",
+      "J3.1",
+      "JP3.A_1",
+      "U4.CANH_7"
+    ],
+    "CANH_V": [
+      "D7.K_1",
+      "J2.1",
+      "JP2.A_1",
+      "U3.CANH_7"
+    ],
+    "CANL_M": [
+      "D8.K_2",
+      "J3.2",
+      "JP5.B_2",
+      "U4.CANL_6"
+    ],
+    "CANL_V": [
+      "D7.K_2",
+      "J2.2",
+      "JP4.B_2",
+      "U3.CANL_6"
+    ],
+    "EN": [
+      "C15.1",
+      "R16.1",
+      "R3.2",
+      "SW1.1_1",
+      "U1.EN_3"
+    ],
+    "EN_EXT": [
+      "J5.4",
+      "J6.4",
+      "R16.2"
+    ],
+    "EXP_IO4": [
+      "J6.5",
+      "U1.IO4_26"
+    ],
+    "EXP_IO5": [
+      "J6.6",
+      "U1.IO5_29"
+    ],
+    "EXP_IO13": [
+      "J6.7",
+      "U1.IO13_16"
+    ],
+    "EXP_IO14": [
+      "J6.8",
+      "U1.IO14_13"
+    ],
+    "EXP_IO23": [
+      "J6.9",
+      "U1.IO23_37"
+    ],
+    "EXP_IO27": [
+      "J6.10",
+      "U1.IO27_12"
+    ],
+    "EXP_IO32": [
+      "J6.11",
+      "U1.IO32_8"
+    ],
+    "EXP_IO33": [
+      "J6.12",
+      "U1.IO33_9"
+    ],
+    "GND": [
+      "C1.2",
+      "C10.2",
+      "C11.2",
+      "C12.2",
+      "C13.2",
+      "C14.2",
+      "C15.2",
+      "C16.2",
+      "C17.2",
+      "C18.2",
+      "C2.2",
+      "C3.2",
+      "C4.2",
+      "C5.2",
+      "C6.2",
+      "C7.2",
+      "C8.2",
+      "C9.2",
+      "D2.A2_2",
+      "D4.K_1",
+      "D6.A_2",
+      "D7.A_3",
+      "D8.A_3",
+      "J1.3",
+      "J2.3",
+      "J3.3",
+      "J4.3",
+      "J5.6",
+      "J6.3",
+      "J7.2",
+      "J7.4",
+      "PS1.IN-_2",
+      "PS1.OUT-_4",
+      "R2.2",
+      "R5.2",
+      "R6.2",
+      "R8.2",
+      "SW1.2_2",
+      "SW2.2_2",
+      "U1.GND_1",
+      "U1.GND_15",
+      "U1.GND_38",
+      "U1.GND_39",
+      "U2.GND_2",
+      "U3.GND_2",
+      "U4.GND_2",
+      "U5.GND_3",
+      "U5.~{ON}/OFF_5"
+    ],
+    "GW_RX_HU_TX": [
+      "J4.2",
+      "U1.IO26_11"
+    ],
+    "GW_TX_HU_RX": [
+      "J4.1",
+      "U1.IO25_10"
+    ],
+    "IO0": [
+      "J5.5",
+      "R4.2",
+      "SW2.1_1",
+      "U1.IO0_25"
+    ],
+    "LED_STAT": [
+      "D5.A_2",
+      "U1.IO2_24"
+    ],
+    "LED_STAT_K": [
+      "D5.K_1",
+      "R8.1"
+    ],
+    "LINK_GW_RX": [
+      "R13.2",
+      "U1.IO19_31"
+    ],
+    "LINK_GW_RX_C3": [
+      "R13.1",
+      "U2.GPIO21_9"
+    ],
+    "LINK_GW_TX": [
+      "U1.IO18_30",
+      "U2.GPIO20_10"
+    ],
+    "MCAN_RS": [
+      "R6.1",
+      "U4.Rs_8"
+    ],
+    "MCAN_RX": [
+      "R15.2",
+      "U4.R_4"
+    ],
+    "MCAN_RX_C3": [
+      "R15.1",
+      "U2.GPIO3_7"
+    ],
+    "MCAN_SPLIT": [
+      "C13.1",
+      "R11.2",
+      "R12.1"
+    ],
+    "MCAN_TERM_H": [
+      "JP3.B_2",
+      "R11.1"
+    ],
+    "MCAN_TERM_L": [
+      "JP5.A_1",
+      "R12.2"
+    ],
+    "MCAN_TX": [
+      "R14.2",
+      "U4.D_1"
+    ],
+    "MCAN_TX_C3": [
+      "R14.1",
+      "U2.GPIO4_8"
+    ],
+    "PWR_LED_A": [
+      "D4.A_2",
+      "R7.2"
+    ],
+    "RXD0": [
+      "J5.3",
+      "U1.RXD0_34"
+    ],
+    "SW_LM2596": [
+      "D6.K_1",
+      "L1.1_1",
+      "U5.OUT_2"
+    ],
+    "TXD0": [
+      "J5.2",
+      "U1.TXD0_35"
+    ],
+    "V12_ACC": [
+      "J1.2",
+      "JP1.A_1"
+    ],
+    "V12_BAT": [
+      "J1.1",
+      "JP1.B_3"
+    ],
+    "V12_FUSED": [
+      "D1.A_2",
+      "D2.A1_1",
+      "F1.2"
+    ],
+    "V12_PROT": [
+      "C1.1",
+      "C16.1",
+      "C17.1",
+      "C18.1",
+      "C2.1",
+      "D1.K_1",
+      "J7.1",
+      "PS1.IN+_1",
+      "R1.1",
+      "U5.VIN_1"
+    ],
+    "V12_SEL": [
+      "F1.1",
+      "JP1.C_2"
+    ],
+    "VCAN_RS": [
+      "R5.1",
+      "U3.Rs_8"
+    ],
+    "VCAN_RX": [
+      "U1.IO21_33",
+      "U3.R_4"
+    ],
+    "VCAN_SPLIT": [
+      "C12.1",
+      "R10.1",
+      "R9.2"
+    ],
+    "VCAN_TERM_H": [
+      "JP2.B_2",
+      "R9.1"
+    ],
+    "VCAN_TERM_L": [
+      "JP4.A_1",
+      "R10.2"
+    ],
+    "VCAN_TX": [
+      "U1.IO22_36",
+      "U3.D_1"
+    ]
+  },
+  "net_count": 50,
+  "no_connect": [
+    {
+      "pin": "U1.14",
+      "name": "IO12",
+      "reason": "MTDI flash-voltage strap — must float. No pull-up, no test point, no pour stitch, NOT on J6."
+    },
+    {
+      "pin": "U1.27",
+      "name": "NC1",
+      "reason": "GPIO16 is PSRAM CS on WROVER; module pad is not connected internally. Never route."
+    },
+    {
+      "pin": "U1.28",
+      "name": "NC2",
+      "reason": "GPIO17 is PSRAM CLK on WROVER; module pad is not connected internally. Never route."
+    },
+    {
+      "pin": "U1.32",
+      "name": "NC",
+      "reason": "Not connected on the module."
+    },
+    {
+      "pin": "U1.4",
+      "name": "SENSOR_VP",
+      "reason": "spare input-only GPIO36; J6 is full at 12 pins"
+    },
+    {
+      "pin": "U1.5",
+      "name": "SENSOR_VN",
+      "reason": "spare input-only GPIO39"
+    },
+    {
+      "pin": "U1.7",
+      "name": "IO35",
+      "reason": "spare input-only GPIO35"
+    },
+    {
+      "pin": "U1.23",
+      "name": "IO15",
+      "reason": "spare; strap (boot-log silence) — leave floating"
+    },
+    {
+      "pin": "U1.17",
+      "name": "SHD/SD2",
+      "reason": "internal SPI flash/PSRAM"
+    },
+    {
+      "pin": "U1.18",
+      "name": "SWP/SD3",
+      "reason": "internal SPI flash/PSRAM"
+    },
+    {
+      "pin": "U1.19",
+      "name": "SCS/CMD",
+      "reason": "internal SPI flash"
+    },
+    {
+      "pin": "U1.20",
+      "name": "SCK/CLK",
+      "reason": "internal SPI flash"
+    },
+    {
+      "pin": "U1.21",
+      "name": "SDO/SD0",
+      "reason": "internal SPI flash"
+    },
+    {
+      "pin": "U1.22",
+      "name": "SDI/SD1",
+      "reason": "internal SPI flash"
+    },
+    {
+      "pin": "U2.3",
+      "name": "3V3",
+      "reason": "C3 onboard LDO output — tying it to the carrier 3V3 rail creates a second contention path"
+    },
+    {
+      "pin": "U2.4",
+      "name": "GPIO0",
+      "reason": "spare"
+    },
+    {
+      "pin": "U2.5",
+      "name": "GPIO1",
+      "reason": "spare"
+    },
+    {
+      "pin": "U2.6",
+      "name": "GPIO2",
+      "reason": "spare, strapping pin"
+    },
+    {
+      "pin": "U2.11",
+      "name": "GPIO10",
+      "reason": "spare"
+    },
+    {
+      "pin": "U2.12",
+      "name": "GPIO9",
+      "reason": "BOOT button on the module, strapping pin"
+    },
+    {
+      "pin": "U2.13",
+      "name": "GPIO8",
+      "reason": "onboard LED, strapping pin"
+    },
+    {
+      "pin": "U2.14",
+      "name": "GPIO7",
+      "reason": "spare"
+    },
+    {
+      "pin": "U2.15",
+      "name": "GPIO6",
+      "reason": "spare"
+    },
+    {
+      "pin": "U2.16",
+      "name": "GPIO5",
+      "reason": "spare"
+    },
+    {
+      "pin": "U3.5",
+      "name": "Vref",
+      "reason": "SN65HVD230 Vref output, unused — leave open"
+    },
+    {
+      "pin": "U4.5",
+      "name": "Vref",
+      "reason": "SN65HVD230 Vref output, unused — leave open"
+    }
+  ],
+  "gpio_allocation": {
+    "wrover": {
+      "IO21 (pad 33)": "VCAN_RX",
+      "IO22 (pad 36)": "VCAN_TX",
+      "IO25 (pad 10)": "GW_TX_HU_RX",
+      "IO26 (pad 11)": "GW_RX_HU_TX",
+      "IO18 (pad 30)": "LINK_GW_TX",
+      "IO19 (pad 31)": "LINK_GW_RX",
+      "IO34 (pad 6)": "ACC_SENSE (input-only, ADC1_CH6)",
+      "IO2 (pad 24)": "LED_STAT",
+      "IO0 (pad 25)": "IO0 boot strap",
+      "TXD0 (pad 35)": "J5 jig",
+      "RXD0 (pad 34)": "J5 jig",
+      "EN (pad 3)": "reset",
+      "IO4 (26)": "J6",
+      "IO5 (29)": "J6",
+      "IO13 (16)": "J6",
+      "IO14 (13)": "J6",
+      "IO23 (37)": "J6",
+      "IO27 (12)": "J6",
+      "IO32 (8)": "J6",
+      "IO33 (9)": "J6"
+    },
+    "c3": {
+      "GPIO3 (pad 7)": "MCAN_RX",
+      "GPIO4 (pad 8)": "MCAN_TX",
+      "GPIO21 (pad 9)": "LINK_GW_RX",
+      "GPIO20 (pad 10)": "LINK_GW_TX"
+    },
+    "double_use_check": "PASS — no GPIO appears on two nets on either MCU"
+  },
+  "consistency_checks": [
+    {
+      "check": "every net endpoint resolves to a listed component and an existing pin/pad",
+      "result": "PASS"
+    },
+    {
+      "check": "every WROVER strap from wrover-ib.md present",
+      "result": "PASS — EN: R3 10k pull-up to +3V3 + SW1 to GND + C15 RC delay; IO0: R4 10k pull-up to +3V3 + SW2 to GND; IO12: unconnected (net list contains no U1.14); IO2: LED-to-GND via D5/R8 (safe strap)"
+    },
+    {
+      "check": "GPIO16/17 pads NC and unconnected",
+      "result": "PASS — pads 27/28 declared no_connect in the footprint and absent from every net"
+    },
+    {
+      "check": "power tree matches power.md final recommendation",
+      "result": "PASS — AMS1117-3.3 deleted; U5 = LM2596S-3.3 fed from V12_PROT with L1/D6/C16/C3; PS1 output no longer feeds any 3V3 regulator"
+    },
+    {
+      "check": "no GPIO used twice",
+      "result": "PASS"
+    },
+    {
+      "check": "C3 5V pin fed from the 5V rail",
+      "result": "PASS — U2.1 on net +5V"
+    },
+    {
+      "check": "C3 3V3 pin unconnected to the carrier 3.3V rail",
+      "result": "PASS — U2.3 absent from every net, listed in no_connect"
+    },
+    {
+      "check": "all official symbol/footprint names verified to exist in KiCad 10.0.4 libraries",
+      "result": "PASS — 20 footprints and all symbols confirmed on disk; Diode:SS54 does NOT exist, substituted Device:D_Schottky"
+    },
+    "PASS - JP1 is a 3-pad selector: V12_ACC={J1.2,JP1.1}, V12_BAT={J1.1,JP1.3}, V12_SEL={JP1.2,F1.1}. BAT and ACC share no net in any jumper state.",
+    "PASS - TVS D2 is on V12_FUSED (between F1 and D1), not behind the series Schottky.",
+    "PASS - CAN split termination is jumpered in BOTH legs (JP2/JP4 vehicle, JP3/JP5 multimedia); with the jumpers open neither line carries the R-C load.",
+    "PASS - every C3 output facing the 3V3 domain has 1k series isolation (R13/R14/R15).",
+    "PASS - EN is isolated from the J5/J6 header stubs by R16 (EN_EXT).",
+    "PASS - ERC 0 violations, DRC 0 violations / 0 unconnected pads (kicad-cli 10.0.4, --severity-all)."
+  ],
+  "deltas_from_source_docs": [
+    "AMS1117-3.3 (netlist.md U5) DELETED; U5 refdes reassigned to LM2596S-3.3 per power.md §7",
+    "ADDED: L1 (33uH), D6 (SS34 catch diode), C16 (100uF/50V Cin) — the LM2596 support circuit",
+    "U5 now sources from V12_PROT, not +5V. Net '+5V' lost U5.VIN and C6; net 'V12_PROT' gained U5.1 and C16.1",
+    "C3 (220uF) repurposed from 6.3V-vs-10V ambiguity to 220uF/6.3V low-ESR and given a dual role: LM2596 Cout + WROVER bulk (power.md §7)",
+    "C1 uprated 100uF/25V -> 100uF/50V (25V is below the 38.9V SMBJ24A clamp — power.md §2 note)",
+    "C6 repurposed from 'AMS1117 VIN 10uF' to 'ACC_SENSE 100nF debounce/ESD' (power.md §4 had this cap; netlist.md omitted it)",
+    "C7 repurposed from 'AMS1117 VOUT 22uF 0805' to '+5V rail 22uF 1210' (X7R derating — power.md §3)",
+    "F1 changed from radial THT polyfuse to 1812 SMD (power.md §2)",
+    "ADDED: J7, the 1x04 fallback header on the Mini-360 nets (power.md §1.2 Mitigation B)",
+    "ACC sense divider R1 moved from netlist.md's V12_IN (pre-fuse) to V12_PROT (post-protection), per power.md §4. This RESOLVES netlist.md open question 1 in favour of protection: the divider now sees a fused, reverse-protected, TVS-clamped rail. The JP1-closed caveat remains — see DESIGN.md.",
+    "netlist.md open question 3 (AMS1117 thermal headroom) is CLOSED by the LM2596 change",
+    "netlist.md open question 5 (C3 USB backfeed must carry the whole 3V3 rail) is CLOSED: with USB attached the C3 LDO now feeds only the C3; the 3V3 rail is unpowered unless 12V is present, which is the correct behaviour",
+    "U1 net endpoints converted from WROVER pin NAMES to PAD NUMBERS",
+    "U2 net endpoints converted from C3 pin names to socket PAD NUMBERS",
+    "Diode A/K endpoints converted to KiCad pad numbers (1=K, 2=A)",
+    "GND net: netlist.md's 'U1.GND/GND2/GND3/EP' resolved to the real pads U1.1/15/38/39 (netlist.md open question 2 CLOSED)"
+  ],
+  "open_actions": [
+    "Caliper-measure a physical Mini-360 and patch the four pad coordinates in MeganeCAN:MINI360_4pad_Socket",
+    "Trim the Mini-360 pot to 5.00 V BEFORE plugging in the C3",
+    "Confirm the -IB U.FL connector XY position and mated-cable height from datasheet Figure 9 before finalising the enclosure (allow ~6.5 mm total height for a mated pigtail)",
+    "DONE - board-level silkscreen legend added: per-pin labels on J1/J2/J3/J4/J5/J7, ACC<->BAT SEL + CUT 1-2 FIRST at JP1, BENCH ONLY at JP2-JP5, PS1 trim note, IO2 LED-to-GND note, PS1/J7 populate-one note",
+    "Source the parts introduced in revision 2026-07-20b (components with an empty lcsc field): D1 SS56, D6 SS36, D7/D8 NUP2105L SOT-23, R5/R6 0R 0805, R8 220R 0805, R16 470R 0805, C17 10uF/50V X7R 1210",
+    "Residual layout item (accepted, documented in DESIGN.md 7.1): the LM2596 switch node is ~16 mm from the SW pin to L1 because L1 is a 12x12 mm part; single-layer F.Cu, no plane slot. The commutation loop (Cin/VIN/SW/D6/GND) is ~25 mm perimeter."
+  ]
+}
