@@ -18,6 +18,11 @@ namespace LinkUi
 
     bool cfgGet(const char* key, char* val, size_t valLen);
     bool cfgSet(const char* key, const char* val);
+    // Config of the OTHER board over the link (CFG_GET/SET → its ITunnelConfig).
+    // C3 role: identical to cfgGet/cfgSet (the vehicle board IS the peer).
+    // GW role: reaches the peripheral's DispCfg (display_type & co).
+    bool peerCfgGet(const char* key, char* val, size_t valLen);
+    bool peerCfgSet(const char* key, const char* val);
     bool capCtl(uint8_t op, uint8_t mode, uint16_t secs);
     bool fileLs(String& json);
     int  fileRead(const char* name, uint32_t offset, uint8_t* buf, size_t maxLen,

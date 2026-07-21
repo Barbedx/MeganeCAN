@@ -1,6 +1,7 @@
 #include "FsLogger.h"
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -38,21 +39,15 @@ namespace VhFs
         if (!_mounted || !_buf) return false;
         if (_active) stop();
 
-        // Rotate: overwrite the oldest of /cap0..capN by write time; simplest
-        // robust pick — the slot after the newest existing one.
-        int newest = -1;
-        time_t newestT = 0;
-        for (int i = 0; i < ROTATE_FILES; i++)
-        {
-            char n[24];
-            snprintf(n, sizeof(n), "/cap%d.canlog", i);
-            File f = LittleFS.open(n, "r");
-            if (!f) { newest = (i == 0) ? newest : newest; continue; }
-            time_t t = f.getLastWrite();
-            if (t >= newestT) { newestT = t; newest = i; }
-            f.close();
-        }
-        int slot = (newest + 1) % ROTATE_FILES;
+        // Rotate via a persisted counter — file mtimes are useless while the
+        // RTC is unset (all zeros before the first time sync), so trusting
+        // getLastWrite could overwrite the newest capture after a reboot.
+        Preferences prefs;
+        prefs.begin("fslog", /*readOnly=*/false);
+        uint32_t counter = prefs.getUInt("slot", 0);
+        prefs.putUInt("slot", counter + 1);
+        prefs.end();
+        int slot = (int)(counter % ROTATE_FILES);
         snprintf(_curName, sizeof(_curName), "/cap%d.canlog", slot);
         LittleFS.remove(_curName);
 

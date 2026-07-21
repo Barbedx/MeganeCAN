@@ -56,6 +56,10 @@
 
 <div class="card">
   <h2 style="margin-top:0">Config</h2>
+  <select id="cfgtarget" onchange="cfgTargetChanged()">
+    <option value="local">vehicle (this GW)</option>
+    <option value="peer">peripheral (display board)</option>
+  </select>
   <select id="cfgkey">
     <option>canbox</option><option>keyfwd</option><option>rpmmul</option>
     <option>rpmdiv</option><option>sigdis</option><option>capmode</option>
@@ -89,9 +93,11 @@ async function poll() {
     $('sigs').innerHTML = s.sigs && Object.keys(s.sigs).length
       ? Object.entries(s.sigs).map(([k, v]) => kv(k, v)).join('')
       : '<i>no signals yet (bench: no vehicle CAN)</i>';
-    $('hu').innerHTML = s.hu
+    $('hu').innerHTML = (s.hu
       ? kv('HU source', s.hu.source) + kv('vol', s.hu.vol) + kv('freq', s.hu.freq)
-      : '';
+      : '') + (s.huTail && s.huTail.length
+      ? kv('unknown HU frames', s.huTail.join(' '))
+      : '');
   } catch (e) { $('linkrow').innerHTML = '<span class="bad">MM unreachable</span>'; }
 }
 const kv = (k, v, cls) => `<span class="kv"><b>${k}</b><span class="${cls || ''}">${v}</span></span>`;
@@ -131,15 +137,25 @@ async function dl(name, size) {
   log(`${name} done (${blob.size}B)`);
 }
 
+const CFG_KEYS = {
+  local: ['canbox', 'keyfwd', 'rpmmul', 'rpmdiv', 'sigdis', 'capmode', 'capsecs'],
+  peer:  ['display_type', 'skip_funcreg', 'autorestore'],
+};
+function cfgTargetChanged() {
+  $('cfgkey').innerHTML = CFG_KEYS[$('cfgtarget').value]
+    .map(k => `<option>${k}</option>`).join('');
+}
+const cfgUrl = () =>
+  `/api/vh/cfg?key=${$('cfgkey').value}&target=${$('cfgtarget').value}`;
 async function cfgGet() {
-  const r = await fetch(`/api/vh/cfg?key=${$('cfgkey').value}`);
+  const r = await fetch(cfgUrl());
   const t = await r.text();
   if (r.ok) $('cfgval').value = t;
-  log(`cfg ${$('cfgkey').value} = ${t}`);
+  log(`cfg[${$('cfgtarget').value}] ${$('cfgkey').value} = ${t}`);
 }
 async function cfgSet() {
-  const r = await fetch(`/api/vh/cfg?key=${$('cfgkey').value}&val=${encodeURIComponent($('cfgval').value)}`);
-  log(`cfg set ${$('cfgkey').value}=${$('cfgval').value}: ${await r.text()}`);
+  const r = await fetch(cfgUrl() + `&val=${encodeURIComponent($('cfgval').value)}`);
+  log(`cfg[${$('cfgtarget').value}] set ${$('cfgkey').value}=${$('cfgval').value}: ${await r.text()}`);
 }
 
 async function ota() {

@@ -84,10 +84,24 @@ bool HandleKey(AffaCommon::AffaKey key, bool isHold)
     return g_keyRouter.route(key, isHold);
 }
 
-static void onMediaChange(IMediaSource &src, void *)
+// A source changed its now-playing state. The callback fires on the SOURCE's
+// task (NimBLE host for AMS), so it only raises a flag — the loop task does the
+// actual snapshot + link push, keeping RemoteDisplay and LinkPort single-writer.
+static volatile bool s_mediaDirty = false;
+static void onMediaChange(IMediaSource &, void *)
 {
-    if (g_mediaRouter.activeSource() == &src)
-        g_display.pushMedia(src.current());   // -> MEDIA_TEXT to the peripheral
+    s_mediaDirty = true;
+}
+
+static void pushMediaFromLoop()
+{
+    if (!s_mediaDirty) return;
+    s_mediaDirty = false;
+    IMediaSource* src = g_mediaRouter.activeSource();
+    if (src == (IMediaSource*)&g_amsSource)
+        g_display.pushMedia(g_amsSource.snapshot());   // mutex-guarded copy
+    else if (src)
+        g_display.pushMedia(src->current());           // loop-task sources
 }
 
 // ---- canbox UART ------------------------------------------------------------
@@ -100,7 +114,10 @@ static void onHuFrame(uint8_t cmd, const uint8_t* payload, uint8_t len,
                       bool known, void*)
 {
     g_fsLog.onHuFrame(cmd, payload, len, millis());
-    (void)known;   // P4: unknown frames are the DUDU media-metadata RE target
+    // P4 RE window: unknown frames (the DUDU media-metadata candidates) stay
+    // visible live on /vh even with no capture running.
+    if (!known)
+        GwLink::noteHuUnknown(cmd, payload, len);
 }
 
 // ---- vehicle CAN ------------------------------------------------------------
@@ -239,6 +256,7 @@ void loop()
         g_huRx.feed(hb, (uint16_t)hn);
 
     // Link + maintenance + media refresh
+    pushMediaFromLoop();
     GwLink::service(now);
     g_tunnel.service(now);
     g_fsLog.service(now);

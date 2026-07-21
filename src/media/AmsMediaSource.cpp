@@ -8,6 +8,8 @@ namespace { AmsMediaSource* s_self = nullptr; }
 void AmsMediaSource::begin()
 {
     s_self = this;
+    if (!_mutex)
+        _mutex = xSemaphoreCreateMutex();
     AppleMediaService::RegisterForNotifications(
         [](const AppleMediaService::MediaInformation& mi) {
             if (s_self) s_self->onAmsUpdate(mi);
@@ -36,6 +38,7 @@ void AmsMediaSource::onAmsUpdate(const AppleMediaService::MediaInformation& mi)
         mi.dump();
     }
 
+    if (_mutex) xSemaphoreTake((SemaphoreHandle_t)_mutex, portMAX_DELAY);
     _info.playerName = mi.mPlayerName;
     _info.title      = mi.mTitle;
     _info.artist     = mi.mArtist;
@@ -53,6 +56,15 @@ void AmsMediaSource::onAmsUpdate(const AppleMediaService::MediaInformation& mi)
     _info.repeatMode  = static_cast<MediaInfo::RepeatMode>(mi.mRepeatMode);
 
     _info.lastUpdateMs = mi.mLastPlaybackInfoMs;
+    if (_mutex) xSemaphoreGive((SemaphoreHandle_t)_mutex);
 
     notifyChange();
+}
+
+MediaInfo AmsMediaSource::snapshot() const
+{
+    if (_mutex) xSemaphoreTake((SemaphoreHandle_t)_mutex, portMAX_DELAY);
+    MediaInfo copy = _info;
+    if (_mutex) xSemaphoreGive((SemaphoreHandle_t)_mutex);
+    return copy;
 }

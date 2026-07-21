@@ -9,12 +9,25 @@
 #include "../../utils/AppConfig.h"
 #include "../../utils/Log.h"
 #include <string.h>
+#include <stdarg.h>
 
 using namespace LinkProto;
 using ProgProto::OTA_BEGIN;
 using ProgProto::OTA_DATA;
 using ProgProto::OTA_END;
 using ProgProto::OTA_STAT;
+
+// printf-append into a fixed buffer (single final String alloc — CLAUDE.md
+// heap discipline for HTTP responses). Returns the new write offset.
+static int addf(char* b, int p, size_t cap, const char* fmt, ...)
+{
+    if (p < 0 || p >= (int)cap) return p;
+    va_list ap;
+    va_start(ap, fmt);
+    p += vsnprintf(b + p, cap - p, fmt, ap);
+    va_end(ap);
+    return p;
+}
 
 namespace MmLink
 {
@@ -357,46 +370,43 @@ namespace MmLink
     // ---- status JSON --------------------------------------------------------
     String statusJson()
     {
+        // One fixed buffer, one String alloc (CLAUDE.md heap discipline for
+        // HTTP responses — this is the RAM-tight C3 and it's polled every 2s).
+        static char b[1024];
+        int p = 0;
+
         uint32_t now = millis();
-        String j = "{\"enabled\":";
-        j += s_enabled ? "true" : "false";
-        j += ",\"up\":";
-        j += up() ? "true" : "false";
+        p = addf(b, p, sizeof(b), "{\"enabled\":%s,\"up\":%s",
+                 s_enabled ? "true" : "false", up() ? "true" : "false");
         if (s_enabled)
         {
-            char buf[64];
-            snprintf(buf, sizeof(buf),
+            p = addf(b, p, sizeof(b),
                      ",\"peerFw\":\"%04X\",\"drops\":%lu,\"gaps\":%lu,\"raw\":%lu",
                      s_port.peerFwVer(),
                      (unsigned long)s_port.txDropped(),
                      (unsigned long)s_port.rxSeqGaps(),
                      (unsigned long)s_rawCount);
-            j += buf;
-            j += ",\"sigs\":{";
+            p = addf(b, p, sizeof(b), ",\"sigs\":{");
             bool first = true;
             for (uint8_t i = 0; i < Vh::SIG_COUNT; i++)
             {
                 if (!s_vstate.has(i)) continue;
-                if (!first) j += ",";
+                p = addf(b, p, sizeof(b), "%s\"%s\":%ld",
+                         first ? "" : ",", Vh::sigName(i), (long)s_vstate.val[i]);
                 first = false;
-                j += "\"";
-                j += Vh::sigName(i);
-                j += "\":" + String(s_vstate.val[i]);
             }
-            j += "}";
+            p = addf(b, p, sizeof(b), "}");
             if (s_huStatusMs)
-            {
-                snprintf(buf, sizeof(buf),
+                p = addf(b, p, sizeof(b),
                          ",\"hu\":{\"source\":%u,\"vol\":%u,\"freq\":%u,\"age\":%lu}",
                          s_huSource, s_huVolume, s_huFreq,
                          (unsigned long)(now - s_huStatusMs));
-                j += buf;
-            }
             if (s_peerOta.active())
-                j += ",\"ota\":" + String(s_peerOta.progress());
+                p = addf(b, p, sizeof(b), ",\"ota\":%lu",
+                         (unsigned long)s_peerOta.progress());
         }
-        j += "}";
-        return j;
+        addf(b, p, sizeof(b), "}");
+        return String(b);
     }
 }
 
@@ -409,6 +419,9 @@ namespace LinkUi
     String statusJson() { return MmLink::statusJson(); }
     bool cfgGet(const char* k, char* v, size_t n) { return MmLink::cfgGet(k, v, n); }
     bool cfgSet(const char* k, const char* v) { return MmLink::cfgSet(k, v); }
+    // On the C3 role the peer IS the remote vehicle board — same op.
+    bool peerCfgGet(const char* k, char* v, size_t n) { return MmLink::cfgGet(k, v, n); }
+    bool peerCfgSet(const char* k, const char* v) { return MmLink::cfgSet(k, v); }
     bool capCtl(uint8_t op, uint8_t mode, uint16_t secs) { return MmLink::capCtl(op, mode, secs); }
     bool fileLs(String& j) { return MmLink::fileLs(j); }
     int fileRead(const char* n, uint32_t off, uint8_t* b, size_t m, uint32_t& t)

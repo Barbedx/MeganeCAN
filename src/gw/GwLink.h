@@ -27,7 +27,12 @@ namespace GwLink
     uint16_t peerFwVer();
     uint32_t peerCaps();
 
-    // Safe from loop context (RemoteDisplay pushes, TIME sync).
+    // Safe from any task (LinkPort::send is lock-guarded), though the GW
+    // design keeps producers on the loop task anyway.
     bool send(uint8_t type, const uint8_t* payload, uint16_t len);
     void sendTime(uint32_t unixSecs);
+
+    // Record an unrecognized HU->box frame (loop task): live counter + tail
+    // surfaced in LinkUi::statusJson — the P4 RE window on the /vh page.
+    void noteHuUnknown(uint8_t cmd, const uint8_t* payload, uint8_t len);
 }

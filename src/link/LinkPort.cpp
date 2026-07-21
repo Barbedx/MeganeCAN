@@ -35,30 +35,40 @@ bool LinkPort::send(uint8_t type, const uint8_t* payload, uint16_t len, Prio pri
 {
     if (!_s) return false;
 
-    // Pick a free slot; if none, evict the lowest-priority queued frame (only if
-    // it is not higher-priority than the newcomer, and never the one mid-write).
-    int free = -1;
+    // Claim a slot + a seq under the lock; encode into it after unlocking (the
+    // RESERVED sentinel keeps the drainer and other producers off it). Evict
+    // the lowest-priority queued frame if full — never the one mid-write, never
+    // one still being encoded.
+    int slot = -1;
+    uint8_t seq;
+    _lock.lock();
     for (int i = 0; i < QUEUE_SLOTS; i++)
-        if (_q[i].len == 0) { free = i; break; }
-    if (free < 0)
+        if (_q[i].len == 0) { slot = i; break; }
+    if (slot < 0)
     {
         int victim = -1;
         for (int i = 0; i < QUEUE_SLOTS; i++)
         {
-            if (i == _curSlot) continue;
+            if (i == _curSlot || _q[i].len == SLOT_RESERVED) continue;
             if (victim < 0 || _q[i].prio < _q[victim].prio) victim = i;
         }
-        if (victim < 0 || _q[victim].prio > prio) { _txDropped++; return false; }
+        if (victim < 0 || _q[victim].prio > prio)
+        {
+            _txDropped++;
+            _lock.unlock();
+            return false;
+        }
         _txDropped++;                    // the victim is the drop
-        free = victim;
+        slot = victim;
     }
+    _q[slot].len = SLOT_RESERVED;
+    _q[slot].prio = (uint8_t)prio;
+    seq = _txSeq++;
+    _lock.unlock();
 
-    uint16_t n = LinkCodec::encode(type, _txSeq, payload, len, _q[free].bytes);
-    if (n == 0) { _q[free].len = 0; return false; }   // payload too large
-    _txSeq++;
-    _q[free].len = n;
-    _q[free].prio = (uint8_t)prio;
-    return true;
+    uint16_t n = LinkCodec::encode(type, seq, payload, len, _q[slot].bytes);
+    _q[slot].len = n;                    // publish; n==0 (too large) frees it
+    return n != 0;
 }
 
 void LinkPort::drainTx()
@@ -68,16 +78,20 @@ void LinkPort::drainTx()
         if (_curSlot < 0)
         {
             // Highest priority first; round-robin from _qHead within a class so
-            // same-priority frames keep FIFO-ish order.
+            // same-priority frames keep FIFO-ish order. Picking under the lock:
+            // once _curSlot is set, producers' eviction skips it.
+            _lock.lock();
             int best = -1;
             for (int k = 0; k < QUEUE_SLOTS; k++)
             {
                 int i = (_qHead + k) % QUEUE_SLOTS;
-                if (_q[i].len == 0) continue;
+                uint16_t l = _q[i].len;
+                if (l == 0 || l == SLOT_RESERVED) continue;
                 if (best < 0 || _q[i].prio > _q[best].prio) best = i;
             }
-            if (best < 0) return;
             _curSlot = best;
+            _lock.unlock();
+            if (best < 0) return;
             _curOff = 0;
         }
 
@@ -86,9 +100,11 @@ void LinkPort::drainTx()
         if (wrote > 0) _curOff = (uint16_t)(_curOff + wrote);
         if (_curOff < s.len) return;     // stream full — resume next service()
 
+        _lock.lock();
         s.len = 0;                       // frame fully on the wire
         _qHead = (_curSlot + 1) % QUEUE_SLOTS;
         _curSlot = -1;
+        _lock.unlock();
     }
 }
 

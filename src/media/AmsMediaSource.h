@@ -18,7 +18,14 @@ public:
     const char* statusText() const override;
     const char* name() const override { return "ams"; }
 
+    // Cross-task-safe copy of the info. _info is written in the NimBLE host
+    // task (AMS notification callback); a consumer on another task (the GW
+    // loop pushing MEDIA_TEXT) must read through this, not current() — the
+    // std::string fields are not atomically assignable.
+    MediaInfo snapshot() const;
+
 private:
     void onAmsUpdate(const AppleMediaService::MediaInformation& mi);
     MediaInfo _info;
+    mutable void* _mutex = nullptr;   // SemaphoreHandle_t (created in begin)
 };

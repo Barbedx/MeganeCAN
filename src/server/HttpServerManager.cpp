@@ -641,17 +641,25 @@ void HttpServerManager::setupRoutes()
         return request->reply(200, "application/json", LinkUi::statusJson().c_str());
     });
 
+    // target=peer reaches the OTHER board's ITunnelConfig over the link
+    // (on GW: the peripheral's display keys — display_type & co).
     _server.on("/api/vh/cfg", HTTP_GET, [](PsychicRequest *request) {
         if (!request->hasParam("key"))
             return request->reply(400, "text/plain", "missing key");
         String key = request->getParam("key")->value();
+        bool peer = request->hasParam("target") &&
+                    request->getParam("target")->value() == "peer";
         if (request->hasParam("val"))
         {
-            bool ok = LinkUi::cfgSet(key.c_str(), request->getParam("val")->value().c_str());
+            const char* v = request->getParam("val")->value().c_str();
+            bool ok = peer ? LinkUi::peerCfgSet(key.c_str(), v)
+                           : LinkUi::cfgSet(key.c_str(), v);
             return request->reply(ok ? 200 : 502, "text/plain", ok ? "ok" : "fail");
         }
         char val[24];
-        if (!LinkUi::cfgGet(key.c_str(), val, sizeof(val)))
+        bool ok = peer ? LinkUi::peerCfgGet(key.c_str(), val, sizeof(val))
+                       : LinkUi::cfgGet(key.c_str(), val, sizeof(val));
+        if (!ok)
             return request->reply(502, "text/plain", "fail");
         return request->reply(200, "text/plain", val);
     });

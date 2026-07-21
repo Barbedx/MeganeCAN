@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "LinkCodec.h"
+#include "LinkLock.h"
 #include "../bus/IClock.h"
 
 // Byte-stream seam so LinkPort is portable: HardwareSerial on target, an
@@ -11,11 +12,16 @@ struct ILinkStream {
     virtual int write(const uint8_t* buf, int len) = 0;     // bytes accepted
 };
 
-// One end of the MM<->VH link (ARCHITECTURE-V2 §4). Non-blocking byte pump:
-// service() drains RX into the decoder, runs the 1Hz PING / 3s peer-timeout
-// heartbeat, and feeds the priority TX queue to the stream. A full queue drops
-// the lowest-priority queued frame (LOG first, then RAW_FRAME/SIG_BATCH) —
-// control traffic and keys always fit.
+// One end of the inter-board link (ARCHITECTURE-V2 §4). Non-blocking byte
+// pump: service() drains RX into the decoder, runs the 1Hz PING / 3s
+// peer-timeout heartbeat, and feeds the priority TX queue to the stream. A
+// full queue drops the lowest-priority queued frame (LOG first, then
+// RAW_FRAME/SIG_BATCH) — control traffic and keys always fit.
+//
+// Threading: send() is task-safe (slot claim/publish under LinkLock) so any
+// task may enqueue — CAN-callback keys, BLE media pushes, httpd OTA
+// handshakes. Everything else (service/RX/heartbeat) belongs to ONE owner
+// task, the loop.
 class LinkPort {
 public:
     // App-level receive callback. PING/PONG are consumed internally; HELLO is
@@ -51,12 +57,17 @@ private:
     void sendHello();
     void drainTx();
 
+    // len: 0 = free, SLOT_RESERVED = claimed but still being encoded (skip),
+    // else = wire length ready to drain. Publish (len = n) happens after the
+    // encode, outside the lock.
+    static constexpr uint16_t SLOT_RESERVED = 0xFFFF;
     struct Slot {
-        uint16_t len = 0;        // 0 = free
+        volatile uint16_t len = 0;
         uint8_t  prio = 0;
         uint8_t  bytes[LinkCodec::MAX_WIRE];
     };
     Slot _q[QUEUE_SLOTS];
+    LinkLock _lock;              // guards slot claim/free/eviction + seq
     int  _qHead = 0;             // round-robin scan start (order within a prio class)
     int  _curSlot = -1;          // slot being written to the stream (never interleave)
     uint16_t _curOff = 0;
