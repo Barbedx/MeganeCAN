@@ -1,0 +1,440 @@
+PAGES: 14
+
+===== PAGE 1 =====
+RAISE TOYOTA RAV 4 2019-2020 PROTOCOL, UART 38400 BAUD. 
+1. SPEED & AVERAGE SPEED 
+ 
+speed value is encoded in 0.01 km/h units as a 16-bit unsigned integer, split into two bytes 
+(LSB first).  
+ 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E (fixed start byte) 
+1 Command 0x7D (CMD_MULTI_FUNCTION) 
+2 Length 0x05 (5 bytes of payload) 
+3 Sub-command 0x03 (indicates speed payload) 
+4–5 Speed 
+speed_raw = uint16_t(speed_kmh × 100) → LSB 
+first 
+6–7 Average Speed avg_raw = uint16_t(avg_kmh × 100) → LSB first 
+8 Checksum checksum = (cmd + len + ∑payload) ^ 0xFF 
+ 
+Full Formula (C-Style) 
+ 
+uint16_t speed_raw = (uint16_t)(speed_kmh * 100.0f); 
+uint16_t avg_raw   = (uint16_t)(avg_kmh * 100.0f); 
+ 
+uint8_t payload[5] = { 
+  0x03, 
+  uint8_t(speed_raw & 0xFF),      // speed LSB 
+  uint8_t(speed_raw >> 8),        // speed MSB 
+  uint8_t(avg_raw & 0xFF),        // avg speed LSB 
+  uint8_t(avg_raw >> 8)           // avg speed MSB 
+}; 
+ 
+uint8_t checksum = CMD_MULTI_FUNCTION + 5; 
+for (uint8_t i = 0; i < 5; ++i) checksum += payload[i]; 
+checksum ^= 0xFF; 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Example: Speed = 123.45 km/h, Avg = 200.00 km/h 
+
+===== PAGE 2 =====
+• speed_raw = 12345 → 0x39 0x30 
+• avg_raw = 20000 → 0x10 0x27 
+• Payload: 03 39 30 10 27 
+• Checksum calculation: 
+Code 
+sum = 0x7D + 0x05 + 0x03 + 0x39 + 0x30 + 0x10 + 0x27 = 0x1CB 
+checksum = 0xCB ^ 0xFF = 0x34 
+• Final UART frame: 
+Code 
+2E 7D 05 03 39 30 10 27 34 
+ 
+2. RPM 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E (fixed start byte) 
+1 Command 0x7D (CMD_MULTI_FUNCTION) 
+2 Length 0x03 (3 bytes of payload) 
+3 Sub-command 0x0A (indicates RPM payload) 
+4–5 RPM value rpm_raw = uint16_t(rpm * 4) → LSB first 
+6 Checksum checksum = (cmd + len + ∑payload) ^ 0xFF 
+ 
+ 
+Full Formula C-Style 
+uint16_t rpm_raw = (uint16_t)(rpm * 4); // multiply by 4 
+uint8_t payload[3] = { 
+  0x0A, 
+  uint8_t(rpm_raw & 0xFF),      // LSB 
+  uint8_t(rpm_raw >> 8)         // MSB 
+}; 
+ 
+uint8_t checksum = CMD_MULTI_FUNCTION + 3; 
+for (uint8_t i = 0; i < 3; ++i) checksum += payload[i]; 
+checksum ^= 0xFF; 
+ 
+ 
+
+===== PAGE 3 =====
+3. LIGHTS 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E (fixed start byte) 
+1 Command 0x7D (CMD_MULTI_FUNCTION) 
+2 Length 0x02 (2 bytes of payload) 
+3 Sub-command 0x01 (indicates lights payload) 
+4 Lights bitmask lightMask = bitwise OR of active light states 
+5 Checksum checksum = (cmd + len + subcmd + bitmask) ^ 0xFF 
+ 
+Full Formula C Style 
+uint8_t subcmd     = 0x01; 
+uint8_t lightMask  = 0x00; 
+ 
+// Bitwise composition based on active states: 
+if (rightActive)     lightMask |= 0x08; 
+if (leftActive)      lightMask |= 0x10; 
+if (highBeamsOn)     lightMask |= 0x20; 
+if (headlightsOn)    lightMask |= 0x40; 
+if (parkingLightsOn) lightMask |= 0x80; 
+ 
+uint8_t checksum = CMD_MULTI_FUNCTION + 2 + subcmd + lightMask; 
+checksum ^= 0xFF; 
+ 
+Example: Headlights + Parking + Left Indicator 
+• Bitmask = 0x40 | 0x80 | 0x10 = 0xD0 
+• Payload = 01 D0 
+Final UART frame: 2E 7D 02 01 D0 AF 
+ 
+
+===== PAGE 4 =====
+4. DOORS 
+ 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E (fixed start byte) 
+1 Command 0x24 (CMD_DOOR_STA TUS) 
+2 Length 0x01 (1 byte of payload) 
+3 Door bitmask Bitwise OR of active door states 
+4 Checksum 
+checksum = (0x24 + 0x01 + doorMask) ^ 
+0xFF 
+ 
+Full Formula C Style 
+uint8_t doorMask = 0; 
+ 
+// Bitwise composition based on CAN status bits: 
+if (status & (1UL << 20)) doorMask |= 0x80; // Driver (UK right front) door 
+if (status & (1UL << 19)) doorMask |= 0x40; // Passenger (UK left front) door 
+if (status & (1UL << 23)) doorMask |= 0x08; // Boot 
+if (status & (1UL << 21)) doorMask |= 0x10; // Rear left (confirmed) 
+if (status & (1UL << 22)) doorMask |= 0x20; // Rear right (confirmed) 
+ 
+uint8_t checksum = 0x24 + 0x01 + doorMask; 
+checksum ^= 0xFF; 
+ 
+Example: Rear Left + Passenger Open 
+• Bitmask = 0x10 | 0x40 = 0x50 
+Final UART frame: 2E 24 01 50 8A 
+ 
+5. STEERING WHEEL ANGLE 
+  Angle is encoded as a signed 16-bit integer in 0.1° units, LSB first. 
+
+===== PAGE 5 =====
+  Negative angles use two’s complement representation. 
+ 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E 
+1 Command 0x29 
+2 Length 0x02 (2 bytes of payload) 
+3–4 Payload Signed 16-bit angle in 0.1° units, LSB first 
+5 Checksum (0x29 + 0x02 + payload[0] + payload[1]) ^ 0xFF 
+ 
+Full formula C Style 
+int16_t rawAngle = int16_t(angle_deg * 10.0f); // angle in 0.1° units 
+ 
+uint8_t payload[2] = { 
+  uint8_t(rawAngle & 0xFF),      // LSB 
+  uint8_t(rawAngle >> 8)         // MSB 
+}; 
+ 
+uint8_t sum = 0x29 + 0x02 + payload[0] + payload[1]; 
+uint8_t checksum = sum ^ 0xFF; 
+ 
+Example: –26.0° 
+• –26 × 10 = –260 → 0xFFE6 (two’s complement) 
+• Payload: E6 FF 
+• Sum: 0x29 + 0x02 + 0xE6 + 0xFF = 0x210 
+• Lower byte: 0x10 
+• Checksum: 0x10 ^ 0xFF = 0xEF 
+Final UART frame: 2E 29 02 E6 FF EF 
+Steering wheel angle is -540 to 540 – values from the Canbus should be mapped to these 
+values. You can experiment with these values, Clio III has best accuracy with -500 to 500 
+ 
+
+===== PAGE 6 =====
+6. OUTSIDE TEMPERATURE 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E 
+1 Command 0x28 
+2 Length 0x0C (12 bytes of payload) 
+3–14 Payload All 0x00 except index 5 
+5 Encoded Temp (temp_celsius + 40) × 2 
+15 Checksum (0x28 + 0x0C + ∑payload[0..11]) ^ 0xFF 
+ 
+Encoding formula 
+// Step 1: Encode temperature 
+uint8_t encoded_temp = (int8_t(temp_celsius) + 40) * 2; 
+ 
+// Step 2: Insert into payload 
+payload[5] = encoded_temp; 
+ 
+// Step 3: Calculate checksum 
+uint8_t sum = 0x28 + 0x0C; 
+for (int i = 0; i < 12; ++i) sum += payload[i]; 
+uint8_t checksum = sum ^ 0xFF; 
+ 
+Example: 21°C 
+• Encoding: (21 + 40) × 2 = 122 → 0x7A 
+• Payload: 00 00 00 00 00 7A 00 00 00 00 00 00 
+Final frame: 2E 28 0C 00 00 00 00 00 7A 00 00 00 00 00 00 51 
+ 
+ 
+ 
+
+===== PAGE 7 =====
+7. Odometer, Trip 1 and Trip 2 
+Byte Index Purpose Value / Formula 
+0 Header 0x2E (fixed start byte) 
+1 Command 0x7D (CMD_MULTI_FUNCTION) 
+2 Length 0x0C (12 bytes of payload) 
+3 Sub-command 0x04 (identifies odometer/trip message) 
+4–6 Odometer uint24_le = km (direct km value, little-endian) 
+7–8 Unknown 0xF2 0x08 (preserved, possibly reserved or status flags) 
+9–11 Trip 1 uint24_le = trip1_km × 10 (0.1 km resolution, little-endian) 
+12–14 Trip 2 uint24_le = trip2_km × 10 (0.1 km resolution, little-endian) 
+15 Checksum (0x7D + 0x0C + ∑payload[0..11]) ^ 0xFF 
+ 
+Full Formula C Style 
+uint32_t odo_km = 123456; 
+uint32_t trip1_raw = uint32_t(trip1_km * 10.0f); // 0.1 km resolution 
+uint32_t trip2_raw = uint32_t(trip2_km * 10.0f); 
+ 
+uint8_t payload[12] = { 
+  0x04, 
+  uint8_t(odo_km & 0xFF), 
+  uint8_t((odo_km >> 8) & 0xFF), 
+  uint8_t((odo_km >> 16) & 0xFF), 
+  0xF2, 0x08, // unknown/reserved 
+  uint8_t(trip1_raw & 0xFF), 
+  uint8_t((trip1_raw >> 8) & 0xFF), 
+  uint8_t((trip1_raw >> 16) & 0xFF), 
+  uint8_t(trip2_raw & 0xFF), 
+  uint8_t((trip2_raw >> 8) & 0xFF), 
+
+===== PAGE 8 =====
+  uint8_t((trip2_raw >> 16) & 0xFF) 
+}; 
+ 
+uint8_t sum = 0x7D + 0x0C; 
+for (int i = 0; i < 12; ++i) sum += payload[i]; 
+uint8_t checksum = sum ^ 0xFF; 
+ 
+Example: 
+• Odometer = 123456 km → 0x01E240 → 40 E2 01 
+• Trip 1 = 34.0 km → 340 → 0x0154 → 54 01 00 
+• Trip 2 = 231.0 km → 2310 → 0x0906 → 06 09 00 
+Final UART Frame 2E 7D 0C 04 40 E2 01 F2 08 54 01 00 06 09 00 5D 
+Bytes F2 08 – unknown, does not seem to change  
+ 
+8. HYBRID VEHICLES 
+Byte 
+Index Field Description / Value 
+0 Header $0x2E$ (fixed start byte) 
+1 Command $0x1F$ (Hybrid energy status) 
+2 
+Payload 
+Length $0x02$ (2 bytes of payload) 
+3 
+Payload Byte 
+0 
+Battery & Status: A byte indicating hybrid presence and battery 
+charge level. 
+4 
+Payload Byte 
+1 
+Energy Flow Bitmask: A byte where each bit represents a specific 
+power path. 
+5 Checksum  
+ 
+Battery Level Encoding (Byte 3) 
+ 
+
+===== PAGE 9 =====
+ 
+Battery & Status (Byte 3) 
+This byte contains two pieces of information: 
+• Bit 7: Hybrid Vehicle Indicator. A value of  
+1 confirms the vehicle is a hybrid model. 
+• Bits 6-0: Battery Level. Represents the battery charge level, where the original 
+vehicle has 8 bars of display. 
+ 
+Energy Flow Bitmask (Byte 4) 
+This byte describes the power flow by setting individual bits for each active path. Multiple 
+bits can be set to 1 at the same time. 
+• Bit 0: Motor is charging the Battery. 
+• Bit 1: Motor is driving the Wheels. 
+• Bit 2: Engine is driving the Motor . 
+• Bit 3: Engine is driving the Wheels. 
+• Bit 4: Battery is driving the Motor. 
+• Bit 5: Wheels are driving the Motor (regenerative braking). 
+ 
+Example: Engine Drive & Charge 
+Let's assume a scenario where the engine is driving the wheels and simultaneously charging 
+the battery via the motor . The battery level is 6 out of 8. 
+1. Constructing the Battery & Status Byte (Byte 3) 
+• Bit 7 (Is Hybrid) = 1. 
+• Bits 6-0 (Level 6) = 0000110. 
+• The resulting byte is 10000110 in binary, which is $0x86. 
+2. Constructing the Energy Flow Bitmask (Byte 4) 
+• Engine → Wheels is active, so we set  
+Bit 3 (00001000). 
+• Engine → Motor is active, so we set  
+Bit 2 (00000100). 
+• Motor → Battery is active, so we set  
+
+===== PAGE 10 =====
+Bit 0 (00000001). 
+• The combined bitmask (bitwise OR) is 00001101 in binary, which is $0x0D. 
+3. Final UART Frame The complete frame for this example would be: 2E 1F 02 86 0D 4B 
+ 
+9. TPMS 
+Byte 
+Index Field  
+0 Header 0x2E (fixed start byte) 
+1 Command 0x25 (TPMS data) 
+2 
+Payload 
+Length 0x06 (6 bytes of payload) 
+3 Payload Byte 0 
+Status Byte: A bitmask defining units, alarms, and display 
+options. 
+4 Payload Byte 1 Front Left Pressure: Raw pressure value. 
+5 Payload Byte 2 Front Right Pressure: Raw pressure value. 
+6 Payload Byte 3 Rear Left Pressure: Raw pressure value. 
+7 Payload Byte 4 Rear Right Pressure: Raw pressure value. 
+8 Payload Byte 5 Spare Tire Pressure: Raw pressure value. 
+9 Checksum  
+ 
+Status Byte Breakdown (Byte 3) 
+This byte is a bitmask that controls the interpretation of the entire message. 
+• Bit 7: TPMS Presence. A value of  
+1 indicates the vehicle is equipped with a TPMS system. 
+• Bit 6: Alarm Status. A value of  
+1 indicates a TPMS alarm is active (e.g., low pressure). 
+• Bit 5: Spare Tire Display. A value of  
+1 indicates the spare tire pressure should be displayed. 
+
+===== PAGE 11 =====
+• Bit 2: Display Style. 0 displays tires in a simple row;  
+1 displays them on a vehicle diagram. 
+• Bits 1-0: Unit of Measurement. These bits select the unit for the pressure bytes: 
+o 0x00 (00): 0.1 BAR 
+o 0x01 (01): PSI 
+o 0x02 (10): 2.5 KPA 
+ 
+Pressure Encoding Logic 
+The pressure for each tire is sent as a single byte. The raw byte value is multiplied by the unit 
+selected in the Status Byte to get the final reading. 
+A special value of  
+0xFF indicates that the pressure data for that specific tire has not been received or is invalid. 
+Example: Pressures in PSI 
+Let's assume the following conditions: 
+• Status: TPMS is present, no alarm, spare tire should be shown, car layout display is 
+used, and units are PSI. 
+• Pressures: FL=33 psi, FR=33 psi, RL=35 psi, RR=35 psi, Spare=No data. 
+1. Constructing the Status Byte (Byte 3) 
+• Bit 7 (Present) = 1 
+• Bit 6 (No Alarm) = 0 
+• Bit 5 (Show Spare) = 1 
+• Bits 4,3 (Unused) = 00 
+• Bit 2 (Car Layout) = 1 
+• Bits 1,0 (PSI Unit) = 01 
+• Resulting binary is 1010 0101, which is $0xA5. 
+2. Constructing the Payload 
+• Status: 0xA5 
+• FL: 33 decimal = 0x21 
+• FR: 33 decimal = 0x21 
+• RL: 35 decimal = 0x23 
+• RR: 35 decimal = 0x23 
+
+===== PAGE 12 =====
+• Spare: No data = 0xFF 
+• The full 6-byte payload is: A5 21 21 23 23 FF. 
+3. Final UART Frame The final frame, including the header, command, length, payload, and a 
+calculated checksum, would be: 2E 25 06 A5 21 21 23 23 FF A8 
+ 
+10. REMAINING RANGE 
+Frame Layout • Header (0x2E) • Cmd = 0x21 • Len = 0x07 • Payload: 
+• bytes 3–6 → padding (always 0x00) 
+• byte 7 → MSB of range 
+• byte 8 → LSB of range 
+• byte 9 → constant pad (0x02) • Checksum = (cmd + len + sum(payload)) ^ 0xFF 
+Formula C Style 
+uint16_t range_km = (uint16_t(frame[7]) << 8) 
+                  | uint16_t(frame[8]); 
+• e.g. sending … 02 1C 02 … ➔ MSB=0x02, LSB=0x1C yields 0x021C = 540 km 
+ 
+11. INSTANTENOUS FUEL CONSUMPTION 
+Command: 0x22 
+Byte Field Name Value Description 
+1 Head Code 0x2e Start of Frame 
+2 DataType 0x22 Identifies parameter as Instantaneous Fuel Consumption. 
+3 Length 0x03 Specifies a data payload of 3 bytes. 
+4 Data0 See Table 1 Specifies the unit of measurement being used. 
+5 Data1 0x00 - 0xFF High byte of the 16-bit consumption value. 
+6 Data2 0x00 - 0xFF Low byte of the 16-bit consumption value. 
+7 Checksum 0x00 - 0xFF Frame checksum. 
+ 
+
+===== PAGE 13 =====
+ 
+ 
+Table 1: Data0 (Unit of Measurement) 
+Hex Value Unit 
+0x00 MPG 
+0x01 KM/L 
+0x02 L/100KM 
+ 
+C-STYLE CALCULATION PROCEDURE 
+To obtain the display value for fuel consumption, the following procedure must be used. 
+(a) Combine Data1 (high byte) and Data2 (low byte) into a single 16-bit unsigned integer . 
+// uint8_t data1, data2; uint16_t rawValue = (data1 << 8) | data2; 
+(b) Convert the resulting 16-bit integer to a floating-point value and divide by 10.0. 
+// float finalValue; finalValue = (float)rawValue / 10.0f; 
+ 
+Example: 
+The value to be displayed on the head unit is 6.5 L/100KM. 
+Identify Data Bytes: 
+• Data0 = 0x02 (Unit is L/100KM) 
+• Data1 = 0x00 
+• Data2 = 0x41 
+Combine Bytes (Step a): 
+• rawValue = (0x00 << 8) | 0x41; 
+• rawValue is now 0x0041. 
+Calculate Final Value (Step b): 
+• The decimal equivalent of 0x41 is 65. 
+• finalValue = 65 / 10.0f; 
+• finalValue is now 6.5 
+FINAL FRAME: 2e 22 03 02 00 41 97 
+
+===== PAGE 14 =====
+ 
+12. PARKING BRAKE & SEATBELT (TBD)** 
+13. AUTOMATIC GEARBOX ICONS PRND*** 
+ 
+** - Parking brake, seatbelt and automatic gearbox PRND icons are on the same address 2E 
+03 06 XX XX CS and it’s a mess for now from Raise – to be done once they sort it out. 
+ 

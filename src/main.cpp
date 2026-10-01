@@ -423,8 +423,9 @@ void setup()
     // decode). On the bench (no live bus) CAN TX is gated off anyway; flip to "virtual"
     // (/api/route?mode=virtual) so the twin ACKs and full sequences emit.
     g_transport.setRoute(DisplayTransport::CAN_AND_VIRTUAL);
-    CAN0.setCANPins(GPIO_NUM_3, GPIO_NUM_4);
+    CAN0.setCANPins(GPIO_NUM_4,GPIO_NUM_3);
     CAN0.begin(CAN_BPS_500K);
+    
     CAN0.setGeneralCallback(gotFrame);
     CAN0.watchFor();
     LOGI("CAN", "CAN...............INIT");
